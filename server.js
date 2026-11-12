@@ -261,7 +261,8 @@ io.on('connection', (socket) => {
     room.activeRegion = area; room.transition = null; room.dungeon = null;
     const regionData = REGIONS.find((entry) => entry.id === area);
     const isBoss = payload.boss === true;
-    const enemy = isBoss ? regionData.boss : regionData.enemies[Math.floor(Math.random() * regionData.enemies.length)];
+    const selectedIndex = Number.isInteger(payload.enemyIndex) ? Math.max(0, Math.min(regionData.enemies.length - 1, payload.enemyIndex)) : Math.floor(Math.random() * regionData.enemies.length);
+    const enemy = isBoss ? regionData.boss : regionData.enemies[selectedIndex];
     room.battle = createBattle(room, { area, enemy: enemy.name, hp: enemy.hp, maxHp: enemy.hp, atk: enemy.atk, xp: enemy.xp, gold: enemy.gold, boss: isBoss });
     sendRoomMessage(room, isBoss ? `☠️ ${enemy.name} apareceu! Preparem-se!` : `⚔️ ${player.name} encontrou ${enemy.name}! A equipe pode atacar.`);
     emitRoom(room);

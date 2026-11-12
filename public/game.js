@@ -1,5 +1,7 @@
 const socket = io();
 const $ = id => document.getElementById(id);
+$("startAdventureBtn")?.addEventListener("click",()=>{$("titleScreen").classList.add("hidden");$("gameHeader").classList.remove("hidden");$("entry").classList.remove("hidden");});
+$("backTitleBtn")?.addEventListener("click",()=>{$("entry").classList.add("hidden");$("gameHeader").classList.add("hidden");$("titleScreen").classList.remove("hidden");});
 let currentCode = null, latestState = null, toastTimer;
 const characterId=localStorage.getItem('eldoriaCharacterId')||(crypto.randomUUID?crypto.randomUUID():'hero-'+Math.random().toString(36).slice(2));localStorage.setItem('eldoriaCharacterId',characterId);
 let localPosition = null;
@@ -20,7 +22,7 @@ const HEROES = {
 
 function toast(msg){ $("toast").textContent=msg; $("toast").classList.add("show"); clearTimeout(toastTimer); toastTimer=setTimeout(()=>$("toast").classList.remove("show"),3000); }
 function log(msg){ const el=document.createElement("div"); el.className="logline"; el.textContent=msg; $("log").prepend(el); }
-function enterGame(){ $("entry").classList.add("hidden"); $("game").classList.remove("hidden"); $("roomLabel").textContent=currentCode; }
+function enterGame(){ $("titleScreen")?.classList.add("hidden"); $("entry").classList.add("hidden"); $("gameHeader")?.classList.remove("hidden"); $("game").classList.remove("hidden"); $("roomLabel").textContent=currentCode; }
 function chosenHero(){ return $("heroClass").value || 'warrior'; }
 
 $("createBtn").onclick=()=>socket.emit("createRoom",{name:$("playerName").value,heroClass:chosenHero(),characterId});
@@ -35,6 +37,7 @@ $("merchantBtn").onclick=()=>$("merchant").classList.toggle("hidden");
 $("closeMerchant").onclick=()=>$("merchant").classList.add("hidden");
 document.querySelectorAll("[data-buy]").forEach(b=>b.onclick=()=>socket.emit("shop",{item:b.dataset.buy}));
 $("attackBtn").onclick=()=>socket.emit("battleAction",{action:"attack"});
+window.addEventListener("keydown",event=>{if(event.code!=="Space"||event.repeat)return;if(["INPUT","SELECT","TEXTAREA"].includes(document.activeElement?.tagName))return;if(latestState?.battle){event.preventDefault();$("attackBtn")?.click();}});
 $("potionBtn").onclick=()=>socket.emit("battleAction",{action:"potion"});
 $("fleeBtn").onclick=()=>socket.emit("battleAction",{action:"flee"});
 document.querySelectorAll("[data-npc]").forEach(button=>button.onclick=()=>socket.emit("talkNpc",{npc:button.dataset.npc}));
@@ -77,7 +80,7 @@ function heroSprite(heroKey, walking=false, facing='down', equipment={}) {
 
 function renderCampaign(state){
  const scenes=window.regionScenes||{},key=state.activeRegion||'village',scene=scenes[key]||scenes.village;
- if(scene){$('sceneTitle').textContent=scene.title;$('sceneSubtitle').textContent=scene.subtitle;$('regionScene').className='region-scene theme-'+scene.theme;$('sceneLandmarks').innerHTML='';scene.landmarks.forEach(place=>{const tag=document.createElement('span');tag.textContent='✦ '+place;$('sceneLandmarks').append(tag);});}
+ if(scene){$('sceneTitle').textContent=scene.title;$('sceneSubtitle').textContent=scene.subtitle;$('mapTitle').textContent=scene.title.toUpperCase();$('regionScene').className='region-scene theme-'+scene.theme;$('overworld').className='overworld map-theme-'+scene.theme;$('sceneLandmarks').innerHTML='';scene.landmarks.forEach(place=>{const tag=document.createElement('span');tag.textContent='✦ '+place;$('sceneLandmarks').append(tag);});}
  const regionData=window.gameRegions?.find(r=>r.id===key);$('enemyGallery').innerHTML='';(regionData?.enemies||[]).forEach(enemy=>{const chip=document.createElement('span');chip.className='enemy-chip';chip.textContent='☠ '+enemy.name+' • '+enemy.hp+' HP';$('enemyGallery').append(chip);});
  const dungeon=state.dungeon,dRooms=window.dungeonData?.[dungeon?.region]||[];
  $('dungeonDescription').textContent=dungeon?'Dungeon: '+(scenes[dungeon.region]?.title||dungeon.region):'Entre na dungeon da região atual. Cada dungeon possui quatro salas, incluindo um enigma e um guardião.';
@@ -86,6 +89,25 @@ function renderCampaign(state){
  $('dungeonStartBtn').disabled=!!state.battle||!!dungeon;
  $('sideQuestList').innerHTML='';(window.sideQuestData||[]).filter(q=>q.region===key).forEach(q=>{const p=state.sideQuests?.[q.id]||{};const item=document.createElement('div');item.className='sidequest';const title=document.createElement('strong');title.textContent=q.title;const desc=document.createElement('p');desc.textContent=q.description+' ('+(p.progress||0)+'/'+q.goal+')';item.append(title,desc);const btn=document.createElement('button');btn.textContent=p.completed?'Concluída':p.accepted?(p.progress>=q.goal?'Resgatar recompensa':'Em andamento'):'Aceitar missão';btn.disabled=!!state.battle||p.completed;btn.onclick=()=>socket.emit('sideQuest',{id:q.id,action:p.accepted?(p.progress>=q.goal?'claim':'accept'):'accept'});item.append(btn);$('sideQuestList').append(item);});
  if(state.transition&&window.lastTransitionAt!==state.transition.at){window.lastTransitionAt=state.transition.at;$('transitionTitle').textContent=state.transition.title+' conquistada!';$('transitionMessage').textContent=state.transition.message;$('transitionScreen').classList.remove('hidden');}
+}
+function enemyGlyph(name='') {
+  const n=name.toLowerCase();
+  if(n.includes('lobo')) return '🐺';
+  if(n.includes('goblin')) return '👺';
+  if(n.includes('aranha')) return '🕷️';
+  if(n.includes('orc')) return '👹';
+  if(n.includes('esqueleto')) return '💀';
+  if(n.includes('troll')) return '🧌';
+  if(n.includes('salamandra')) return '🦎';
+  if(n.includes('cultista')) return '🧙';
+  if(n.includes('golem')) return '🗿';
+  if(n.includes('cavaleiro')) return '🛡️';
+  if(n.includes('necromante')) return '🧟';
+  if(n.includes('abominação')) return '👾';
+  if(n.includes('drag')||n.includes('draco')) return '🐉';
+  if(n.includes('ent')) return '🌳';
+  if(n.includes('malakar')||n.includes('vazio')||n.includes('espectro')) return '👻';
+  return '👾';
 }
 function renderMap() {
   if (!latestState) return;
@@ -97,15 +119,11 @@ function renderMap() {
       marker = document.createElement('div');
       marker.className = 'map-player' + (p.id === socket.id ? ' me' : '');
       marker.dataset.playerId = p.id;
-      const name = document.createElement('span');
-      name.className = 'map-player-name';
-      const sprite = document.createElement('div');
-      sprite.className = 'sprite-holder';
-      marker.append(name, sprite);
-      layer.append(marker);
+      const name = document.createElement('span'); name.className = 'map-player-name';
+      const sprite = document.createElement('div'); sprite.className = 'sprite-holder';
+      marker.append(name, sprite); layer.append(marker);
     }
-    marker.style.left = `${p.x}%`;
-    marker.style.top = `${p.y}%`;
+    marker.style.left = `${p.x}%`; marker.style.top = `${p.y}%`;
     marker.style.zIndex = String(20 + Math.round(p.y));
     marker.querySelector('.map-player-name').textContent = p.name;
     const signature = `${p.classKey}|${p.facing}|${!!p.moving}|${p.equipment?.armor}|${p.equipment?.weapon}`;
@@ -116,8 +134,34 @@ function renderMap() {
     existing.delete(p.id);
   });
   existing.forEach(node => node.remove());
-}
 
+  const enemyLayer = $("enemyLayer");
+  if (!enemyLayer) return;
+  enemyLayer.innerHTML = '';
+  const area = latestState.activeRegion || 'village';
+  const region = window.gameRegions?.find(item => item.id === area);
+  if (latestState.battle || !region || latestState.world?.[area]) return;
+  region.enemies.forEach((enemy,index) => {
+    const monster = document.createElement('button');
+    monster.type = 'button'; monster.className = 'map-enemy';
+    monster.style.left = [22,51,78][index%3] + '%';
+    monster.style.top = [65,79,62][index%3] + '%';
+    monster.style.zIndex = String(40 + index);
+    monster.innerHTML = `<span class="monster-glyph">${enemyGlyph(enemy.name)}</span><span class="monster-name">${enemy.name}</span>`;
+    monster.title = `Enfrentar ${enemy.name}`;
+    monster.addEventListener('click', () => socket.emit('explore',{area,action:'enter',enemyIndex:index}));
+    enemyLayer.append(monster);
+  });
+  if (!latestState.world?.[area] && region.boss) {
+    const boss = document.createElement('button');
+    boss.type = 'button'; boss.className = 'map-enemy map-boss';
+    boss.style.left = '50%'; boss.style.top = '35%'; boss.style.zIndex = '60';
+    boss.innerHTML = `<span class="monster-glyph">${enemyGlyph(region.boss.name)}</span><span class="monster-name">CHEFE • ${region.boss.name}</span>`;
+    boss.title = `Desafiar ${region.boss.name}`;
+    boss.addEventListener('click', () => socket.emit('explore',{area,action:'enter',boss:true}));
+    enemyLayer.append(boss);
+  }
+}
 // Movimento no mapa sincronizado com os demais jogadores.
 const KEY_DIRECTIONS = {
   ArrowUp:'up', KeyW:'up', ArrowDown:'down', KeyS:'down',
@@ -230,7 +274,7 @@ $("musicVolume").addEventListener('input', () => {
   if (masterGain) masterGain.gain.setTargetAtTime(Number($("musicVolume").value)/100*0.16, audioContext.currentTime, 0.04);
 });
 
-fetch("/game-data").then(response=>response.json()).then(data=>{window.gameClasses=data.classes;window.gameQuests=data.quests;window.gameRegions=data.regions;const select=$("heroClass");select.innerHTML="";Object.entries(data.classes).forEach(([key,hero])=>{const option=document.createElement("option");option.value=key;option.textContent=`${hero.name} — ${hero.role} | ${hero.skill.name}`;select.append(option);});}).catch(()=>{});
+fetch("/game-data").then(response=>response.json()).then(data=>{window.gameClasses=data.classes;window.gameQuests=data.quests;window.gameRegions=data.regions;const select=$("heroClass");select.innerHTML="";Object.entries(data.classes).forEach(([key,hero])=>{const option=document.createElement("option");option.value=key;option.textContent=`${hero.name} — ${hero.role} | ${hero.skill.name}`;select.append(option);});if(latestState){renderCampaign(latestState);renderMap();}}).catch(()=>{});
 fetch('/campaign-data').then(r=>r.json()).then(data=>{window.regionScenes=data.scenes;window.dungeonData=data.dungeons;window.sideQuestData=data.sideQuests;}).catch(()=>{});
 socket.on("joined",data=>{currentCode=data.code;localPosition=null;enterGame();toast("Você entrou na aventura! Compartilhe o código.")});
 socket.on("errorMessage",toast);
@@ -280,14 +324,22 @@ socket.on("state",state=>{
 
  document.querySelectorAll("[data-area]").forEach(button=>{const area=button.dataset.area;const unlock={forest:null,cave:"forest",fire:"cave",castle:"fire",shadow:"castle"}[area];button.disabled=!!state.battle||!!state.world[area]||(!!unlock&&!state.world[unlock]);});
  const bossUnlock={forest:true,cave:state.world.forest,fire:state.world.cave,castle:state.world.fire,shadow:state.world.castle};document.querySelectorAll("[data-boss-area]").forEach(button=>{const area=button.dataset.bossArea;button.disabled=!!state.battle||!bossUnlock[area]||!!state.world[area];});
- $("townActions").classList.toggle("hidden",!!state.battle);
+ $("townActions").classList.add("hidden");
  if(state.battle) $("merchant").classList.add("hidden");
  const b=state.battle;
- $("battle").classList.toggle("hidden",!b);$("actions").classList.toggle("hidden",!!b);
+ $("battle").classList.toggle("hidden",!b);
+ const campaignOrder=['forest','cave','fire','castle','shadow'];
+ const current=state.activeRegion||'village';
+ const nextIndex=campaignOrder.indexOf(current)+1;
+ const nextArea=campaignOrder[nextIndex];
+ const actionButton=$("actions").querySelector('[data-area]');
+ const regionCleared=!!state.world?.[current];
+ $("actions").classList.toggle("hidden",!!b || (current!=='village'&&!regionCleared) || !nextArea && current!=='village');
+ if(actionButton){actionButton.dataset.area=current==='village'?'forest':(regionCleared?nextArea:'forest');actionButton.textContent=current==='village'?'Seguir para a Floresta':(regionCleared&&nextArea?'Avançar para '+(window.regionScenes?.[nextArea]?.title||nextArea):'');}
  if(b){
    $("areaTitle").textContent="Combate cooperativo";
    $("storyText").textContent="A equipe precisa agir em conjunto. Cada jogador tem uma ação por rodada.";
-   $("enemyName").textContent=b.enemy;$("enemyHp").textContent=`${b.hp} / ${b.maxHp} de vida`;
+   $("enemyName").textContent=b.enemy;$("enemyPortrait").textContent=enemyGlyph(b.enemy);$("enemyHp").textContent=`${b.hp} / ${b.maxHp} de vida`;
    $("enemyBar").style.width=(100*b.hp/b.maxHp)+"%";
    const me=state.players.find(p=>p.id===socket.id);
    const isMyTurn=!!me&&b.activePlayerId===socket.id&&me.hp>0;
@@ -299,7 +351,8 @@ socket.on("state",state=>{
        ? `Rodada ${b.turn}: vez de ${activePlayer.name}. Aguarde sua vez.`
        : "Aguardando o próximo turno.";
  } else {
-   $("areaTitle").textContent="Vila de Eldoria";
+   $("areaTitle").textContent=window.regionScenes?.[state.activeRegion]?.title || "Vila de Eldoria";
+   $("mapTitle").textContent=(window.regionScenes?.[state.activeRegion]?.title || "ELDORIA").toUpperCase();
    $("storyText").textContent=state.world.shadow?"O reino está livre da escuridão! Malakar foi derrotado. A vitória pertence à equipe.":"Reúnam seus aliados e preparem-se para enfrentar as sombras. Caminhe pela vila usando WASD, as setas ou os controles na tela.";
  }
  renderMap();
