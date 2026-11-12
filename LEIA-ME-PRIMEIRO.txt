@@ -1,0 +1,37 @@
+AS CRÔNICAS DO REINO SOMBRIO — PROJETO ONLINE
+Versão inicial limpa para publicar no Render.
+
+ESTRUTURA OBRIGATÓRIA NA RAIZ DO REPOSITÓRIO GITHUB:
+  server.js
+  package.json
+  .gitignore
+  public/
+    index.html
+    game.js
+    style.css
+    assets/
+      eldoria-scene.svg
+
+ATENÇÃO:
+Ao enviar ao GitHub, entre nesta pasta e envie os ARQUIVOS E A PASTA public que estão DENTRO dela.
+Não envie o ZIP. Não deixe tudo dentro de outra pasta chamada ReinoSombrio_Online.
+
+CONFIGURAÇÃO DO RENDER:
+  Service type: Web Service
+  Runtime: Node
+  Root Directory: (deixar vazio)
+  Build Command: npm install
+  Start Command: npm start
+  Health Check Path: /health (se esse campo estiver disponível)
+
+O arquivo server.js procura public usando o caminho da própria pasta dele.
+Portanto, server.js e public precisam estar lado a lado na raiz do projeto.
+
+TESTES DEPOIS DA PUBLICAÇÃO:
+  https://SEU-ENDERECO.onrender.com/health
+  Deve retornar um JSON com ok: true e indexExists: true.
+  https://SEU-ENDERECO.onrender.com/
+  Deve abrir a tela inicial do jogo.
+
+Este MVP mantém as salas apenas na memória do servidor. Se o servidor reiniciar,
+as salas em andamento são perdidas. Ainda não há salvamento permanente.
