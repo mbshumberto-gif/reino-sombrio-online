@@ -80,7 +80,7 @@ function heroSprite(heroKey, walking=false, facing='down', equipment={}) {
 
 function renderCampaign(state){
  const scenes=window.regionScenes||{},key=state.activeRegion||'village',scene=scenes[key]||scenes.village;
- if(scene){$('sceneTitle').textContent=scene.title;$('sceneSubtitle').textContent=scene.subtitle;$('mapTitle').textContent=scene.title.toUpperCase();$('regionScene').className='region-scene theme-'+scene.theme;$('overworld').className='overworld map-theme-'+scene.theme;$('sceneLandmarks').innerHTML='';scene.landmarks.forEach(place=>{const tag=document.createElement('span');tag.textContent='✦ '+place;$('sceneLandmarks').append(tag);});}
+ if(scene){$('sceneTitle').textContent=scene.title;$('sceneSubtitle').textContent=scene.subtitle;$('mapTitle').textContent=scene.title.toUpperCase();$('regionScene').className='region-scene theme-'+scene.theme;$('overworld').className='overworld pixel-world map-theme-'+scene.theme;$('sceneLandmarks').innerHTML='';scene.landmarks.forEach(place=>{const tag=document.createElement('span');tag.textContent='✦ '+place;$('sceneLandmarks').append(tag);});}
  const regionData=window.gameRegions?.find(r=>r.id===key);$('enemyGallery').innerHTML='';(regionData?.enemies||[]).forEach(enemy=>{const chip=document.createElement('span');chip.className='enemy-chip';chip.textContent='☠ '+enemy.name+' • '+enemy.hp+' HP';$('enemyGallery').append(chip);});
  const dungeon=state.dungeon,dRooms=window.dungeonData?.[dungeon?.region]||[];
  $('dungeonDescription').textContent=dungeon?'Dungeon: '+(scenes[dungeon.region]?.title||dungeon.region):'Entre na dungeon da região atual. Cada dungeon possui quatro salas, incluindo um enigma e um guardião.';
@@ -110,6 +110,7 @@ function enemyGlyph(name='') {
   return '👾';
 }
 const TILE_SIZE = 32, MAP_COLS = 30, MAP_ROWS = 18;
+const KEY_DIRECTIONS = {ArrowUp:"up",KeyW:"up",ArrowDown:"down",KeyS:"down",ArrowLeft:"left",KeyA:"left",ArrowRight:"right",KeyD:"right"};
 const worldCache = new Map();
 const REGION_STORY = {
  village:"Há vinte anos, Malakar foi derrotado e desapareceu nas montanhas. Agora, os sinos de Eldoria tocam sozinhos e uma névoa negra cobre os campos. A cronista Aderic acredita que alguém está reunindo os antigos selos.",
@@ -405,8 +406,8 @@ $("musicVolume").addEventListener('input', () => {
 });
 
 fetch("/game-data").then(response=>response.json()).then(data=>{window.gameClasses=data.classes;window.gameQuests=data.quests;window.gameRegions=data.regions;const select=$("heroClass");select.innerHTML="";Object.entries(data.classes).forEach(([key,hero])=>{const option=document.createElement("option");option.value=key;option.textContent=`${hero.name} — ${hero.role} | ${hero.skill.name}`;select.append(option);});if(latestState){renderCampaign(latestState);renderMap();}}).catch(()=>{});
-fetch('/campaign-data').then(r=>r.json()).then(data=>{window.regionScenes=data.scenes;window.dungeonData=data.dungeons;window.sideQuestData=data.sideQuests;}).catch(()=>{});
-socket.on("joined",data=>{currentCode=data.code;localPosition=null;enterGame();toast("Você entrou na aventura! Compartilhe o código.")});
+fetch('/campaign-data').then(r=>r.json()).then(data=>{window.regionScenes=data.scenes;window.dungeonData=data.dungeons;window.sideQuestData=data.sideQuests;if(latestState){renderCampaign(latestState);renderMap();}}).catch(()=>{});
+socket.on("joined",data=>{currentCode=data.code;localPosition=null;enterGame();worldLoopActive=true;requestAnimationFrame(worldAnimation);toast("Você entrou na aventura! Explore Eldoria com WASD ou as setas.")});
 socket.on("errorMessage",toast);
 socket.on("notice",msg=>{toast(msg);log(msg)});
 const remoteMoveTimers = new Map();
@@ -469,7 +470,7 @@ socket.on("state",state=>{
  if(b){
    $("areaTitle").textContent="Combate cooperativo";
    $("storyText").textContent="A equipe precisa agir em conjunto. Cada jogador tem uma ação por rodada.";
-   $("enemyName").textContent=b.enemy;$("enemyPortrait").textContent=enemyGlyph(b.enemy);$("enemyHp").textContent=`${b.hp} / ${b.maxHp} de vida`;
+   $("enemyName").textContent=b.enemy;const portrait=$("enemyPortrait").getContext("2d");portrait.clearRect(0,0,160,140);pixelMonster(portrait,b.enemy,80,76,5.2,!!b.boss,Date.now());$("enemyHp").textContent=`${b.hp} / ${b.maxHp} de vida`;
    $("enemyBar").style.width=(100*b.hp/b.maxHp)+"%";
    const me=state.players.find(p=>p.id===socket.id);
    const isMyTurn=!!me&&b.activePlayerId===socket.id&&me.hp>0;
@@ -483,7 +484,7 @@ socket.on("state",state=>{
  } else {
    $("areaTitle").textContent=window.regionScenes?.[state.activeRegion]?.title || "Vila de Eldoria";
    $("mapTitle").textContent=(window.regionScenes?.[state.activeRegion]?.title || "ELDORIA").toUpperCase();
-   $("storyText").textContent=state.world.shadow?"O reino está livre da escuridão! Malakar foi derrotado. A vitória pertence à equipe.":"Reúnam seus aliados e preparem-se para enfrentar as sombras. Caminhe pela vila usando WASD, as setas ou os controles na tela.";
+   $("storyText").textContent=state.world.shadow?"O reino está livre da escuridão! Malakar foi derrotado. A vitória pertence à equipe.":(REGION_STORY[state.activeRegion||"village"]||"Explore o mundo e descubra seus segredos.");
  }
  renderMap();
 });
