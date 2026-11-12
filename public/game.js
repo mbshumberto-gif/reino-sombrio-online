@@ -1,7 +1,7 @@
 const socket = io();
+const $ = id => document.getElementById(id);
 $("startAdventureBtn")?.addEventListener("click",()=>{$("titleScreen").classList.add("hidden");$("gameHeader").classList.remove("hidden");$("entry").classList.remove("hidden");});
 $("backTitleBtn")?.addEventListener("click",()=>{$("entry").classList.add("hidden");$("gameHeader").classList.add("hidden");$("titleScreen").classList.remove("hidden");});
-const $ = id => document.getElementById(id);
 let currentCode = null, latestState = null, toastTimer;
 const characterId=localStorage.getItem('eldoriaCharacterId')||(crypto.randomUUID?crypto.randomUUID():'hero-'+Math.random().toString(36).slice(2));localStorage.setItem('eldoriaCharacterId',characterId);
 let localPosition = null;
@@ -80,7 +80,7 @@ function heroSprite(heroKey, walking=false, facing='down', equipment={}) {
 
 function renderCampaign(state){
  const scenes=window.regionScenes||{},key=state.activeRegion||'village',scene=scenes[key]||scenes.village;
- if(scene){$('sceneTitle').textContent=scene.title;$('sceneSubtitle').textContent=scene.subtitle;$('regionScene').className='region-scene theme-'+scene.theme;$('sceneLandmarks').innerHTML='';scene.landmarks.forEach(place=>{const tag=document.createElement('span');tag.textContent='✦ '+place;$('sceneLandmarks').append(tag);});}
+ if(scene){$('sceneTitle').textContent=scene.title;$('sceneSubtitle').textContent=scene.subtitle;$('regionScene').className='region-scene theme-'+scene.theme;$('overworld').className='overworld map-theme-'+scene.theme;$('sceneLandmarks').innerHTML='';scene.landmarks.forEach(place=>{const tag=document.createElement('span');tag.textContent='✦ '+place;$('sceneLandmarks').append(tag);});}
  const regionData=window.gameRegions?.find(r=>r.id===key);$('enemyGallery').innerHTML='';(regionData?.enemies||[]).forEach(enemy=>{const chip=document.createElement('span');chip.className='enemy-chip';chip.textContent='☠ '+enemy.name+' • '+enemy.hp+' HP';$('enemyGallery').append(chip);});
  const dungeon=state.dungeon,dRooms=window.dungeonData?.[dungeon?.region]||[];
  $('dungeonDescription').textContent=dungeon?'Dungeon: '+(scenes[dungeon.region]?.title||dungeon.region):'Entre na dungeon da região atual. Cada dungeon possui quatro salas, incluindo um enigma e um guardião.';
@@ -152,6 +152,15 @@ function renderMap() {
     monster.addEventListener('click', () => socket.emit('explore',{area,action:'enter',enemyIndex:index}));
     enemyLayer.append(monster);
   });
+  if (!latestState.world?.[area] && region.boss) {
+    const boss = document.createElement('button');
+    boss.type = 'button'; boss.className = 'map-enemy map-boss';
+    boss.style.left = '50%'; boss.style.top = '35%'; boss.style.zIndex = '60';
+    boss.innerHTML = `<span class="monster-glyph">${enemyGlyph(region.boss.name)}</span><span class="monster-name">CHEFE • ${region.boss.name}</span>`;
+    boss.title = `Desafiar ${region.boss.name}`;
+    boss.addEventListener('click', () => socket.emit('explore',{area,action:'enter',boss:true}));
+    enemyLayer.append(boss);
+  }
 }
 // Movimento no mapa sincronizado com os demais jogadores.
 const KEY_DIRECTIONS = {
