@@ -231,6 +231,7 @@ $("musicVolume").addEventListener('input', () => {
 });
 
 fetch("/game-data").then(response=>response.json()).then(data=>{window.gameClasses=data.classes;window.gameQuests=data.quests;window.gameRegions=data.regions;const select=$("heroClass");select.innerHTML="";Object.entries(data.classes).forEach(([key,hero])=>{const option=document.createElement("option");option.value=key;option.textContent=`${hero.name} — ${hero.role} | ${hero.skill.name}`;select.append(option);});}).catch(()=>{});
+fetch('/campaign-data').then(r=>r.json()).then(data=>{window.regionScenes=data.scenes;window.dungeonData=data.dungeons;window.sideQuestData=data.sideQuests;}).catch(()=>{});
 socket.on("joined",data=>{currentCode=data.code;localPosition=null;enterGame();toast("Você entrou na aventura! Compartilhe o código.")});
 socket.on("errorMessage",toast);
 socket.on("notice",msg=>{toast(msg);log(msg)});
@@ -251,6 +252,7 @@ socket.on('playerMoved', data => {
 });
 socket.on("state",state=>{
  latestState=state;
+ renderCampaign(state);
  const meNow = state.players.find(p => p.id === socket.id);
  if (meNow) localPosition = {x:meNow.x,y:meNow.y};
  if (state.battle) { heldKeys.clear(); localPosition = null; }
