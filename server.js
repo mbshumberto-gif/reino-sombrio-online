@@ -35,22 +35,50 @@ app.get('/', (_req, res) => {
 app.use(express.static(PUBLIC_DIR, { index: false }));
 
 const rooms = new Map();
+
+// Classes jogáveis: cada uma tem aparência e atributos próprios.
+const HERO_CLASSES = {
+  warrior: { name: 'Guerreiro', hp: 120, attack: 13, defense: 6, weapon: 'Espada de ferro' },
+  archer:  { name: 'Arqueira', hp: 100, attack: 16, defense: 3, weapon: 'Arco simples' },
+  mage:    { name: 'Maga', hp: 90, attack: 19, defense: 2, weapon: 'Cajado arcano' },
+  druid:   { name: 'Druida', hp: 110, attack: 12, defense: 5, weapon: 'Cajado de madeira' }
+};
+
+const SPAWN_POINTS = [
+  { x: 46, y: 78 }, { x: 55, y: 82 }, { x: 64, y: 77 }, { x: 36, y: 83 },
+  { x: 73, y: 82 }, { x: 27, y: 77 }, { x: 49, y: 88 }, { x: 59, y: 87 }
+];
+
 const cleanName = (value) => String(value || '').replace(/[<>]/g, '').trim().slice(0, 18);
 const createRoomCode = () => crypto.randomBytes(3).toString('hex').toUpperCase();
 
-function makePlayer(id, name) {
+function makePlayer(id, name, classKey, spawn) {
+  const hero = HERO_CLASSES[classKey] ? classKey : 'warrior';
+  const config = HERO_CLASSES[hero];
   return {
-    id, name, hp: 100, maxHp: 100, attack: 12, defense: 3,
+    id, name, classKey: hero, className: config.name,
+    x: spawn.x, y: spawn.y, facing: 'down',
+    hp: config.hp, maxHp: config.hp, attack: config.attack, defense: config.defense,
     level: 1, xp: 0, gold: 20, potions: 3,
-    weapon: 'Espada enferrujada', ready: false
+    weapon: config.weapon, ready: false, lastMoveAt: 0
   };
+}
+
+function nextSpawn(room) {
+  return SPAWN_POINTS[room.players.size % SPAWN_POINTS.length];
 }
 
 function publicRoom(room) {
   return {
     code: room.code,
     hostId: room.hostId,
-    players: [...room.players.values()].map((player) => ({ ...player })),
+    players: [...room.players.values()].map((player) => ({
+      id: player.id, name: player.name, classKey: player.classKey, className: player.className,
+      x: player.x, y: player.y, facing: player.facing,
+      hp: player.hp, maxHp: player.maxHp, attack: player.attack, defense: player.defense,
+      level: player.level, xp: player.xp, gold: player.gold, potions: player.potions,
+      weapon: player.weapon, ready: player.ready
+    })),
     world: room.world,
     battle: room.battle
   };
@@ -83,6 +111,7 @@ function addExperience(player, amount) {
 io.on('connection', (socket) => {
   socket.on('createRoom', (payload = {}) => {
     const name = cleanName(payload.name) || 'Aventureiro';
+    const heroClass = HERO_CLASSES[payload.heroClass] ? payload.heroClass : 'warrior';
     let roomCode;
     do { roomCode = createRoomCode(); } while (rooms.has(roomCode));
 
@@ -94,7 +123,7 @@ io.on('connection', (socket) => {
       battle: null
     };
 
-    room.players.set(socket.id, makePlayer(socket.id, name));
+    room.players.set(socket.id, makePlayer(socket.id, name, heroClass, nextSpawn(room)));
     rooms.set(roomCode, room);
     socket.join(roomCode);
     socket.emit('joined', { code: roomCode });
@@ -103,6 +132,7 @@ io.on('connection', (socket) => {
 
   socket.on('joinRoom', (payload = {}) => {
     const name = cleanName(payload.name) || 'Aventureiro';
+    const heroClass = HERO_CLASSES[payload.heroClass] ? payload.heroClass : 'warrior';
     const roomCode = String(payload.roomCode || '').trim().toUpperCase();
     const room = rooms.get(roomCode);
     if (!room) return socket.emit('errorMessage', 'Sala não encontrada. Confira o código.');
@@ -111,11 +141,38 @@ io.on('connection', (socket) => {
       return socket.emit('errorMessage', 'Esse nome já está sendo usado nesta sala.');
     }
 
-    room.players.set(socket.id, makePlayer(socket.id, name));
+    room.players.set(socket.id, makePlayer(socket.id, name, heroClass, nextSpawn(room)));
     socket.join(roomCode);
     socket.emit('joined', { code: roomCode });
     sendRoomMessage(room, `${name} entrou na aventura!`);
     emitRoom(room);
+  });
+
+  // Movimento compartilhado no mapa da vila. O servidor limita a velocidade
+  // e mantém as posições oficiais de todos os personagens.
+  socket.on('movePlayer', (payload = {}) => {
+    const room = findRoomByPlayerId(socket.id);
+    if (!room || room.battle) return;
+    const player = room.players.get(socket.id);
+    const now = Date.now();
+    if (now - player.lastMoveAt < 45) return;
+
+    const requestedX = Number(payload.x);
+    const requestedY = Number(payload.y);
+    const allowedFacing = ['up', 'down', 'left', 'right'];
+    if (!Number.isFinite(requestedX) || !Number.isFinite(requestedY)) return;
+
+    const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+    const deltaX = clamp(requestedX - player.x, -2.2, 2.2);
+    const deltaY = clamp(requestedY - player.y, -2.2, 2.2);
+    player.x = clamp(player.x + deltaX, 5, 95);
+    player.y = clamp(player.y + deltaY, 58, 91);
+    player.facing = allowedFacing.includes(payload.facing) ? payload.facing : player.facing;
+    player.lastMoveAt = now;
+
+    socket.to(room.code).emit('playerMoved', {
+      id: player.id, x: player.x, y: player.y, facing: player.facing
+    });
   });
 
   socket.on('ready', () => {
