@@ -73,7 +73,7 @@ function publicRoom(room) {
       x: player.x, y: player.y, facing: player.facing,
       hp: player.hp, maxHp: player.maxHp, attack: player.attack, defense: player.defense,
       mana: player.mana, maxMana: player.maxMana, level: player.level, xp: player.xp, gold: player.gold, potions: player.potions,
-      weapon: player.weapon, armor: player.armor, equipment: player.equipment, inventory: player.inventory,
+      weapon: player.weapon, armor: player.armor, equipment: player.equipment, inventory: { potions: player.potions, weapon: player.weapon, armor: player.armor },
       skillPoints: player.skillPoints, skillCooldown: player.skillCooldown, ready: player.ready
     })),
     world: room.world,
@@ -428,6 +428,24 @@ io.on('connection', (socket) => {
       sendRoomMessage(room, `🔄 Rodada ${battle.turn}: ${nextPlayer.name} começa.`);
     }
 
+    emitRoom(room);
+  });
+
+  socket.on('talkNpc', (payload = {}) => {
+    const room = findRoomByPlayerId(socket.id);
+    if (!room) return;
+    if (room.battle) return socket.emit('errorMessage', 'Não é possível conversar durante o combate.');
+    const player = room.players.get(socket.id);
+    if (payload.npc === 'healer') {
+      if (player.gold < 15) return socket.emit('errorMessage', 'A curandeira cobra 15 ouros pelo tratamento.');
+      player.gold -= 15; player.hp = player.maxHp; player.mana = player.maxMana;
+      sendPlayerMessage(player, '✚ A curandeira restaurou toda a sua vida e mana.');
+    } else if (payload.npc === 'blacksmith') {
+      sendPlayerMessage(player, '⚒ O ferreiro oferece armas e armaduras. Abra o mercador para conferir os equipamentos disponíveis.');
+    } else if (payload.npc === 'chronicler') {
+      const next = QUESTS.find(quest => !room.quests[quest.id].completed);
+      sendPlayerMessage(player, next ? `📜 Cronista: ${next.title} — ${next.description}` : '📜 Cronista: você concluiu todas as crônicas de Eldoria.');
+    } else return;
     emitRoom(room);
   });
 
