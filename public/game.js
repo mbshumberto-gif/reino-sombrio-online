@@ -42,7 +42,7 @@ $("defendBtn").onclick=()=>socket.emit("battleAction",{action:"defend"});
 $("skillBtn").onclick=()=>socket.emit("battleAction",{action:"skill"});
 $("skillUpgradeBtn").onclick=()=>socket.emit("upgradeSkill");
 $("dungeonStartBtn").onclick=()=>socket.emit('startDungeon',{area:latestState?.activeRegion==='village'?'forest':latestState?.activeRegion});
-$("dungeonRoomBtn").onclick=()=>socket.emit('dungeonAction',{action:'enter',answer:prompt('Inscrição da sala: digite a palavra-chave')});
+$("dungeonRoomBtn").onclick=()=>{const d=latestState?.dungeon;const r=window.dungeonData?.[d?.region]?.[d?.currentRoom];const answer=r?.kind==='puzzle'?prompt('Enigma: '+r.description+'\nDica: a palavra que representa o reino onde tudo começou.') : undefined;socket.emit('dungeonAction',{action:'enter',answer});};
 $("dungeonAdvanceBtn").onclick=()=>socket.emit('dungeonAction',{action:'advance'});
 $("dungeonLeaveBtn").onclick=()=>socket.emit('dungeonAction',{action:'leave'});
 $("continueCampaignBtn").onclick=()=>{$("transitionScreen").classList.add('hidden');};
