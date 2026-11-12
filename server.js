@@ -17,7 +17,7 @@ const INDEX_FILE = path.join(PUBLIC_DIR, 'index.html');
 
 // Rotas de diagnóstico e da página inicial.
 app.get('/health', (_req, res) => {
-  res.status(200).json({ ok: true, game: 'Reino Sombrio Online', indexExists: fs.existsSync(INDEX_FILE) });
+  res.status(200).json({ ok: true, game: 'Reino Sombrio Online', indexExists: fs.existsSync(INDEX_FILE), database: persistence.hasDatabase() });
 });
 
 app.get('/', (_req, res) => {
@@ -36,9 +36,10 @@ app.use(express.static(PUBLIC_DIR, { index: false }));
 
 const rooms = new Map();
 const { HERO_CLASSES, EQUIPMENT, REGIONS, QUESTS } = require('./game-data');
-const { REGION_SCENES, DUNGEONS, SIDE_QUESTS } = require('./campaign-expansion');
+const { REGION_SCENES, DUNGEONS, SIDE_QUESTS, DIALOGUES } = require('./campaign-expansion');
 const persistence = require('./persistence');
 app.get('/game-data', (_req, res) => res.json({ classes: HERO_CLASSES, regions: REGIONS, quests: QUESTS, equipment: EQUIPMENT }));
+app.get('/campaign-data', (_req,res)=>res.json({scenes:REGION_SCENES,dungeons:DUNGEONS,sideQuests:SIDE_QUESTS}));
 app.get('/health', (_req,res)=>res.status(200).json({ok:true,database:persistence.hasDatabase()}));
 app.get('/campaign-data', (_req,res)=>res.json({scenes:REGION_SCENES,dungeons:DUNGEONS,sideQuests:SIDE_QUESTS}));
 
@@ -416,7 +417,7 @@ io.on('connection', (socket) => {
         candidate.gold += defeated.gold;
         addExperience(candidate, defeated.xp);
       }
-      if (defeated.boss) {
+      if (defeated.boss && defeated.dungeonRoomIndex === undefined) {
         room.world[defeated.area] = true;
         const regionIndex = REGIONS.findIndex(region => region.id === defeated.area);
         const nextRegion = REGIONS[regionIndex + 1]?.id || null;
@@ -506,13 +507,13 @@ io.on('connection', (socket) => {
     if (payload.npc === 'healer') {
       if (player.gold < 15) return socket.emit('errorMessage', 'A curandeira cobra 15 ouros pelo tratamento.');
       player.gold -= 15; player.hp = player.maxHp; player.mana = player.maxMana;
-      sendPlayerMessage(player, '✚ A curandeira restaurou toda a sua vida e mana.');
+      socket.emit('dialogue',{title:'Mira, a Curandeira',lines:DIALOGUES.healer.map(line=>line.text).concat('Pronto. Suas forças foram restauradas.')});
     } else if (payload.npc === 'blacksmith') {
-      sendPlayerMessage(player, '⚒ O ferreiro oferece armas e armaduras. Abra o mercador para conferir os equipamentos disponíveis.');
+      socket.emit('dialogue', { title:'Eldrin, o Ferreiro', lines:DIALOGUES.blacksmith.map(line=>line.text).concat('Abra o mercador para conferir armas e armaduras disponíveis.') });
     } else if (payload.npc === 'chronicler') {
       const next = QUESTS.find(quest => !room.quests[quest.id].completed);
-      sendPlayerMessage(player, next ? `📜 Cronista: ${next.title} — ${next.description}` : '📜 Cronista: você concluiu todas as crônicas de Eldoria.');
-    } else if (payload.npc === 'villager') { sendPlayerMessage(player, '👩 Moradora: Meu irmão desapareceu na floresta. Dizem que uma relíquia pode mostrar o caminho.'); }
+      socket.emit('dialogue', { title:'Cronista Aderic', lines:DIALOGUES.chronicler.map(line=>line.text).concat(next ? `A próxima crônica é: ${next.title}. ${next.description}` : 'Você concluiu todas as crônicas de Eldoria.') });
+    } else if (payload.npc === 'villager') { socket.emit('dialogue',{title:'Moradora de Eldoria',lines:DIALOGUES.villager.map(line=>line.text).concat('Se encontrar a relíquia, leve-a ao cronista. Ele saberá o que fazer.')}); }
     else return;
     emitRoom(room);
   });
