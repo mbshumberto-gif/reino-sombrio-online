@@ -6,7 +6,7 @@ const path = require('node:path');
 
 test('a página usa somente o modo de plataforma 2D', () => {
   const html = fs.readFileSync(path.join(__dirname, '../public/index.html'), 'utf8');
-  assert.match(html, /platformer\.js\?v=3/);
+  assert.match(html, /platformer\.js\?v=4/);
   assert.doesNotMatch(html, /rpg\.js/);
   assert.match(html, /data-move="left"/);
   assert.match(html, /data-move="right"/);
