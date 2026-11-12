@@ -1,335 +1,686 @@
-/* RPG de cima (estilo Pokémon): câmera, visual, movimento e diálogos.
-   Carregue DEPOIS do game.js. Não altera nenhuma comunicação online. */
-(() => {
-  const W = 960, H = 576, FADE_MS = 1100;
-  const Z = 1.5;                       // zoom da câmera (2 = mais perto, 1 = vê o mapa todo)
-  const VW = W / Z, VH = H / Z;        // parte do mundo visível na tela
-  const cam = { x: 0, y: 0, init: false };
-  const smooth = new Map();
-  let lastArea = null, fadeStart = 0, rescue = null;
+'use strict';
 
-  // ---------- Partículas ambiente por região ----------
-  const PART = {
-    village: { c: "#fff3b0", n: 26, dy: -8, dx: 6, s: 3 },
-    forest:  { c: "#c8ff7a", n: 34, dy: -6, dx: 5, s: 4 },
-    cave:    { c: "#8be9e4", n: 30, dy: -4, dx: 3, s: 3 },
-    fire:    { c: "#ffb347", n: 46, dy: -42, dx: 6, s: 3 },
-    castle:  { c: "#d9cfc2", n: 28, dy: -5, dx: 8, s: 3 },
-    shadow:  { c: "#d08bf2", n: 40, dy: -14, dx: 9, s: 4 }
+// Proteção: um erro inesperado não derruba mais o servidor (ele aparece nos Logs do Render).
+process.on('uncaughtException', err => console.error('Erro não tratado:', err));
+process.on('unhandledRejection', err => console.error('Promessa rejeitada:', err));
+
+const express = require('express');
+const http = require('http');
+const { Server } = require('socket.io');
+const crypto = require('crypto');
+const fs = require('fs');
+const path = require('path');
+
+const app = express();
+const httpServer = http.createServer(app);
+const io = new Server(httpServer);
+
+const PORT = Number(process.env.PORT) || 3000;
+const PUBLIC_DIR = path.resolve(__dirname, 'public');
+const INDEX_FILE = path.join(PUBLIC_DIR, 'index.html');
+
+// Rotas de diagnóstico e da página inicial.
+app.get('/health', (_req, res) => {
+  res.status(200).json({ ok: true, game: 'Reino Sombrio Online', indexExists: fs.existsSync(INDEX_FILE), database: persistence.hasDatabase() });
+});
+
+app.get('/', (_req, res) => {
+  if (!fs.existsSync(INDEX_FILE)) {
+    console.error(`Página inicial não encontrada: ${INDEX_FILE}`);
+    return res.status(500).type('text').send(
+      'O servidor iniciou, mas não encontrou public/index.html. ' +
+      'Confira se a pasta public está no mesmo nível de server.js.'
+    );
+  }
+  return res.sendFile(INDEX_FILE);
+});
+
+// Arquivos do jogo: CSS, JavaScript e imagens.
+app.use(express.static(PUBLIC_DIR, { index: false }));
+
+const rooms = new Map();
+const { HERO_CLASSES, EQUIPMENT, REGIONS, QUESTS } = require('./game-data');
+const { REGION_SCENES, DUNGEONS, SIDE_QUESTS, DIALOGUES } = require('./campaign-expansion');
+const persistence = require('./persistence');
+app.get('/game-data', (_req, res) => res.json({ classes: HERO_CLASSES, regions: REGIONS, quests: QUESTS, equipment: EQUIPMENT }));
+app.get('/campaign-data', (_req,res)=>res.json({scenes:REGION_SCENES,dungeons:DUNGEONS,sideQuests:SIDE_QUESTS}));
+
+const SPAWN_POINTS = [
+  { x: 448, y: 470 }, { x: 496, y: 470 }, { x: 400, y: 470 }, { x: 544, y: 470 },
+  { x: 352, y: 470 }, { x: 592, y: 470 }, { x: 304, y: 470 }, { x: 640, y: 470 }
+];
+
+const cleanName = (value) => String(value || '').replace(/[<>]/g, '').trim().slice(0, 18);
+const createRoomCode = () => crypto.randomBytes(3).toString('hex').toUpperCase();
+
+function makePlayer(id, name, classKey, spawn, characterId, saved = {}) {
+  const hero = HERO_CLASSES[classKey] ? classKey : 'warrior';
+  const config = HERO_CLASSES[hero];
+  const fresh = {
+    id, name, characterId, classKey: hero, className: config.name,
+    x: spawn.x, y: spawn.y, facing: 'down',
+    hp: config.hp, maxHp: config.hp, attack: config.attack, baseAttack: config.attack, defense: config.defense, baseDefense: config.defense,
+    mana: config.mana, maxMana: config.mana, level: 1, xp: 0, gold: 50, potions: 3,
+    weapon: config.weapon, armor: 'Vestuário de aventureiro', equipment: { weapon: null, armor: null },
+    inventory: ['Poção de vida x3'], skillPoints: 0, skillLevel: 1, skillCooldown: 0, defending: false, buffs: {},
+    ready: false, lastMoveAt: 0
   };
-  const seeds = Array.from({ length: 60 }, (_, i) => ({ a: (i * 97) % W, b: (i * 53) % H, p: i * 0.7 }));
+  return { ...fresh, ...saved, id, name, characterId, classKey: hero, className: config.name, x: spawn.x, y: spawn.y, facing: 'down', ready: false, lastMoveAt: 0 };
+}
 
-  function drawAmbient(ctx, area, t) {
-    const cfg = PART[area] || PART.village, sec = t / 1000;
-    ctx.save();
-    ctx.fillStyle = cfg.c;
-    for (let i = 0; i < cfg.n; i++) {
-      const s = seeds[i];
-      const x = (((s.a + Math.sin(sec * 0.6 + s.p) * 18 + sec * cfg.dx * (i % 2 ? 1 : -1)) % W) + W) % W;
-      const y = (((s.b + sec * cfg.dy) % H) + H) % H;
-      ctx.globalAlpha = 0.35 + 0.35 * Math.sin(sec * 2 + s.p);
-      ctx.fillRect(Math.round(x), Math.round(y), cfg.s, cfg.s);
+function nextSpawn(room) {
+  return SPAWN_POINTS[room.players.size % SPAWN_POINTS.length];
+}
+
+function publicRoom(room) {
+  return {
+    code: room.code,
+    hostId: room.hostId,
+    players: [...room.players.values()].map((player) => ({
+      id: player.id, name: player.name, classKey: player.classKey, className: player.className,
+      x: player.x, y: player.y, facing: player.facing,
+      hp: player.hp, maxHp: player.maxHp, attack: player.attack, defense: player.defense,
+      mana: player.mana, maxMana: player.maxMana, level: player.level, xp: player.xp, gold: player.gold, potions: player.potions,
+      weapon: player.weapon, armor: player.armor, equipment: player.equipment, inventory: { potions: player.potions, weapon: player.weapon, armor: player.armor },
+      skillPoints: player.skillPoints, skillLevel: player.skillLevel, skillCooldown: player.skillCooldown, ready: player.ready
+    })),
+    world: room.world, activeRegion: room.activeRegion, levelIndex: room.levelIndex || 0, defeatedEnemies: room.defeatedEnemies || {}, dungeon: room.dungeon, sideQuests: room.sideQuests, transition: room.transition,
+    quests: room.quests,
+    battle: room.battle
+  };
+}
+
+// Salva os personagens e envia o estado. Um erro ao salvar nunca impede o envio do estado.
+function emitRoom(room) {
+  for (const player of room.players.values()) {
+    try { Promise.resolve(persistence.saveCharacter(player)).catch(e => console.error('Falha ao salvar:', e)); }
+    catch (e) { console.error('Falha ao salvar:', e); }
+  }
+  io.to(room.code).emit('state', publicRoom(room));
+}
+function sendRoomMessage(room, text) { io.to(room.code).emit('notice', text); }
+function sendPlayerMessage(player, text) { io.to(player.id).emit('notice', text); }
+
+function createBattle(room, details) {
+  const turnOrder = [...room.players.values()]
+    .filter((player) => player.hp > 0)
+    .map((player) => player.id);
+  return {
+    ...details,
+    turn: 1,
+    acted: [],
+    turnOrder,
+    activePlayerId: turnOrder[0] || null
+  };
+}
+
+function findRoomByPlayerId(playerId) {
+  for (const room of rooms.values()) {
+    if (room.players.has(playerId)) return room;
+  }
+  return null;
+}
+
+function recalculateEquipment(player) {
+  const weapon = player.equipment.weapon ? EQUIPMENT[player.equipment.weapon] : null;
+  const armor = player.equipment.armor ? EQUIPMENT[player.equipment.armor] : null;
+  player.attack = player.baseAttack + (weapon?.attack || 0);
+  player.defense = player.baseDefense + (weapon?.defense || 0) + (armor?.defense || 0);
+  if (weapon) player.weapon = weapon.name;
+  if (armor) player.armor = armor.name;
+}
+
+function addExperience(player, amount) {
+  player.xp += amount;
+  while (player.xp >= 100) {
+    player.xp -= 100;
+    player.level += 1;
+    player.maxHp += 12;
+    player.hp = player.maxHp;
+    player.maxMana += 8; player.mana = player.maxMana;
+    player.baseAttack += 2; player.baseDefense += 1;
+    player.skillPoints += 1;
+    recalculateEquipment(player);
+    sendPlayerMessage(player, `✨ ${player.name} chegou ao nível ${player.level}!`);
+  }
+}
+
+io.on('connection', (socket) => {
+  // Proteção: se algum evento der erro, o servidor registra, avisa o jogador e reenvia o estado (a tela não congela).
+  const rawOn = socket.on.bind(socket);
+  socket.on = (event, handler) => rawOn(event, async (...args) => {
+    try { await handler(...args); }
+    catch (error) {
+      console.error(`Erro no evento "${event}":`, error);
+      try {
+        socket.emit('errorMessage', 'Ocorreu um erro no servidor. Tente novamente.');
+        const room = findRoomByPlayerId(socket.id);
+        if (room) emitRoom(room);
+      } catch (_) { /* ignora */ }
     }
-    ctx.restore();
-  }
+  });
 
-  function drawWater(ctx, area, t) {
-    const base = worldCache.get(area);
-    if (!base) return;
-    const c = colorSet(area);
-    ctx.save();
-    ctx.globalAlpha = 0.55;
-    ctx.fillStyle = c.glow;
-    for (let y = 0; y < MAP_ROWS; y++) for (let x = 0; x < MAP_COLS; x++) {
-      if (base.tiles[y][x] !== 3) continue;
-      const o = (Math.sin(t / 400 + x * 1.7 + y * 0.9) + 1) * 5;
-      ctx.fillRect(x * 32 + 4 + o, y * 32 + 10, 10, 2);
-    }
-    ctx.restore();
-  }
+  socket.on('createRoom', async (payload = {}) => {
+    const name = cleanName(payload.name) || 'Aventureiro';
+    const heroClass = HERO_CLASSES[payload.heroClass] ? payload.heroClass : 'warrior';
+    const characterId = String(payload.characterId || crypto.randomUUID()).slice(0,80);
+    const saved = await persistence.loadCharacter(characterId);
+    let roomCode;
+    do { roomCode = createRoomCode(); } while (rooms.has(roomCode));
 
-  function drawVignette(ctx) {
-    const g = ctx.createRadialGradient(W / 2, H / 2, H * 0.35, W / 2, H / 2, H * 0.85);
-    g.addColorStop(0, "rgba(0,0,0,0)");
-    g.addColorStop(1, "rgba(0,0,0,.38)");
-    ctx.fillStyle = g;
-    ctx.fillRect(0, 0, W, H);
-  }
+    const room = {
+      code: roomCode,
+      hostId: socket.id,
+      players: new Map(),
+      world: { forest: false, cave: false, fire: false, castle: false, shadow: false },
+      defeatedEnemies: { forest: [], cave: [], fire: [], castle: [], shadow: [] },
+      quests: Object.fromEntries(QUESTS.map((quest) => [quest.id, { progress: 0, completed: false }])),
+      battle: null, activeRegion: 'village', levelIndex: 0, dungeon: null, transition: null,
+      sideQuests: Object.fromEntries(SIDE_QUESTS.map(q => [q.id,{accepted:false,progress:0,completed:false}]))
+    };
 
-  function glow(ctx, x, y, color, t) {
-    const r = 38 + Math.sin(t / 300) * 5;
-    const g = ctx.createRadialGradient(x, y, 4, x, y, r);
-    g.addColorStop(0, color);
-    g.addColorStop(1, "rgba(0,0,0,0)");
-    ctx.save();
-    ctx.globalAlpha = 0.5;
-    ctx.fillStyle = g;
-    ctx.fillRect(x - r, y - r, r * 2, r * 2);
-    ctx.restore();
-  }
+    room.players.set(socket.id, makePlayer(socket.id, name, saved?.classKey || heroClass, nextSpawn(room), characterId, saved || {}));
+    room.players.get(socket.id).x = 60; room.players.get(socket.id).y = 430;
+    rooms.set(roomCode, room);
+    socket.join(roomCode);
+    socket.emit('joined', { code: roomCode });
+    emitRoom(room);
+  });
 
-  function gateShape(ctx, x, y, locked) {
-    rect(ctx, x - 25, y - 20, 50, 40, locked ? "#51424a" : "#72523a");
-    rect(ctx, x - 19, y - 16, 38, 34, locked ? "#2b2534" : "#263e45");
-    rect(ctx, x - 13, y - 12, 26, 27, locked ? "#473047" : "#73a6a0");
-    rect(ctx, x - 7, y - 7, 14, 20, locked ? "#332239" : "#b6d28c");
-  }
-
-  function smoothPos(p) {
-    let s = smooth.get(p.id);
-    if (!s) { s = { x: p.x, y: p.y }; smooth.set(p.id, s); }
-    s.x += (p.x - s.x) * 0.28;
-    s.y += (p.y - s.y) * 0.28;
-    if (Math.hypot(p.x - s.x, p.y - s.y) > 150) { s.x = p.x; s.y = p.y; }
-    return s;
-  }
-
-  const REGION_IDS = ["forest", "cave", "fire", "castle", "shadow"];
-  const NPC_NAMES = { chronicler: "Aderic", healer: "Mira", blacksmith: "Eldrin" };
-
-  // ---------- Desenho principal do mundo, com câmera que segue o jogador ----------
-  window.drawWorld = function () {
-    const canvas = $("worldCanvas");
-    if (!canvas || !latestState) return;
-    const area = latestState.activeRegion || "village";
-    if (!worldCache.has(area)) worldCache.set(area, drawMapBase(area));
-    if (canvas.width !== W) canvas.width = W;
-    if (canvas.height !== H) canvas.height = H;
-    const ctx = canvas.getContext("2d"), base = worldCache.get(area), now = performance.now();
-    const me = currentPlayer();
-
-    if (area !== lastArea) {
-      if (lastArea !== null) fadeStart = now;
-      lastArea = area;
-      smooth.clear();
-      cam.init = false;
+  socket.on('joinRoom', async (payload = {}) => {
+    const name = cleanName(payload.name) || 'Aventureiro';
+    const heroClass = HERO_CLASSES[payload.heroClass] ? payload.heroClass : 'warrior';
+    const characterId = String(payload.characterId || crypto.randomUUID()).slice(0,80);
+    const saved = await persistence.loadCharacter(characterId);
+    const roomCode = String(payload.roomCode || '').trim().toUpperCase();
+    const room = rooms.get(roomCode);
+    if (!room) return socket.emit('errorMessage', 'Sala não encontrada. Confira o código.');
+    if (room.players.size >= 8) return socket.emit('errorMessage', 'A sala já está cheia (máximo de 8 jogadores).');
+    if ([...room.players.values()].some((player) => player.name.toLowerCase() === name.toLowerCase())) {
+      return socket.emit('errorMessage', 'Esse nome já está sendo usado nesta sala.');
     }
 
-    // Câmera: acompanha o jogador, sem sair do mapa
-    const mine = me ? { ...me, ...(localPosition || {}) } : { x: W / 2, y: H / 2 };
-    const tx = Math.max(0, Math.min(W - VW, mine.x - VW / 2));
-    const ty = Math.max(0, Math.min(H - VH, mine.y - VH / 2));
-    if (!cam.init) { cam.x = tx; cam.y = ty; cam.init = true; }
-    else { cam.x += (tx - cam.x) * 0.18; cam.y += (ty - cam.y) * 0.18; }
-    const camX = Math.round(cam.x * Z) / Z, camY = Math.round(cam.y * Z) / Z;
+    room.players.set(socket.id, makePlayer(socket.id, name, saved?.classKey || heroClass, nextSpawn(room), characterId, saved || {}));
+    room.players.get(socket.id).x = 90 + room.players.size * 34; room.players.get(socket.id).y = 430;
+    if (room.battle) room.battle.turnOrder.push(socket.id);
+    socket.join(roomCode);
+    socket.emit('joined', { code: roomCode });
+    sendRoomMessage(room, `${name} entrou na aventura!`);
+    emitRoom(room);
+  });
 
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.imageSmoothingEnabled = false;
-    ctx.fillStyle = "#05070b";
-    ctx.fillRect(0, 0, W, H);
+  // Movimento compartilhado no mapa da vila. O servidor limita a velocidade
+  // e mantém as posições oficiais de todos os personagens.
+  socket.on('movePlayer', (payload = {}) => {
+    const room = findRoomByPlayerId(socket.id);
+    if (!room || room.battle) return;
+    const player = room.players.get(socket.id);
+    const now = Date.now();
+    if (now - player.lastMoveAt < 45) return;
 
-    // ----- Mundo (com zoom) -----
-    ctx.save();
-    ctx.setTransform(Z, 0, 0, Z, -camX * Z, -camY * Z);
-    ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(base.canvas, 0, 0);
-    drawWater(ctx, area, now);
+    const requestedX = Number(payload.x);
+    const requestedY = Number(payload.y);
+    const allowedFacing = ['up', 'down', 'left', 'right'];
+    if (!Number.isFinite(requestedX) || !Number.isFinite(requestedY)) return;
 
-    const labels = [];
-    const cleared = !!latestState.world?.[area];
-    const idx = REGION_IDS.indexOf(area);
+    const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+    const deltaX = clamp(requestedX - player.x, -18, 18);
+    const deltaY = clamp(requestedY - player.y, -18, 18);
+    player.x = clamp(player.x + deltaX, 24, 1780);
+    player.y = clamp(player.y + deltaY, 30, 520);
+    player.facing = allowedFacing.includes(payload.facing) ? payload.facing : player.facing;
+    player.lastMoveAt = now;
 
-    if (area === "village") {
-      glow(ctx, 480, 550, "#9be58f", now);
-      gateShape(ctx, 480, 550, false);
-      labels.push({ t: "FLORESTA", x: 480, y: 524, c: "#f4cf72" });
-      NPC_POINTS.forEach((n, i) => {
-        pixelHero(ctx, { x: n.x, y: n.y, facing: "down", classKey: i === 0 ? "mage" : i === 1 ? "cleric" : "warrior" }, now);
-        labels.push({ t: NPC_NAMES[n.npc] || "", x: n.x, y: n.y - 38, c: "#e3f0f7", bg: true });
-      });
+    socket.to(room.code).emit('playerMoved', {
+      id: player.id, x: player.x, y: player.y, facing: player.facing
+    });
+  });
+
+  socket.on('travelRegion', (payload = {}) => {
+    const room = findRoomByPlayerId(socket.id);
+    if (!room || room.battle) return;
+    const target = String(payload.area || '');
+    const targetIndex = REGIONS.findIndex(region => region.id === target);
+    const currentIndex = room.activeRegion === 'village' ? -1 : REGIONS.findIndex(region => region.id === room.activeRegion);
+    if (target === 'village') {
+      if (currentIndex !== 0) return socket.emit('errorMessage','A vila só pode ser alcançada pela passagem da floresta.');
+      room.activeRegion = 'village';
     } else {
-      const previous = idx === 0 ? "VILA" : (REGION_IDS[idx - 1] || "VILA").toUpperCase();
-      const next = REGION_IDS[idx + 1];
-      glow(ctx, 480, 550, "#8fc8e5", now);
-      gateShape(ctx, 480, 550, false);
-      labels.push({ t: previous, x: 480, y: 524, c: "#f4cf72" });
-      glow(ctx, 480, 25, cleared ? "#9be58f" : "#c16d63", now);
-      gateShape(ctx, 480, 25, !cleared);
-      labels.push({ t: next ? (cleared ? "PRÓXIMA" : "SELADO") : "FIM", x: 480, y: 0, c: cleared ? "#f4cf72" : "#c16d63" });
+      if (targetIndex < 0 || targetIndex < currentIndex - 1 || targetIndex > currentIndex + 1) return socket.emit('errorMessage','A passagem ainda está bloqueada.');
+      if (REGIONS[targetIndex].unlock && !room.world[REGIONS[targetIndex].unlock]) return socket.emit('errorMessage','Derrote o guardião da região anterior para abrir esta passagem.');
+      room.activeRegion = target;
+    }
+    room.dungeon = null; room.transition = null; room.levelIndex = 0;
+    const enteringFromNorth = target !== 'village' && targetIndex < currentIndex;
+    [...room.players.values()].forEach((member,index) => {
+      member.x = 440 + (index % 4) * 30;
+      member.y = (enteringFromNorth ? 110 : 465) + Math.floor(index / 4) * 28;
+      member.facing = enteringFromNorth ? 'down' : 'up';
+    });
+    const chapter = target === 'village' ? 'Vila de Eldoria' : REGION_SCENES[target]?.title || target;
+    sendRoomMessage(room, target === 'village' ? 'Vocês retornaram à Vila de Eldoria.' : `A jornada continua: ${chapter}.`);
+    emitRoom(room);
+  });
+  socket.on('platformerAdvance', () => {
+    const room = findRoomByPlayerId(socket.id);
+    if (!room || room.battle) return;
+    const area = room.activeRegion || 'village';
+    const player = room.players.get(socket.id);
+    if (player.x < 1580) return socket.emit('notice', 'Chegue ao portal no fim da fase para avançar!');
+    if (area === 'village') {
+      if ((room.levelIndex || 0) < 2) room.levelIndex = (room.levelIndex || 0) + 1;
+      else { room.activeRegion = 'forest'; room.levelIndex = 0; }
+    } else if (room.world[area]) {
+      const index = REGIONS.findIndex(region => region.id === area);
+      const next = REGIONS[index + 1]?.id;
+      if (!next) return socket.emit('notice', '🏆 Malakar foi derrotado. Eldoria está livre!');
+      room.activeRegion = next; room.levelIndex = 0;
+      sendRoomMessage(room, '🌟 A próxima região foi desbloqueada!');
+    } else if ((room.levelIndex || 0) < 2) {
+      room.levelIndex = (room.levelIndex || 0) + 1;
+    } else {
+      const region = REGIONS.find(entry => entry.id === area);
+      if (!region?.boss) return socket.emit('errorMessage', 'O guardião desta região ainda não foi definido.');
+      const enemy = region.boss;
+      room.levelIndex = 3;
+      room.battle = createBattle(room, { area, enemy: enemy.name, hp: enemy.hp, maxHp: enemy.hp, atk: enemy.atk, xp: enemy.xp, gold: enemy.gold, boss: true });
+      sendRoomMessage(room, '⚔️ O CHEFÃO APARECEU! A equipe precisa derrotá-lo para liberar a próxima região.');
+    }
+    room.transition = null;
+    [...room.players.values()].forEach((member, index) => { member.x = 60 + index * 34; member.y = 430; member.facing = 'right'; });
+    emitRoom(room);
+  });
 
-      const region = window.gameRegions?.find(r => r.id === area);
-      const enemies = region?.enemies || [], defeated = latestState.defeatedEnemies?.[area] || [];
-      if (!cleared) {
-        enemies.forEach((enemy, i) => {
-          if (defeated.includes(i) || !ENEMY_POINTS[area]?.[i]) return;
-          const p = ENEMY_POINTS[area][i];
-          pixelMonster(ctx, enemy.name, p.x, p.y, 2.2, false, now);
-          labels.push({ t: enemy.name, x: p.x, y: p.y + 38, c: "#fff0c2", bg: true });
+  socket.on('ready', () => {
+    const room = findRoomByPlayerId(socket.id);
+    if (!room) return;
+    const player = room.players.get(socket.id);
+    player.ready = !player.ready;
+    emitRoom(room);
+  });
+
+  socket.on('explore', (payload = {}) => {
+    const room = findRoomByPlayerId(socket.id);
+    if (!room) return;
+    if (room.battle) return socket.emit('errorMessage', 'Terminem o combate antes de explorar.');
+
+    const player = room.players.get(socket.id);
+    const area = payload.area;
+    const action = payload.action;
+    if (!REGIONS.some((region) => region.id === area)) return;
+    if (room.activeRegion !== area) return socket.emit('errorMessage', 'Aproxime-se da passagem para entrar nesta região.');
+    const region = REGIONS.find((entry) => entry.id === area);
+    if (region.unlock && !room.world[region.unlock]) return socket.emit('errorMessage', `Conclua ${REGIONS.find((entry) => entry.id === region.unlock).name} primeiro.`);
+    if (region.boss && room.world[area]) return socket.emit('errorMessage', `${region.name} já foi conquistada!`);
+
+    if (action === 'treasure') {
+      if (area === 'forest') {
+        const roll = Math.floor(Math.random() * 3);
+        if (roll === 0) {
+          player.gold += 15;
+          sendRoomMessage(room, `💰 ${player.name} encontrou 15 ouros na floresta!`);
+        } else if (roll === 1) {
+          player.potions += 1;
+          sendRoomMessage(room, `🧪 ${player.name} encontrou uma poção na floresta!`);
+        } else {
+          room.battle = createBattle(room, { area, enemy: 'Goblin ladrão', hp: 45, maxHp: 45, atk: 11, xp: 30, gold: 16, boss: false });
+          sendRoomMessage(room, `👹 Uma criatura surpreendeu ${player.name}! Goblin ladrão apareceu.`);
+        }
+      } else if (area === 'cave') {
+        if (Math.floor(Math.random() * 2) === 0) {
+          player.gold += 30;
+          sendRoomMessage(room, `💰 ${player.name} encontrou 30 ouros nos escombros!`);
+        } else {
+          player.potions += 2;
+          sendRoomMessage(room, `🧪 ${player.name} encontrou duas poções nos escombros!`);
+        }
+      }
+      emitRoom(room);
+      return;
+    }
+
+    if (action !== 'enter') return;
+    room.activeRegion = area; room.transition = null; room.dungeon = null;
+    const regionData = REGIONS.find((entry) => entry.id === area);
+    const isBoss = payload.boss === true;
+    const defeatedList = room.defeatedEnemies?.[area] || [];
+    const available = regionData.enemies.map((entry,index)=>({entry,index})).filter(item=>!defeatedList.includes(item.index));
+    const selected = Number.isInteger(payload.enemyIndex) ? available.find(item=>item.index===payload.enemyIndex) : available[Math.floor(Math.random()*Math.max(1,available.length))];
+    if (!isBoss && !selected) return socket.emit('errorMessage','Não há mais criaturas nesta região. Explore a passagem para seguir adiante.');
+    const selectedIndex = selected?.index ?? 0;
+    const enemy = isBoss ? regionData.boss : selected.entry;
+    room.battle = createBattle(room, { area, enemy: enemy.name, hp: enemy.hp, maxHp: enemy.hp, atk: enemy.atk, xp: enemy.xp, gold: enemy.gold, boss: isBoss, enemyIndex: isBoss ? null : selectedIndex });
+    sendRoomMessage(room, isBoss ? `☠️ ${enemy.name} apareceu! Preparem-se!` : `⚔️ ${player.name} encontrou ${enemy.name}! A equipe pode atacar.`);
+    emitRoom(room);
+  });
+
+  socket.on('startDungeon', (payload = {}) => {
+    const room=findRoomByPlayerId(socket.id); if(!room||room.battle)return;
+    const area=payload.area; const region=REGIONS.find(r=>r.id===area);
+    if(!region||!DUNGEONS[area])return;
+    if(region.unlock&&!room.world[region.unlock])return socket.emit('errorMessage','Conquiste a região anterior para abrir esta dungeon.');
+    if(room.dungeon&&!room.dungeon.finished)return socket.emit('errorMessage','Você já está em uma dungeon.');
+    room.activeRegion=area; room.transition=null;
+    room.dungeon={region:area,currentRoom:0,cleared:Array(DUNGEONS[area].length).fill(false),finished:false};
+    sendRoomMessage(room,'🗝 Uma dungeon foi descoberta. Avancem sala por sala!');emitRoom(room);
+  });
+  socket.on('dungeonAction',(payload={})=>{
+    const room=findRoomByPlayerId(socket.id);if(!room||room.battle||!room.dungeon)return;
+    const dungeon=room.dungeon, roomsData=DUNGEONS[dungeon.region], index=dungeon.currentRoom, action=payload.action;
+    const player=room.players.get(socket.id);
+    if(action==='leave'){room.dungeon=null;sendPlayerMessage(player,'Você deixou a dungeon.');emitRoom(room);return;}
+    if(action==='advance'){
+      if(!dungeon.cleared[index])return socket.emit('errorMessage','Conclua a sala atual antes de avançar.');
+      if(index>=roomsData.length-1){dungeon.finished=true;player.gold+=75;player.potions+=2;sendRoomMessage(room,'🏆 Dungeon concluída! Recompensa extra: 75 ouros e 2 poções.');}
+      else dungeon.currentRoom++;emitRoom(room);return;
+    }
+    const roomData=roomsData[index];if(!roomData||dungeon.cleared[index])return socket.emit('errorMessage','Esta sala já foi concluída.');
+    if(roomData.kind==='puzzle'){if(payload.answer!=='eldoria')return socket.emit('errorMessage','O mecanismo não reagiu. Leia as inscrições e tente novamente.');dungeon.cleared[index]=true;player.xp+=35;player.gold+=20;sendRoomMessage(room,'🔓 Enigma resolvido! A passagem secreta se abriu.');emitRoom(room);return;}
+    const isBoss=roomData.kind==='boss';
+    room.battle=createBattle(room,{area:dungeon.region,enemy:roomData.enemy,hp:roomData.hp,maxHp:roomData.hp,atk:roomData.atk,xp:roomData.xp,gold:roomData.gold,boss:isBoss,dungeonRoomIndex:index});
+    sendRoomMessage(room,isBoss?'☠ Guardião da dungeon à vista!':'⚔ Uma criatura bloqueia a passagem!');emitRoom(room);
+  });
+  socket.on('sideQuest',(payload={})=>{
+    const room=findRoomByPlayerId(socket.id);if(!room||room.battle)return;
+    const quest=SIDE_QUESTS.find(q=>q.id===payload.id);if(!quest)return;
+    const progress=room.sideQuests[quest.id],player=room.players.get(socket.id);
+    if(payload.action==='accept'){progress.accepted=true;sendPlayerMessage(player,'📜 Missão secundária aceita: '+quest.title);}
+    else if(payload.action==='claim'){
+      if(!progress.accepted||progress.progress<quest.goal)return socket.emit('errorMessage','Objetivo ainda não concluído.');
+      if(progress.completed)return socket.emit('errorMessage','Recompensa já recebida.');
+      progress.completed=true;player.gold+=quest.reward.gold;addExperience(player,quest.reward.xp);sendPlayerMessage(player,'🎖 Recompensa recebida: '+quest.reward.gold+' ouros e '+quest.reward.xp+' XP.');
+    }emitRoom(room);
+  });
+  socket.on('shop', (payload = {}) => {
+    const room = findRoomByPlayerId(socket.id);
+    if (!room) return;
+    if (room.battle) return socket.emit('errorMessage', 'Não dá para negociar durante um combate.');
+    const player = room.players.get(socket.id);
+    const item = payload.item;
+
+    if (item === 'potion') {
+      if (player.gold < 10) return socket.emit('errorMessage', 'Você precisa de 10 ouros para comprar uma poção.');
+      player.gold -= 10; player.potions += 1;
+      sendRoomMessage(room, `🧪 ${player.name} comprou uma poção de vida.`);
+    } else if (item === 'sword') {
+      if (player.gold < 40) return socket.emit('errorMessage', 'Você precisa de 40 ouros para comprar a espada de aço.');
+      if (player.attack >= 20) return socket.emit('errorMessage', 'Você já possui uma arma deste nível ou superior.');
+      player.gold -= 40; player.baseAttack += 8; recalculateEquipment(player); player.weapon = 'Espada de aço';
+      sendRoomMessage(room, `🗡️ ${player.name} comprou a Espada de aço!`);
+    } else if (item === 'armor') {
+      if (player.gold < 35) return socket.emit('errorMessage', 'Você precisa de 35 ouros para comprar a armadura reforçada.');
+      if (player.defense >= 10) return socket.emit('errorMessage', 'Sua armadura já está no nível máximo da loja.');
+      player.gold -= 35; player.baseDefense += 4; recalculateEquipment(player);
+      sendRoomMessage(room, `🛡️ ${player.name} comprou a Armadura reforçada!`);
+    } else if (EQUIPMENT[item]) {
+      const gear = EQUIPMENT[item];
+      if (player.gold < gear.price) return socket.emit('errorMessage', `Você precisa de ${gear.price} ouros.`);
+      player.gold -= gear.price;
+      player.equipment[gear.slot] = item;
+      recalculateEquipment(player);
+      sendRoomMessage(room, `🧰 ${player.name} equipou ${gear.name}.`);
+    } else {
+      return socket.emit('errorMessage', 'Item não encontrado na loja.');
+    }
+    emitRoom(room);
+  });
+
+  socket.on('battleAction', (payload = {}) => {
+    const room = findRoomByPlayerId(socket.id);
+    if (!room || !room.battle) return;
+    const player = room.players.get(socket.id);
+    const battle = room.battle;
+    const action = payload.action;
+
+    if (player.hp <= 0) return socket.emit('errorMessage', 'Seu personagem está sem vida. Descanse na vila.');
+    if (battle.activePlayerId !== socket.id) {
+      const active = room.players.get(battle.activePlayerId);
+      return socket.emit('errorMessage', active
+        ? `Aguarde sua vez. Agora é a vez de ${active.name}.`
+        : 'Aguarde o próximo turno.');
+    }
+
+    if (action === 'potion') {
+      if (player.potions < 1) return socket.emit('errorMessage', 'Você não tem poções.');
+      if (player.hp === player.maxHp) return socket.emit('errorMessage', 'Sua vida já está cheia.');
+      player.potions -= 1;
+      player.hp = Math.min(player.maxHp, player.hp + (player.classKey === 'cleric' ? 45 : 35));
+      sendRoomMessage(room, `🧪 ${player.name} usou uma poção.`);
+    } else if (action === 'attack') {
+      let damage = Math.max(1, player.attack + Math.floor(Math.random() * 7) - 2);
+      if (player.classKey === 'rogue' && Math.random() < 0.25) damage = Math.floor(damage * 1.75);
+      if (player.classKey === 'ranger') damage = Math.floor(damage * 1.15);
+      if (player.buffs.inspired) { damage = Math.floor(damage * 1.25); player.buffs.inspired = 0; }
+      battle.hp = Math.max(0, battle.hp - damage);
+      if (player.classKey === 'monk') player.hp = Math.min(player.maxHp, player.hp + 4);
+      sendRoomMessage(room, `⚔️ ${player.name} causou ${damage} de dano em ${battle.enemy}!`);
+    } else if (action === 'defend') {
+      player.defending = true;
+      sendRoomMessage(room, `🛡️ ${player.name} assumiu uma postura defensiva.`);
+    } else if (action === 'skill') {
+      const skill = HERO_CLASSES[player.classKey].skill;
+      const skillPower = skill.power * (1 + ((player.skillLevel || 1) - 1) * 0.2);
+      const skillCost = player.classKey === 'sorceress' ? Math.ceil(skill.cost * 0.8) : skill.cost;
+      if (player.mana < skillCost) return socket.emit('errorMessage', `Mana insuficiente. ${skill.name} custa ${skillCost} MP.`);
+      player.mana -= skillCost;
+      if (player.classKey === 'cleric') {
+        for (const ally of room.players.values()) if (ally.hp > 0) ally.hp = Math.min(ally.maxHp, ally.hp + skillPower);
+        sendRoomMessage(room, `✨ ${player.name} lançou ${skill.name} e curou o grupo.`);
+      } else if (player.classKey === 'bard') {
+        for (const ally of room.players.values()) if (ally.hp > 0) ally.buffs.inspired = 1;
+        sendRoomMessage(room, `🎵 ${player.name} tocou ${skill.name}; o grupo foi inspirado.`);
+      } else if (player.classKey === 'paladin') {
+        for (const ally of room.players.values()) if (ally.hp > 0) ally.buffs.lightShield = 1;
+        sendRoomMessage(room, `🛡️ ${player.name} invocou ${skill.name}; o grupo recebeu proteção.`);
+      } else {
+        let damage = Math.max(1, Math.floor(player.attack * skillPower * (player.classKey === 'mage' ? 1.2 : 1)) + Math.floor(Math.random() * 8));
+        if (player.classKey === 'rogue' && Math.random() < 0.25) damage = Math.floor(damage * 1.75);
+        if (player.classKey === 'ranger') damage = Math.floor(damage * 1.15);
+        if (player.buffs.inspired) { damage = Math.floor(damage * 1.25); player.buffs.inspired = 0; }
+        battle.hp = Math.max(0, battle.hp - damage);
+        sendRoomMessage(room, `✨ ${player.name} usou ${skill.name} e causou ${damage} de dano!`);
+      }
+    } else if (action === 'flee') {
+      if (battle.boss) return socket.emit('errorMessage', 'Não há como fugir da batalha final!');
+      if (Math.floor(Math.random() * 2) === 0) {
+        sendRoomMessage(room, `🏃 ${player.name} conseguiu fugir do combate. A equipe voltou à vila.`);
+        room.battle = null;
+        emitRoom(room);
+        return;
+      }
+      const damage = Math.max(1, battle.atk - Math.floor(player.defense / 2));
+      player.hp = Math.max(0, player.hp - damage);
+      sendRoomMessage(room, `❌ ${player.name} não conseguiu fugir e recebeu ${damage} de dano.`);
+    } else {
+      return socket.emit('errorMessage', 'Ação inválida.');
+    }
+
+    battle.acted.push(socket.id);
+    const livingPlayers = [...room.players.values()].filter((candidate) => candidate.hp > 0);
+    if (battle.hp <= 0) {
+      const defeated = battle;
+      room.battle = null;
+      for (const candidate of livingPlayers) {
+        candidate.gold += defeated.gold;
+        addExperience(candidate, defeated.xp);
+      }
+      if (defeated.boss && defeated.dungeonRoomIndex === undefined) {
+        room.world[defeated.area] = true;
+        const regionIndex = REGIONS.findIndex(region => region.id === defeated.area);
+        const nextRegion = REGIONS[regionIndex + 1]?.id || null;
+        room.activeRegion = defeated.area;
+        room.levelIndex = 3;
+        // Depois do chefão, todos voltam para dentro do mapa, perto da passagem aberta.
+        [...room.players.values()].forEach((member, index) => {
+          member.x = 440 + (index % 4) * 30;
+          member.y = 130 + Math.floor(index / 4) * 28;
+          member.facing = 'down';
         });
-        if (region?.boss) {
-          pixelMonster(ctx, region.boss.name, BOSS_POINTS[area].x, BOSS_POINTS[area].y, 3.5, true, now);
-          labels.push({ t: "GUARDIÃO", x: 480, y: 135, c: "#f4cf72", bold: true });
+        room.transition = { region: defeated.area, nextRegion, title: REGION_SCENES[defeated.area]?.title || defeated.area, message: nextRegion ? 'A passagem para a próxima região foi aberta.' : 'Malakar caiu. Eldoria está livre!', at: Date.now() };
+        const quest = QUESTS.find((entry) => entry.region === defeated.area);
+        if (quest && !room.quests[quest.id].completed) {
+          room.quests[quest.id].progress = 1; room.quests[quest.id].completed = true;
+          for (const candidate of livingPlayers) { candidate.gold += quest.reward.gold; addExperience(candidate, quest.reward.xp); }
+          sendRoomMessage(room, `📜 Missão concluída: ${quest.title}! Recompensas adicionais concedidas.`);
+        }
+      }
+      if (defeated.dungeonRoomIndex !== undefined && room.dungeon) room.dungeon.cleared[defeated.dungeonRoomIndex] = true;
+      if (!defeated.boss && defeated.enemyIndex !== null && defeated.enemyIndex !== undefined) {
+        room.defeatedEnemies ||= {};
+        room.defeatedEnemies[defeated.area] ||= [];
+        if (!room.defeatedEnemies[defeated.area].includes(defeated.enemyIndex)) room.defeatedEnemies[defeated.area].push(defeated.enemyIndex);
+      }
+      if (!defeated.boss) { for (const q of SIDE_QUESTS) { const progress = room.sideQuests?.[q.id]; if (q.region === defeated.area && progress?.accepted && !progress.completed) progress.progress = Math.min(q.goal, progress.progress + 1); } }
+      sendRoomMessage(room, defeated.boss
+        ? `🏆 ${defeated.enemy} foi derrotado! ${defeated.dungeonRoomIndex !== undefined ? 'A sala foi conquistada!' : defeated.area === 'shadow' ? 'O reino está livre da escuridão!' : 'Uma nova região foi conquistada!'}`
+        : `🎉 ${defeated.enemy} derrotado! Os aventureiros vivos receberam ${defeated.xp} XP e ${defeated.gold} ouros.`);
+      emitRoom(room);
+      return;
+    }
+
+    const previousOrder = battle.turnOrder || [...room.players.keys()];
+    const currentIndex = previousOrder.indexOf(socket.id);
+    const nextId = previousOrder
+      .slice(currentIndex + 1)
+      .find((id) => room.players.has(id) && room.players.get(id).hp > 0);
+
+    if (livingPlayers.length === 0) {
+      room.battle = null;
+      sendRoomMessage(room, '💀 Todos caíram em combate. Voltem à vila e tentem novamente.');
+      emitRoom(room);
+      return;
+    }
+
+    if (nextId) {
+      battle.activePlayerId = nextId;
+    } else {
+      // Todos os aventureiros vivos agiram: agora o inimigo realiza seu turno.
+      for (const target of livingPlayers) {
+        let damage = Math.max(1, battle.atk - Math.floor(target.defense / 2) + Math.floor(Math.random() * 5));
+        if (target.classKey === 'warrior') damage = Math.ceil(damage * 0.85);
+        if (target.classKey === 'paladin' && battle.boss) damage = Math.ceil(damage * 0.8);
+        if (target.defending) damage = Math.ceil(damage * 0.4);
+        if (target.buffs.lightShield) { damage = Math.ceil(damage * 0.5); target.buffs.lightShield = 0; }
+        target.defending = false;
+        target.hp = Math.max(0, target.hp - damage);
+        target.mana = Math.min(target.maxMana, target.mana + 6);
+        sendPlayerMessage(target, `💥 ${battle.enemy} atacou você e causou ${damage} de dano.`);
+      }
+
+      const survivors = [...room.players.values()].filter((candidate) => candidate.hp > 0);
+      if (survivors.length === 0) {
+        room.battle = null;
+        sendRoomMessage(room, '💀 Todos caíram em combate. Voltem à vila e tentem novamente.');
+        emitRoom(room);
+        return;
+      }
+
+      battle.turn += 1;
+      battle.acted = [];
+      battle.turnOrder = survivors.map((candidate) => candidate.id);
+      battle.activePlayerId = battle.turnOrder[0];
+      const nextPlayer = room.players.get(battle.activePlayerId);
+      sendRoomMessage(room, `🔄 Rodada ${battle.turn}: ${nextPlayer.name} começa.`);
+    }
+
+    emitRoom(room);
+  });
+
+  socket.on('upgradeSkill', () => {
+    const room = findRoomByPlayerId(socket.id);
+    if (!room) return;
+    if (room.battle) return socket.emit('errorMessage', 'Aprimore sua habilidade fora de combate.');
+    const player = room.players.get(socket.id);
+    if (player.skillPoints < 1) return socket.emit('errorMessage', 'Você precisa de um ponto de habilidade. Suba de nível para ganhar mais.');
+    player.skillPoints -= 1;
+    player.skillLevel = (player.skillLevel || 1) + 1;
+    sendPlayerMessage(player, `✨ Sua habilidade ${HERO_CLASSES[player.classKey].skill.name} chegou ao nível ${player.skillLevel}!`);
+    emitRoom(room);
+  });
+
+  socket.on('talkNpc', (payload = {}) => {
+    const room = findRoomByPlayerId(socket.id);
+    if (!room) return;
+    if (room.battle) return socket.emit('errorMessage', 'Não é possível conversar durante o combate.');
+    const player = room.players.get(socket.id);
+    if (payload.npc === 'healer') {
+      if (player.gold < 15) return socket.emit('errorMessage', 'A curandeira cobra 15 ouros pelo tratamento.');
+      player.gold -= 15; player.hp = player.maxHp; player.mana = player.maxMana;
+      socket.emit('dialogue',{title:'Mira, a Curandeira',lines:DIALOGUES.healer.map(line=>line.text).concat('Pronto. Suas forças foram restauradas.')});
+    } else if (payload.npc === 'blacksmith') {
+      socket.emit('dialogue', { title:'Eldrin, o Ferreiro', lines:DIALOGUES.blacksmith.map(line=>line.text).concat('Abra o mercador para conferir armas e armaduras disponíveis.') });
+    } else if (payload.npc === 'chronicler') {
+      const next = QUESTS.find(quest => !room.quests[quest.id].completed);
+      socket.emit('dialogue', { title:'Cronista Aderic', lines:DIALOGUES.chronicler.map(line=>line.text).concat(next ? `A próxima crônica é: ${next.title}. ${next.description}` : 'Você concluiu todas as crônicas de Eldoria.') });
+    } else if (payload.npc === 'villager') { socket.emit('dialogue',{title:'Moradora de Eldoria',lines:DIALOGUES.villager.map(line=>line.text).concat('Se encontrar a relíquia, leve-a ao cronista. Ele saberá o que fazer.')}); }
+    else return;
+    emitRoom(room);
+  });
+
+  socket.on('rest', () => {
+    const room = findRoomByPlayerId(socket.id);
+    if (!room) return;
+    if (room.battle) return socket.emit('errorMessage', 'Não é possível descansar durante um combate.');
+    const player = room.players.get(socket.id);
+    if (player.gold < 10) return socket.emit('errorMessage', 'Você precisa de 10 ouros para descansar.');
+    player.gold -= 10;
+    player.hp = player.maxHp; player.mana = player.maxMana; player.defending = false;
+    socket.emit('notice', 'Você descansou e recuperou toda a vida e mana.');
+    emitRoom(room);
+  });
+
+  socket.on('disconnect', async () => {
+    const room = findRoomByPlayerId(socket.id);
+    if (!room) return;
+    const player = room.players.get(socket.id);
+    if (player) await persistence.saveCharacter(player);
+    room.players.delete(socket.id);
+    if (player) sendRoomMessage(room, `${player.name} saiu da sala.`);
+    if (room.players.size === 0) {
+      rooms.delete(room.code);
+      return;
+    }
+    if (room.hostId === socket.id) room.hostId = room.players.keys().next().value;
+    if (room.battle) {
+      const battle = room.battle;
+      const order = battle.turnOrder || [];
+      const leavingIndex = order.indexOf(socket.id);
+      battle.turnOrder = order.filter((id) => id !== socket.id);
+      battle.acted = battle.acted.filter((id) => id !== socket.id);
+      if (battle.activePlayerId === socket.id) {
+        const nextId = order.slice(leavingIndex + 1).find((id) =>
+          room.players.has(id) && room.players.get(id).hp > 0
+        );
+        const survivors = [...room.players.values()].filter((candidate) => candidate.hp > 0);
+        if (nextId) {
+          battle.activePlayerId = nextId;
+        } else if (survivors.length > 0) {
+          // Se quem saiu era o último da ordem, o inimigo conclui a rodada.
+          for (const target of survivors) {
+            const damage = Math.max(1, battle.atk - Math.floor(target.defense / 2));
+            target.hp = Math.max(0, target.hp - damage);
+            sendPlayerMessage(target, `💥 ${battle.enemy} atacou você e causou ${damage} de dano.`);
+          }
+          const remaining = [...room.players.values()].filter((candidate) => candidate.hp > 0);
+          if (remaining.length === 0) {
+            room.battle = null;
+            sendRoomMessage(room, '💀 Todos caíram em combate. Voltem à vila e tentem novamente.');
+          } else {
+            battle.turn += 1;
+            battle.acted = [];
+            battle.turnOrder = remaining.map((candidate) => candidate.id);
+            battle.activePlayerId = battle.turnOrder[0];
+          }
+        } else {
+          room.battle = null;
         }
       }
     }
-
-    // Jogadores (ordenados por altura para dar profundidade)
-    const actors = [];
-    (latestState.players || []).forEach(p => {
-      if (me && p.id === me.id) {
-        const pos = { ...me, ...(localPosition || {}), moving: heldKeys.size > 0 };
-        actors.push({ y: pos.y, draw() {
-          pixelHero(ctx, pos, now);
-          labels.push({ t: me.name, x: pos.x, y: pos.y - 40, c: "#ffe08a", bg: true });
-          labels.push({ t: "▼", x: pos.x, y: pos.y - 52 + Math.sin(now / 200) * 2, c: "#ffe08a" });
-        } });
-      } else {
-        const s = smoothPos(p), moving = Math.hypot(p.x - s.x, p.y - s.y) > 1.5;
-        actors.push({ y: s.y, draw() {
-          pixelHero(ctx, { ...p, x: s.x, y: s.y, moving }, now);
-          labels.push({ t: p.name, x: s.x, y: s.y - 40, c: "#e3f0f7", bg: true });
-        } });
-      }
-    });
-    actors.sort((a, b) => a.y - b.y).forEach(a => a.draw());
-    ctx.restore();
-
-    // ----- Tela (sem zoom): nomes, partículas, vinheta, transição -----
-    ctx.textAlign = "center";
-    labels.forEach(l => {
-      const sx = Math.round((l.x - camX) * Z), sy = Math.round((l.y - camY) * Z);
-      if (sx < -80 || sx > W + 80 || sy < -20 || sy > H + 20) return;
-      ctx.font = (l.bold ? "bold " : "bold ") + "13px monospace";
-      if (l.bg) {
-        const w = ctx.measureText(l.t).width + 10;
-        ctx.fillStyle = "rgba(10,16,24,.72)";
-        ctx.fillRect(Math.round(sx - w / 2), sy - 12, Math.round(w), 17);
-      }
-      ctx.fillStyle = l.c;
-      ctx.fillText(l.t, sx, Math.max(12, sy));
-    });
-
-    drawAmbient(ctx, area, now);
-    drawVignette(ctx);
-
-    if (fadeStart) {
-      const k = (now - fadeStart) / FADE_MS;
-      if (k < 1) {
-        ctx.save();
-        ctx.globalAlpha = 1 - k;
-        ctx.fillStyle = "#05070b";
-        ctx.fillRect(0, 0, W, H);
-        ctx.globalAlpha = Math.min(1, (1 - k) * 1.6);
-        ctx.fillStyle = "#f4cf72";
-        ctx.font = "bold 30px monospace";
-        ctx.fillText((window.regionScenes?.[area]?.title || "Eldoria").toUpperCase(), W / 2, H / 2);
-        ctx.restore();
-      } else fadeStart = 0;
-    }
-
-    $("nearbyPrompt").textContent = worldInteractionPrompt();
-  };
-
-  // ---------- Movimento (corrige personagem preso e evita desenho duplicado) ----------
-  window.movementLoop = function (timestamp) {
-    moveFrame = null;
-    const me = currentPlayer();
-    if (!me || latestState?.battle) { localPosition = null; return; }
-    if (rescue) return;
-    if (heldKeys.size === 0) { me.moving = false; return; }
-    const dt = lastFrameTime ? Math.min(0.04, (timestamp - lastFrameTime) / 1000) : 0.016;
-    lastFrameTime = timestamp;
-    let dx = 0, dy = 0;
-    if (heldKeys.has("left")) dx--;
-    if (heldKeys.has("right")) dx++;
-    if (heldKeys.has("up")) dy--;
-    if (heldKeys.has("down")) dy++;
-    const len = Math.hypot(dx, dy) || 1, speed = 200;
-    const base = localPosition || { x: me.x, y: me.y };
-    const nx = Math.max(20, Math.min(940, base.x + dx / len * speed * dt));
-    const ny = Math.max(30, Math.min(520, base.y + dy / len * speed * dt));
-    let x = base.x, y = base.y;
-    if (moveBlocked(base.x, base.y)) { x = nx; y = ny; } // preso dentro de um bloco: deixa sair
-    else {
-      if (!moveBlocked(nx, base.y)) x = nx;
-      if (!moveBlocked(x, ny)) y = ny;
-    }
-    let facing = me.facing || "down";
-    if (Math.abs(dx) > Math.abs(dy)) facing = dx < 0 ? "left" : "right";
-    else if (dy) facing = dy < 0 ? "up" : "down";
-    localPosition = { x, y };
-    me.x = x; me.y = y; me.facing = facing; me.moving = true;
-    if (timestamp - lastMoveSent > 55) { socket.emit("movePlayer", { x, y, facing }); lastMoveSent = timestamp; }
-    moveFrame = requestAnimationFrame(movementLoop);
-  };
-
-  // ---------- Resgate: se o jogador ficar fora do mapa (ex.: após o chefão), traz de volta ----------
-  const offMap = p => p && (p.x > 945 || p.x < 12 || p.y < 20 || p.y > 545);
-  function startRescue() {
-    if (rescue) return;
-    const me = currentPlayer();
-    if (!me) return;
-    const pos = { x: me.x, y: me.y };
-    toast("Voltando você para a trilha...");
-    rescue = setInterval(() => {
-      const cur = currentPlayer();
-      if (!cur || latestState?.battle) { clearInterval(rescue); rescue = null; return; }
-      const dx = 480 - pos.x, dy = 470 - pos.y, d = Math.hypot(dx, dy);
-      const done = d < 16;
-      if (done) { pos.x = 480; pos.y = 470; } else { pos.x += dx / d * 16; pos.y += dy / d * 16; }
-      const facing = Math.abs(dx) > Math.abs(dy) ? (dx < 0 ? "left" : "right") : (dy < 0 ? "up" : "down");
-      socket.emit("movePlayer", { x: pos.x, y: pos.y, facing });
-      cur.x = pos.x; cur.y = pos.y; localPosition = { x: pos.x, y: pos.y };
-      if (done) { clearInterval(rescue); rescue = null; }
-    }, 60);
-  }
-  socket.on("state", () => { if (offMap(currentPlayer())) startRescue(); });
-
-  // ---------- Botão E para celular ----------
-  const ov = $("overworld");
-  if (ov && !$("interactBtn")) {
-    if (getComputedStyle(ov).position === "static") ov.style.position = "relative";
-    const b = document.createElement("button");
-    b.id = "interactBtn"; b.type = "button"; b.textContent = "E";
-    Object.assign(b.style, {
-      position: "absolute", right: "14px", bottom: "14px", width: "56px", height: "56px",
-      borderRadius: "50%", border: "3px solid #f4cf72", background: "rgba(16,26,35,.85)",
-      color: "#f4cf72", font: "bold 22px monospace", zIndex: "5", touchAction: "manipulation"
-    });
-    b.addEventListener("pointerdown", e => { e.preventDefault(); interactWorld(); });
-    ov.appendChild(b);
-  }
-
-  // ---------- Caixa de diálogo dos NPCs ----------
-  let dlg = null, dlgTitle = "", dlgLines = [], dlgIdx = 0;
-  function renderLine() {
-    const t = document.createElement("strong");
-    t.textContent = dlgTitle;
-    const p = document.createElement("p");
-    p.style.margin = "6px 0";
-    p.textContent = dlgLines[dlgIdx] || "";
-    const h = document.createElement("small");
-    h.style.opacity = ".7";
-    h.textContent = dlgIdx < dlgLines.length - 1 ? "Toque ou E para continuar ▶" : "Toque ou E para fechar ■";
-    dlg.replaceChildren(t, p, h);
-  }
-  function nextLine() {
-    dlgIdx++;
-    if (dlgIdx >= dlgLines.length) dlg.style.display = "none"; else renderLine();
-  }
-  socket.on("dialogue", data => {
-    dlgTitle = data?.title || "";
-    dlgLines = Array.isArray(data?.lines) ? data.lines : [];
-    dlgIdx = 0;
-    if (!dlgLines.length) return;
-    if (!dlg) {
-      dlg = document.createElement("div");
-      dlg.id = "dialogueBox";
-      Object.assign(dlg.style, {
-        position: "fixed", left: "50%", bottom: "16px", transform: "translateX(-50%)",
-        width: "min(92vw,640px)", background: "rgba(14,20,30,.95)", border: "3px solid #f4cf72",
-        borderRadius: "10px", padding: "12px 16px", color: "#fff0c2", font: "15px/1.4 monospace",
-        zIndex: "50", cursor: "pointer"
-      });
-      dlg.addEventListener("pointerdown", e => { e.preventDefault(); nextLine(); });
-      document.body.appendChild(dlg);
-    }
-    dlg.style.display = "block";
-    renderLine();
+    emitRoom(room);
   });
-  window.addEventListener("keydown", e => {
-    if (dlg && dlg.style.display === "block" && ["KeyE", "Enter", "Space"].includes(e.code)) {
-      e.preventDefault(); e.stopImmediatePropagation(); nextLine();
-    }
-  }, true);
-})();
+});
+
+httpServer.listen(PORT, '0.0.0.0', () => {
+  console.log(`Reino Sombrio Online rodando na porta ${PORT}`);
+  console.log(`Pasta pública: ${PUBLIC_DIR}`);
+});
