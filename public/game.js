@@ -255,7 +255,7 @@ socket.on("state",state=>{
  $("treasureCaveBtn").disabled=!state.world.forest||!!state.battle;
  $("treasureForestBtn").disabled=!!state.battle;
  $("merchantBtn").disabled=!!state.battle;
- if(meNow) $("inventoryPanel").textContent=`Poções: ${meNow.inventory?.potions ?? meNow.potions} • Arma: ${meNow.weapon} • Armadura: ${meNow.armor} • Pontos de habilidade: ${meNow.skillPoints} • Habilidade nível ${meNow.skillLevel}`; $("skillUpgradeBtn").disabled=!meNow.skillPoints;
+ if(meNow) { $("inventoryPanel").textContent=`Poções: ${meNow.inventory?.potions ?? meNow.potions} • Arma: ${meNow.weapon} • Armadura: ${meNow.armor} • Pontos de habilidade: ${meNow.skillPoints} • Habilidade nível ${meNow.skillLevel}`; $("skillUpgradeBtn").disabled=!meNow.skillPoints; }
  if(state.quests&&window.gameQuests){$("questList").innerHTML="";window.gameQuests.forEach(quest=>{const progress=state.quests[quest.id];const item=document.createElement("div");item.className="quest-item"+(progress?.completed?" completed":"");const title=document.createElement("strong");title.textContent=(progress?.completed?"✓ ":"◇ ")+quest.title;const desc=document.createElement("p");desc.textContent=quest.description;const reward=document.createElement("small");reward.textContent=progress?.completed?"Concluída":`Recompensa: ${quest.reward.xp} XP • ${quest.reward.gold} ouros`;item.append(title,desc,reward);$("questList").append(item);});}
 
  document.querySelectorAll("[data-area]").forEach(button=>{const area=button.dataset.area;const unlock={forest:null,cave:"forest",fire:"cave",castle:"fire",shadow:"castle"}[area];button.disabled=!!state.battle||!!state.world[area]||(!!unlock&&!state.world[unlock]);});
