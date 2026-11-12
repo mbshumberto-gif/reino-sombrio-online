@@ -109,124 +109,254 @@ function enemyGlyph(name='') {
   if(n.includes('malakar')||n.includes('vazio')||n.includes('espectro')) return '👻';
   return '👾';
 }
-function renderMap() {
-  if (!latestState) return;
-  const layer = $("avatarLayer");
-  const existing = new Map([...layer.children].map(node => [node.dataset.playerId, node]));
-  latestState.players.forEach(p => {
-    let marker = existing.get(p.id);
-    if (!marker) {
-      marker = document.createElement('div');
-      marker.className = 'map-player' + (p.id === socket.id ? ' me' : '');
-      marker.dataset.playerId = p.id;
-      const name = document.createElement('span'); name.className = 'map-player-name';
-      const sprite = document.createElement('div'); sprite.className = 'sprite-holder';
-      marker.append(name, sprite); layer.append(marker);
-    }
-    marker.style.left = `${p.x}%`; marker.style.top = `${p.y}%`;
-    marker.style.zIndex = String(20 + Math.round(p.y));
-    marker.querySelector('.map-player-name').textContent = p.name;
-    const signature = `${p.classKey}|${p.facing}|${!!p.moving}|${p.equipment?.armor}|${p.equipment?.weapon}`;
-    if (marker.dataset.spriteSignature !== signature) {
-      marker.querySelector('.sprite-holder').innerHTML = heroSprite(p.classKey, !!p.moving, p.facing, p.equipment);
-      marker.dataset.spriteSignature = signature;
-    }
-    existing.delete(p.id);
-  });
-  existing.forEach(node => node.remove());
-
-  const enemyLayer = $("enemyLayer");
-  if (!enemyLayer) return;
-  enemyLayer.innerHTML = '';
-  const area = latestState.activeRegion || 'village';
-  const region = window.gameRegions?.find(item => item.id === area);
-  if (latestState.battle || !region || latestState.world?.[area]) return;
-  region.enemies.forEach((enemy,index) => {
-    const monster = document.createElement('button');
-    monster.type = 'button'; monster.className = 'map-enemy';
-    monster.style.left = [22,51,78][index%3] + '%';
-    monster.style.top = [65,79,62][index%3] + '%';
-    monster.style.zIndex = String(40 + index);
-    monster.innerHTML = `<span class="monster-glyph">${enemyGlyph(enemy.name)}</span><span class="monster-name">${enemy.name}</span>`;
-    monster.title = `Enfrentar ${enemy.name}`;
-    monster.addEventListener('click', () => socket.emit('explore',{area,action:'enter',enemyIndex:index}));
-    enemyLayer.append(monster);
-  });
-  if (!latestState.world?.[area] && region.boss) {
-    const boss = document.createElement('button');
-    boss.type = 'button'; boss.className = 'map-enemy map-boss';
-    boss.style.left = '50%'; boss.style.top = '35%'; boss.style.zIndex = '60';
-    boss.innerHTML = `<span class="monster-glyph">${enemyGlyph(region.boss.name)}</span><span class="monster-name">CHEFE • ${region.boss.name}</span>`;
-    boss.title = `Desafiar ${region.boss.name}`;
-    boss.addEventListener('click', () => socket.emit('explore',{area,action:'enter',boss:true}));
-    enemyLayer.append(boss);
-  }
-}
-// Movimento no mapa sincronizado com os demais jogadores.
-const KEY_DIRECTIONS = {
-  ArrowUp:'up', KeyW:'up', ArrowDown:'down', KeyS:'down',
-  ArrowLeft:'left', KeyA:'left', ArrowRight:'right', KeyD:'right'
+const TILE_SIZE = 32, MAP_COLS = 30, MAP_ROWS = 18;
+const worldCache = new Map();
+const REGION_STORY = {
+ village:"Há vinte anos, Malakar foi derrotado e desapareceu nas montanhas. Agora, os sinos de Eldoria tocam sozinhos e uma névoa negra cobre os campos. A cronista Aderic acredita que alguém está reunindo os antigos selos.",
+ forest:"A floresta já foi protegida pelos guardiões élficos. Malakar corrompeu suas raízes para alimentar um portal. O Ent Corrompido conhece o caminho até as minas, mas sua memória foi consumida pela escuridão.",
+ cave:"Sob a montanha existe uma cidade mineradora esquecida. Seus habitantes encontraram um fragmento de estrela e desapareceram na mesma noite. Os ecos repetem uma voz que chama pelo nome do herói.",
+ fire:"As Terras do Fogo escondem a forja onde Malakar criou sua armadura. O Draco de Brasas guarda a última chama capaz de destruir o metal sombrio.",
+ castle:"Vharok foi o maior comandante de Eldoria antes de se aliar a Malakar. Os documentos do castelo revelam que ele tentou impedir o ritual e foi corrompido por quem deveria proteger.",
+ shadow:"Além do castelo existe um reino preso entre a vida e a morte. Malakar não deseja apenas conquistar Eldoria: ele pretende apagar todas as memórias do mundo e reescrevê-lo sob seu domínio."
 };
-function beginMovement(key) {
-  if (!KEY_DIRECTIONS[key]) return;
-  heldKeys.add(KEY_DIRECTIONS[key]);
-  if (!moveFrame) moveFrame = requestAnimationFrame(movementLoop);
+const ENEMY_POINTS = {
+ forest:[{x:220,y:250},{x:730,y:285},{x:470,y:405}],
+ cave:[{x:220,y:220},{x:750,y:260},{x:470,y:405}],
+ fire:[{x:210,y:260},{x:740,y:220},{x:490,y:405}],
+ castle:[{x:220,y:250},{x:740,y:250},{x:480,y:405}],
+ shadow:[{x:210,y:230},{x:750,y:245},{x:480,y:405}]
+};
+const BOSS_POINTS = {forest:{x:480,y:92},cave:{x:480,y:92},fire:{x:480,y:92},castle:{x:480,y:92},shadow:{x:480,y:92}};
+const NPC_POINTS = [{x:480,y:275,npc:"chronicler"},{x:340,y:360,npc:"healer"},{x:620,y:360,npc:"blacksmith"}];
+function makeTileMap(area){
+ const g=Array.from({length:MAP_ROWS},()=>Array(MAP_COLS).fill(0));
+ for(let y=0;y<MAP_ROWS;y++)for(let x=0;x<MAP_COLS;x++)if(x===0||y===0||x===MAP_COLS-1||y===MAP_ROWS-1)g[y][x]=1;
+ const paint=(x,y,w,h,t)=>{for(let yy=y;yy<y+h;yy++)for(let xx=x;xx<x+w;xx++)if(g[yy]&&g[yy][xx]!==undefined)g[yy][xx]=t;};
+ const path=(x1,y1,x2,y2)=>{let x=x1,y=y1;while(x!==x2){if(g[y]?.[x]!==undefined)g[y][x]=2;x+=Math.sign(x2-x);}while(y!==y2){if(g[y]?.[x]!==undefined)g[y][x]=2;y+=Math.sign(y2-y);}if(g[y]?.[x]!==undefined)g[y][x]=2;};
+ if(area==="village"){
+   for(let x=13;x<=16;x++)for(let y=1;y<17;y++)g[y][x]=2;
+   for(let y=8;y<=10;y++)for(let x=1;x<29;x++)g[y][x]=2;
+   paint(3,3,6,4,4);paint(21,3,6,4,4);paint(11,3,2,3,3);paint(17,3,2,3,3);
+   paint(4,13,3,2,1);paint(23,13,3,2,1);
+ }else if(area==="forest"){
+   path(15,17,15,12);path(15,12,9,9);path(9,9,12,5);path(12,5,15,1);path(9,9,4,7);path(9,9,23,8);
+   for(let y=2;y<16;y++)for(let x=2;x<28;x++)if(g[y][x]===0&&((x*13+y*7)%11<3))g[y][x]=1;
+   paint(5,4,2,2,5);paint(23,12,2,2,5);
+ }else if(area==="cave"){
+   for(let y=1;y<17;y++)for(let x=1;x<29;x++)if((x*7+y*11)%19<3)g[y][x]=1;
+   path(15,17,15,12);path(15,12,7,9);path(7,9,12,5);path(12,5,15,1);path(7,9,24,8);
+   paint(4,4,2,2,5);paint(22,12,2,2,5);paint(18,4,2,2,3);
+ }else if(area==="fire"){
+   path(15,17,15,12);path(15,12,8,9);path(8,9,12,5);path(12,5,15,1);path(8,9,24,8);
+   for(let y=2;y<16;y++)for(let x=2;x<28;x++)if((x*5+y*9)%23===0)g[y][x]=3;
+   paint(4,4,2,2,1);paint(23,12,2,2,1);paint(18,5,2,2,3);
+ }else if(area==="castle"){
+   path(15,17,15,12);path(15,12,8,9);path(8,9,8,5);path(8,5,15,1);path(8,9,23,9);
+   paint(3,2,2,13,1);paint(25,2,2,13,1);paint(5,3,3,2,1);paint(22,3,3,2,1);
+   for(let y=4;y<15;y+=4){paint(11,y,1,2,1);paint(18,y,1,2,1);}
+ }else{
+   path(15,17,15,12);path(15,12,7,9);path(7,9,12,5);path(12,5,15,1);path(7,9,24,8);
+   for(let y=2;y<16;y++)for(let x=2;x<28;x++)if((x*17+y*13)%17<3&&g[y][x]===0)g[y][x]=6;
+   paint(4,4,2,2,5);paint(23,12,2,2,5);paint(18,4,2,2,6);
+ }
+ g[0][15]=2;g[17][15]=2;
+ return g;
 }
-function endMovement(key) {
-  const direction = KEY_DIRECTIONS[key];
-  if (direction) heldKeys.delete(direction);
+function colorSet(area){
+ return ({
+ village:{ground:"#56834a",light:"#6f9b55",dark:"#3c663e",path:"#b69a68",path2:"#d0b57b",water:"#397b91",wall:"#76523d",roof:"#a84e42",leaf:"#315d3d",rock:"#777e85",lava:"#e27b32",glow:"#f7c75d"},
+ forest:{ground:"#315f3e",light:"#497b47",dark:"#234b37",path:"#8a7950",path2:"#b09a64",water:"#326b70",wall:"#514a3d",roof:"#4b7041",leaf:"#1d422e",rock:"#68715e",lava:"#a24e35",glow:"#b5cf76"},
+ cave:{ground:"#3c4652",light:"#56616c",dark:"#27313e",path:"#66717a",path2:"#8b9293",water:"#294b63",wall:"#242c39",roof:"#4d5361",leaf:"#374c54",rock:"#737f91",lava:"#a4514c",glow:"#83d6d4"},
+ fire:{ground:"#6c493c",light:"#95604a",dark:"#442d31",path:"#9b7152",path2:"#c08c5b",water:"#5c4542",wall:"#35272d",roof:"#7c3833",leaf:"#4a3830",rock:"#6c5550",lava:"#ef6c2f",glow:"#ffc35b"},
+ castle:{ground:"#565566",light:"#777487",dark:"#37394b",path:"#8c8790",path2:"#b0a6a0",water:"#3e4a5c",wall:"#2b2d40",roof:"#6d4351",leaf:"#44404e",rock:"#858594",lava:"#a34c54",glow:"#d8bb79"},
+ shadow:{ground:"#332b4c",light:"#4c3b68",dark:"#201b37",path:"#655176",path2:"#88739b",water:"#211d43",wall:"#17172c",roof:"#51335f",leaf:"#29213e",rock:"#625477",lava:"#8c3c77",glow:"#c27de0"}
+ })[area]||{ground:"#56834a",light:"#6f9b55",dark:"#3c663e",path:"#b69a68",path2:"#d0b57b",water:"#397b91",wall:"#76523d",roof:"#a84e42",leaf:"#315d3d",rock:"#777e85",lava:"#e27b32",glow:"#f7c75d"};
 }
-function movementLoop(timestamp) {
-  moveFrame = null;
-  const me = latestState?.players.find(p => p.id === socket.id);
-  if (!me || latestState.battle) { localPosition = null; return; }
-  if (heldKeys.size === 0) {
-    if (me.moving) { me.moving = false; renderMap(); }
-    return;
-  }
-  let dx = 0, dy = 0;
-  if (heldKeys.has('left')) dx -= 1;
-  if (heldKeys.has('right')) dx += 1;
-  if (heldKeys.has('up')) dy -= 1;
-  if (heldKeys.has('down')) dy += 1;
-  if (!dx && !dy) return;
-  const length = Math.hypot(dx,dy) || 1;
-  const speed = 0.24; // percentual do mapa por frame (aprox. 14%/s em 60fps)
-  const base = localPosition || {x:me.x,y:me.y};
-  const next = {
-    x: Math.max(5, Math.min(95, base.x + dx/length*speed)),
-    y: Math.max(58, Math.min(91, base.y + dy/length*speed))
-  };
-  let facing = me.facing || 'down';
-  if (Math.abs(dx) > Math.abs(dy)) facing = dx < 0 ? 'left' : 'right';
-  else if (dy !== 0) facing = dy < 0 ? 'up' : 'down';
-  localPosition = next;
-  me.x = next.x; me.y = next.y; me.facing = facing; me.moving = true;
-  if (timestamp - lastMoveSent > 65) {
-    socket.emit('movePlayer', {x:next.x,y:next.y,facing});
-    lastMoveSent = timestamp;
-    renderMap();
-  }
-  moveFrame = requestAnimationFrame(movementLoop);
+function rect(ctx,x,y,w,h,color){ctx.fillStyle=color;ctx.fillRect(Math.round(x),Math.round(y),Math.round(w),Math.round(h));}
+function drawMapBase(area){
+ const canvas=document.createElement("canvas");canvas.width=960;canvas.height=576;
+ const ctx=canvas.getContext("2d"),tiles=makeTileMap(area),c=colorSet(area);
+ for(let y=0;y<MAP_ROWS;y++)for(let x=0;x<MAP_COLS;x++){
+   const t=tiles[y][x],px=x*TILE_SIZE,py=y*TILE_SIZE,seed=(x*31+y*17)%7;
+   rect(ctx,px,py,32,32,t===2?c.path:t===3?c.water:t===4?c.wall:t===5?c.rock:t===6?c.dark:c.ground);
+   if(t===0){rect(ctx,px+seed*3%25,py+5,3,3,c.light);rect(ctx,px+(seed*7)%26,py+23,2,2,c.dark);}
+   if(t===2){rect(ctx,px+4,py+6,5,3,c.path2);rect(ctx,px+21,py+22,6,3,c.dark);}
+   if(t===3){rect(ctx,px+4,py+5,12,3,c.glow);rect(ctx,px+18,py+20,9,3,c.dark);}
+   if(t===4){rect(ctx,px,py,32,32,c.wall);rect(ctx,px+2,py+2,28,8,c.roof);rect(ctx,px+5,py+12,22,18,c.wall);rect(ctx,px+13,py+20,7,10,"#302b32");}
+   if(t===5){rect(ctx,px+10,py+5,12,22,c.glow);rect(ctx,px+13,py+2,6,28,c.rock);rect(ctx,px+15,py+7,3,17,"#d5e8d4");}
+   if(t===6){rect(ctx,px+4,py+4,24,24,c.wall);rect(ctx,px+9,py+9,14,14,c.dark);rect(ctx,px+13,py+13,6,6,c.glow);}
+   if(t===1){
+     if(area==="village"||area==="forest"){rect(ctx,px+8,py+13,16,18,"#67472f");rect(ctx,px+2,py+3,28,18,c.leaf);rect(ctx,px+7,py,18,16,c.light);rect(ctx,px+12,py+7,8,8,c.dark);}
+     else if(area==="castle"||area==="shadow"){rect(ctx,px+5,py+1,22,30,c.wall);rect(ctx,px+2,py+2,28,6,c.rock);rect(ctx,px+10,py+10,12,16,c.dark);rect(ctx,px+14,py+13,4,5,c.glow);}
+     else{rect(ctx,px+3,py+5,26,23,c.wall);rect(ctx,px+7,py+1,18,8,c.rock);rect(ctx,px+10,py+13,12,12,c.dark);}
+   }
+ }
+ // Cenários exclusivos: construções, cristais, árvores e estruturas de cada capítulo.
+ if(area==="village"){
+   for(const x of [3,21]){const px=x*32;rect(ctx,px-4,82,200,8,"#46352f");rect(ctx,px+4,86,184,76,c.wall);rect(ctx,px-5,76,202,24,c.roof);rect(ctx,px+24,110,24,26,"#2a2630");rect(ctx,px+128,110,24,26,"#2a2630");rect(ctx,px+84,120,25,42,"#3a2a2b");}
+   rect(ctx,448,110,64,40,"#397b91");rect(ctx,454,116,52,28,"#75b4b0");rect(ctx,470,100,20,12,"#b4c7ad");
+ }else if(area==="forest"){
+   for(let i=0;i<9;i++){const x=70+i*100,y=80+(i%3)*135;rect(ctx,x+10,y+18,12,30,"#68452e");rect(ctx,x,y,34,30,"#1d492f");rect(ctx,x+6,y-8,22,25,"#477b43");}
+   rect(ctx,410,300,130,9,"#725b3c");rect(ctx,420,290,110,7,"#a5b66c");
+ }else if(area==="cave"){
+   for(let i=0;i<7;i++){const x=65+i*125,y=80+(i%3)*130;rect(ctx,x,y,14,42,"#4c5367");rect(ctx,x+4,y-15,6,55,c.glow);rect(ctx,x+6,y-7,3,36,"#d0e7e5");}
+   rect(ctx,400,250,160,8,"#66717a");
+ }else if(area==="fire"){
+   for(let i=0;i<5;i++){const x=80+i*180;rect(ctx,x,60,26,110,"#4b3434");rect(ctx,x+5,70,16,80,"#8d4940");rect(ctx,x+9,85,8,50,c.glow);}
+   for(let i=0;i<6;i++){const x=80+i*145;rect(ctx,x,300+(i%2)*80,36,7,c.lava);rect(ctx,x+8,307+(i%2)*80,18,5,"#ffbb53");}
+ }else if(area==="castle"){
+   for(let x of [90,260,650,820]){rect(ctx,x,55,42,220,"#3a3b50");rect(ctx,x-7,45,56,22,"#8d8793");rect(ctx,x+12,95,18,90,"#262a3b");rect(ctx,x+16,112,10,24,c.glow);}
+   rect(ctx,385,70,190,14,"#8a5260");rect(ctx,405,84,150,110,"#343346");rect(ctx,460,115,40,80,"#211f30");
+ }else{
+   for(let i=0;i<8;i++){const x=55+i*120,y=80+(i%3)*120;rect(ctx,x,y,28,90,"#29213f");rect(ctx,x+6,y-14,16,22,"#68447f");rect(ctx,x+11,y+14,6,48,c.glow);}
+   rect(ctx,400,110,160,70,"#21182f");rect(ctx,440,90,80,100,"#4b2a64");rect(ctx,464,75,32,120,c.glow);
+ }
+ return {canvas,tiles};
 }
-window.addEventListener('keydown', event => {
-  if (['INPUT','SELECT','TEXTAREA'].includes(document.activeElement?.tagName)) return;
-  const key = event.code;
-  if (KEY_DIRECTIONS[key]) { event.preventDefault(); beginMovement(key); }
+function pixelMonster(ctx,name,x,y,scale=3,boss=false,time=0){
+ const n=(name||"").toLowerCase();
+ let body="#8caa67",dark="#3d5945",light="#c4d78b",eye="#ffdf7b";
+ if(n.includes("lobo")){body="#8995a4";dark="#394553";light="#c3d0dc";}
+ else if(n.includes("goblin")){body="#79a64e";dark="#355c37";light="#b7d36d";}
+ else if(n.includes("aranha")){body="#6d4b83";dark="#322441";light="#b78bd0";}
+ else if(n.includes("orc")||n.includes("troll")){body="#7a9252";dark="#38472e";light="#c2c878";}
+ else if(n.includes("esqueleto")||n.includes("cavaleiro")){body="#c5c2a5";dark="#555568";light="#f2e7c4";}
+ else if(n.includes("salamandra")||n.includes("draco")){body="#c45c37";dark="#6f302c";light="#f3a24e";eye="#fff3a0";}
+ else if(n.includes("golem")){body="#9a6a48";dark="#493b43";light="#d49b60";}
+ else if(n.includes("necromante")||n.includes("cultista")){body="#67518e";dark="#29233e";light="#b69be0";}
+ else if(n.includes("malakar")||n.includes("vazio")||n.includes("espectro")||n.includes("abominação")){body="#704c91";dark="#251d3d";light="#c68be4";eye="#f6d6ff";}
+ const bob=Math.sin(time/230+(x/80))*2*scale;
+ const w=(boss?18:13)*scale,h=(boss?19:15)*scale,px=Math.round(x-w/2),py=Math.round(y-h/2+bob);
+ rect(ctx,px+3*scale,py+13*scale,w-6*scale,4*scale,dark);
+ rect(ctx,px+2*scale,py+5*scale,w-4*scale,9*scale,body);
+ rect(ctx,px+4*scale,py+2*scale,w-8*scale,7*scale,light);
+ rect(ctx,px+3*scale,py+10*scale,3*scale,5*scale,dark);rect(ctx,px+w-6*scale,py+10*scale,3*scale,5*scale,dark);
+ rect(ctx,px+4*scale,py+14*scale,3*scale,4*scale,dark);rect(ctx,px+w-7*scale,py+14*scale,3*scale,4*scale,dark);
+ rect(ctx,px+4*scale,py+7*scale,3*scale,3*scale,eye);rect(ctx,px+w-7*scale,py+7*scale,3*scale,3*scale,eye);
+ if(boss){rect(ctx,px+2*scale,py-2*scale,4*scale,5*scale,light);rect(ctx,px+w-6*scale,py-2*scale,4*scale,5*scale,light);rect(ctx,px+5*scale,py-5*scale,w-10*scale,4*scale,dark);}
+ else{rect(ctx,px+3*scale,py-2*scale,3*scale,5*scale,dark);rect(ctx,px+w-6*scale,py-2*scale,3*scale,5*scale,dark);}
+}
+function pixelHero(ctx,p,time=0){
+ const x=p.x,y=p.y,scale=3,walking=!!p.moving,bob=walking?Math.abs(Math.sin(time/65))*3:0;
+ const colors=HEROES[p.classKey]||HEROES.warrior;
+ const left=Math.round(x-24),top=Math.round(y-31-bob);
+ rect(ctx,x-15,y+17,30,7,"#1b1d24");
+ rect(ctx,left+12,top+38,12,13,"#554033");rect(ctx,left+30,top+38,12,13,"#554033");
+ rect(ctx,left+9,top+48,15,5,"#242b35");rect(ctx,left+30,top+48,15,5,"#242b35");
+ rect(ctx,left+9,top+18,39,24,colors.outfit);rect(ctx,left+18,top+18,18,6,colors.trim);rect(ctx,left+24,top+24,9,15,colors.accent);
+ rect(ctx,left+4,top+21,9,18,colors.outfit);rect(ctx,left+44,top+21,9,18,colors.outfit);
+ rect(ctx,left+7,top+36,8,6,colors.skin);rect(ctx,left+44,top+36,8,6,colors.skin);
+ rect(ctx,left+15,top+3,30,21,colors.skin);rect(ctx,left+15,top+18,30,5,colors.hair);
+ rect(ctx,left+18,top+10,5,4,"#20232a");rect(ctx,left+36,top+10,5,4,"#20232a");
+ if(p.equipment?.armor){const tone=p.equipment.armor==="shadowCloak"?"#382b4f":p.equipment.armor==="chainArmor"?"#9da9b2":"#9a6844";rect(ctx,left+9,top+19,39,23,tone);rect(ctx,left+24,top+23,9,14,colors.accent);}
+ if(p.equipment?.weapon){rect(ctx,left+50,top+16,4,29,"#c9d5d9");rect(ctx,left+47,top+23,10,4,colors.accent);}
+ if(p.facing==="left") { /* corpo mantém a silhueta legível; rosto e arma indicam direção */ rect(ctx,left+15,top+10,4,4,"#20232a"); }
+ if(p.facing==="up"){rect(ctx,left+15,top+3,30,8,colors.hair);rect(ctx,left+18,top+13,24,6,colors.hair);}
+}
+function drawGate(ctx,x,y,label,locked=false){
+ rect(ctx,x-25,y-20,50,40,locked?"#51424a":"#72523a");rect(ctx,x-19,y-16,38,34,locked?"#2b2534":"#263e45");
+ rect(ctx,x-13,y-12,26,27,locked?"#473047":"#73a6a0");rect(ctx,x-7,y-7,14,20,locked?"#332239":"#b6d28c");
+ ctx.fillStyle=locked?"#c16d63":"#f4cf72";ctx.font="bold 12px monospace";ctx.textAlign="center";ctx.fillText(label,x,y+34);
+}
+function nearest(a,b){return Math.hypot(a.x-b.x,a.y-b.y);}
+function currentPlayer(){return latestState?.players.find(p=>p.id===socket.id);}
+function worldInteractionPrompt(){
+ const me=currentPlayer();if(!me||latestState?.battle)return "ESPAÇO ATACA • WASD / SETAS MOVIMENTAM";
+ const area=latestState.activeRegion||"village";
+ if(area==="village"&&me.y>510)return "E — VIAJAR PARA A FLORESTA";
+ if(area!=="village"&&me.y<65){
+   const idx=["forest","cave","fire","castle","shadow"].indexOf(area),next=["forest","cave","fire","castle","shadow"][idx+1];
+   if(next)return latestState.world?.[area]?"E — AVANÇAR PARA A PRÓXIMA REGIÃO":"O PORTÃO ESTÁ SELADO — DERROTE O GUARDIÃO";
+ }
+ if(area!=="village"&&me.y>510){const idx=["forest","cave","fire","castle","shadow"].indexOf(area);return idx===0?"E — VOLTAR À VILA":"E — REGRESSAR À REGIÃO ANTERIOR";}
+ if(area==="village"){const npc=NPC_POINTS.find(n=>nearest(me,n)<48);if(npc)return "E — CONVERSAR";}
+ const points=ENEMY_POINTS[area]||[],region=window.gameRegions?.find(r=>r.id===area);
+ if(points.some((p,i)=>!latestState.defeatedEnemies?.[area]?.includes(i)&&nearest(me,p)<50))return "A CRIATURA PERCEBEU SUA PRESENÇA!";
+ if(region?.boss&& !latestState.world?.[area]&&nearest(me,BOSS_POINTS[area])<62)return "O GUARDIÃO ESTÁ DIANTE DE VOCÊ!";
+ return "WASD / SETAS PARA ANDAR • E PARA INTERAGIR";
+}
+function interactWorld(){
+ const me=currentPlayer();if(!me||latestState?.battle)return;
+ const area=latestState.activeRegion||"village";
+ if(area==="village"&&me.y>500){socket.emit("travelRegion",{area:"forest"});return;}
+ const ids=["forest","cave","fire","castle","shadow"],idx=ids.indexOf(area);
+ if(area!=="village"&&me.y<75&&idx>=0){
+   if(!latestState.world?.[area])return toast("O guardião ainda protege esta passagem. Derrote-o primeiro.");
+   if(ids[idx+1])socket.emit("travelRegion",{area:ids[idx+1]});return;
+ }
+ if(area!=="village"&&me.y>500){socket.emit("travelRegion",{area:idx===0?"village":ids[idx-1]});return;}
+ if(area==="village"){
+   const npc=NPC_POINTS.find(n=>nearest(me,n)<48);
+   if(npc){if(npc.npc==="blacksmith")$("merchant").classList.remove("hidden");socket.emit("talkNpc",{npc:npc.npc});return;}
+ }
+}
+function checkEncounters(){
+ const me=currentPlayer();if(!me||latestState?.battle||Date.now()<(window.encounterCooldown||0))return;
+ const area=latestState.activeRegion||"village",region=window.gameRegions?.find(r=>r.id===area);if(!region)return;
+ const points=ENEMY_POINTS[area]||[],defeated=latestState.defeatedEnemies?.[area]||[];
+ for(let i=0;i<points.length;i++){if(!defeated.includes(i)&&nearest(me,points[i])<35){window.encounterCooldown=Date.now()+1800;socket.emit("explore",{area,action:"enter",enemyIndex:i});return;}}
+ if(region.boss&&!latestState.world?.[area]&&nearest(me,BOSS_POINTS[area])<45){window.encounterCooldown=Date.now()+1800;socket.emit("explore",{area,action:"enter",boss:true});}
+}
+function drawWorld(){
+ const canvas=$("worldCanvas");if(!canvas||!latestState)return;
+ const area=latestState.activeRegion||"village";
+ if(!worldCache.has(area))worldCache.set(area,drawMapBase(area));
+ const ctx=canvas.getContext("2d"),base=worldCache.get(area);ctx.clearRect(0,0,960,576);ctx.drawImage(base.canvas,0,0);
+ if(area==="village"){drawGate(ctx,480,550,"FLORESTA");NPC_POINTS.forEach((n,i)=>{pixelHero(ctx,{x:n.x,y:n.y,facing:"down",classKey:i===0?"mage":i===1?"cleric":"warrior"},Date.now());});}
+ else{
+   const idx=["forest","cave","fire","castle","shadow"].indexOf(area),previous=idx===0?"VILA":(["forest","cave","fire","castle","shadow"][idx-1]||"VILA");
+   drawGate(ctx,480,550,previous,false);
+   const next=["forest","cave","fire","castle","shadow"][idx+1];
+   drawGate(ctx,480,25,next?(latestState.world?.[area]?"PRÓXIMA":"SELADO"):"FIM",!latestState.world?.[area]);
+   const enemies=window.gameRegions?.find(r=>r.id===area)?.enemies||[],defeated=latestState.defeatedEnemies?.[area]||[];
+   enemies.forEach((enemy,i)=>{if(!defeated.includes(i)){pixelMonster(ctx,enemy.name,ENEMY_POINTS[area][i].x,ENEMY_POINTS[area][i].y,2.2,false,Date.now());ctx.fillStyle="#fff0c2";ctx.font="12px monospace";ctx.textAlign="center";ctx.fillText(enemy.name,ENEMY_POINTS[area][i].x,ENEMY_POINTS[area][i].y+31);}});
+   const region=window.gameRegions?.find(r=>r.id===area);
+   if(region?.boss&&!latestState.world?.[area]){pixelMonster(ctx,region.boss.name,BOSS_POINTS[area].x,BOSS_POINTS[area].y,3.5,true,Date.now());ctx.fillStyle="#f4cf72";ctx.font="bold 13px monospace";ctx.textAlign="center";ctx.fillText("GUARDIÃO",480,135);}
+ }
+ const me=currentPlayer();
+ if(me){latestState.players.filter(p=>p.id!==socket.id).forEach(p=>pixelHero(ctx,p,Date.now()));pixelHero(ctx,{...me,...(localPosition||{})},Date.now());}
+ $("nearbyPrompt").textContent=worldInteractionPrompt();
+}
+function renderMap(){if(!latestState)return;drawWorld();checkEncounters();}
+function moveBlocked(x,y){
+ const area=latestState?.activeRegion||"village";if(!worldCache.has(area))worldCache.set(area,drawMapBase(area));
+ const tiles=worldCache.get(area).tiles;
+ for(const [ox,oy] of [[-10,-8],[10,-8],[-10,8],[10,8]]){
+   const tx=Math.floor((x+ox)/TILE_SIZE),ty=Math.floor((y+oy)/TILE_SIZE),tile=tiles[ty]?.[tx];
+   if(tile===undefined||[1,3,4,5,6].includes(tile))return true;
+ }
+ return false;
+}
+function beginMovement(key){if(!KEY_DIRECTIONS[key])return;heldKeys.add(KEY_DIRECTIONS[key]);if(!moveFrame){lastFrameTime=0;moveFrame=requestAnimationFrame(movementLoop);}}
+function endMovement(key){const d=KEY_DIRECTIONS[key];if(d)heldKeys.delete(d);}
+let lastFrameTime=0;
+function movementLoop(timestamp){
+ moveFrame=null;const me=currentPlayer();if(!me||latestState?.battle){localPosition=null;return;}
+ if(heldKeys.size===0){if(me.moving){me.moving=false;renderMap();}return;}
+ const dt=lastFrameTime?Math.min(.04,(timestamp-lastFrameTime)/1000):.016;lastFrameTime=timestamp;
+ let dx=0,dy=0;if(heldKeys.has("left"))dx--;if(heldKeys.has("right"))dx++;if(heldKeys.has("up"))dy--;if(heldKeys.has("down"))dy++;
+ const len=Math.hypot(dx,dy)||1,speed=190,base=localPosition||{x:me.x,y:me.y};
+ const nx=base.x+dx/len*speed*dt,ny=base.y+dy/len*speed*dt;
+ let x=base.x,y=base.y;if(!moveBlocked(nx,base.y))x=nx;if(!moveBlocked(x,ny))y=ny;
+ let facing=me.facing||"down";if(Math.abs(dx)>Math.abs(dy))facing=dx<0?"left":"right";else if(dy)facing=dy<0?"up":"down";
+ localPosition={x,y};me.x=x;me.y=y;me.facing=facing;me.moving=true;
+ if(timestamp-lastMoveSent>55){socket.emit("movePlayer",{x,y,facing});lastMoveSent=timestamp;}
+ renderMap();moveFrame=requestAnimationFrame(movementLoop);
+}
+window.addEventListener("keydown",event=>{
+ if(["INPUT","SELECT","TEXTAREA"].includes(document.activeElement?.tagName))return;
+ if(event.code==="KeyE"){event.preventDefault();interactWorld();return;}
+ if(KEY_DIRECTIONS[event.code]){event.preventDefault();beginMovement(event.code);}
 });
-window.addEventListener('keyup', event => endMovement(event.code));
-window.addEventListener('blur', () => {
-  heldKeys.clear();
-  const me = latestState?.players.find(p => p.id === socket.id);
-  if (me) { me.moving = false; renderMap(); }
+window.addEventListener("keyup",event=>endMovement(event.code));
+window.addEventListener("blur",()=>{heldKeys.clear();const me=currentPlayer();if(me){me.moving=false;renderMap();}});
+document.querySelectorAll("[data-move]").forEach(button=>{
+ const keys={up:"ArrowUp",down:"ArrowDown",left:"ArrowLeft",right:"ArrowRight"},key=keys[button.dataset.move];
+ button.addEventListener("pointerdown",event=>{event.preventDefault();button.setPointerCapture?.(event.pointerId);beginMovement(key);});
+ ["pointerup","pointercancel","lostpointercapture","pointerleave"].forEach(name=>button.addEventListener(name,()=>endMovement(key)));
 });
-document.querySelectorAll('[data-move]').forEach(button => {
-  const keyForDirection = {up:'ArrowUp',down:'ArrowDown',left:'ArrowLeft',right:'ArrowRight'};
-  const key = keyForDirection[button.dataset.move];
-  button.addEventListener('pointerdown', event => { event.preventDefault(); button.setPointerCapture?.(event.pointerId); beginMovement(key); });
-  ['pointerup','pointercancel','lostpointercapture','pointerleave'].forEach(name => button.addEventListener(name, () => endMovement(key)));
-});
-
+let worldLoopActive=false;
+function worldAnimation(){if(!worldLoopActive)return;if(latestState&&!latestState.battle)renderMap();requestAnimationFrame(worldAnimation);}
 // Trilha 8-bit original sintetizada no navegador (sem arquivos ou músicas protegidas).
 let audioContext = null, masterGain = null, musicTimer = null, musicEnabled = false, musicStep = 0;
 const melody = [659,784,988,784,587,659,784,523,587,698,880,698,523,587,698,494,523,659,784,659,440,523,659,587,392,494,587,494,440,523,659,523];
