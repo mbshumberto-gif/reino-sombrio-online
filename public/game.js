@@ -293,7 +293,9 @@ function interactWorld(){
  const ids=["forest","cave","fire","castle","shadow"],idx=ids.indexOf(area);
  if(area!=="village"&&me.y<75&&idx>=0){
    if(!latestState.world?.[area])return toast("O guardião ainda protege esta passagem. Derrote-o primeiro.");
-   if(ids[idx+1])socket.emit("travelRegion",{area:ids[idx+1]});return;
+   if(ids[idx+1])socket.emit("travelRegion",{area:ids[idx+1]});
+   else toast("Você concluiu a campanha e libertou Eldoria!");
+   return;
  }
  if(area!=="village"&&me.y>500){socket.emit("travelRegion",{area:idx===0?"village":ids[idx-1]});return;}
  if(area==="village"){
