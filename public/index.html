@@ -7,9 +7,18 @@
 </head>
 <body>
   <main class="shell">
-    <header><div class="sigil">☠</div><p class="eyebrow">UMA AVENTURA COOPERATIVA</p><h1>AS CRÔNICAS DO<br><span>REINO SOMBRIO</span></h1><p class="sub">O destino de Eldoria será decidido em grupo.</p></header>
+    <header><div class="sigil">☠</div><p class="eyebrow">UMA AVENTURA COOPERATIVA</p><h1>AS CRÔNICAS DO<br><span>REINO SOMBRIO</span></h1><p class="sub">O destino de Eldoria será decidido em grupo.</p>
+    <div class="music-tools"><button id="musicToggle" class="music-button" type="button">♫ Música: desligada</button><label class="volume-label" for="musicVolume">Volume</label><input id="musicVolume" class="volume" type="range" min="0" max="100" value="35" aria-label="Volume da música"></div>
+  </header>
     <section id="entry" class="panel">
       <label for="playerName">Nome do seu herói</label><input id="playerName" maxlength="18" placeholder="Ex.: Beto San">
+      <label for="heroClass">Escolha sua classe</label>
+      <select id="heroClass">
+        <option value="warrior">⚔ Guerreiro — resistente e equilibrado</option>
+        <option value="archer">🏹 Arqueira — rápida e precisa</option>
+        <option value="mage">✨ Maga — alto poder de ataque</option>
+        <option value="druid">🌿 Druida — defesa e equilíbrio</option>
+      </select>
       <button id="createBtn" class="primary">Criar nova sala</button>
       <div class="or">OU ENTRE NA AVENTURA</div>
       <label for="roomCode">Código da sala</label><input id="roomCode" maxlength="6" placeholder="ABC123" class="code">
@@ -21,7 +30,15 @@
       <div class="columns">
         <section class="panel"><h2>⚔ Aventureiros</h2><div id="players"></div><button id="readyBtn">Estou pronto</button><button id="restBtn" class="secondary">Descansar (10 ouros)</button></section>
         <section class="panel story"><h2 id="areaTitle">Vila de Eldoria</h2><p id="storyText">As sombras avançam sobre o reino. Reúnam seus aliados.</p>
-          <div class="pixel-scene" role="img" aria-label="Paisagem em pixel art: floresta, castelo e um aventureiro"><div class="scene-caption">ELDORIA • 16-BIT ADVENTURE</div></div>
+          <div id="overworld" class="overworld" role="img" aria-label="Mapa pixel art da vila de Eldoria">
+            <div class="map-title">ELDORIA • VILA DOS AVENTUREIROS</div>
+            <div id="avatarLayer" class="avatar-layer"></div>
+            <div class="map-hint">MOVER: WASD / SETAS</div>
+          </div>
+          <div class="mobile-pad" aria-label="Controles de movimento">
+            <button type="button" data-move="up" aria-label="Mover para cima">▲</button>
+            <div><button type="button" data-move="left" aria-label="Mover para esquerda">◀</button><button type="button" data-move="down" aria-label="Mover para baixo">▼</button><button type="button" data-move="right" aria-label="Mover para direita">▶</button></div>
+          </div>
           <div id="world" class="world"></div>
           <div id="actions" class="actions">
             <button data-area="forest" data-action="enter">Floresta Sombria</button>
@@ -53,4 +70,6 @@
     <div id="toast" role="status"></div>
   </main>
   <script src="/socket.io/socket.io.js"></script><script src="game.js"></script>
+</body></html>
+<script src="game.js"></script>
 </body></html>
