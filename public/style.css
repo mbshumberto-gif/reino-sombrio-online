@@ -168,3 +168,14 @@ body{background:#101a23;color:#fff0c2}
  .nearby-prompt{font-size:6px}
  .enemy-portrait{width:120px;height:110px}
 }
+
+/* Menu recolhido: o mundo é a tela principal */
+.game-menu{width:100%;margin-top:12px;background:#1a2935;border:2px solid #526b75}
+.game-menu>summary{font-size:8px}
+.game-menu>.side-rail{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;padding:0 12px 12px}
+.game-menu .party-panel{grid-column:1/-1}
+.game-menu .drawer{background:#1c3026}
+.region-actions,.town-actions{display:none!important}
+#overworld.hidden,.mobile-pad.hidden{display:none!important}
+.battle-stage{min-height:245px}
+@media(max-width:850px){.game-menu>.side-rail{grid-template-columns:1fr}.game-menu .party-panel{grid-column:auto}}
