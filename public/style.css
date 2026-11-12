@@ -25,3 +25,13 @@ select{width:100%;padding:12px;border:3px solid var(--line);background:#0c1821;c
 .world{display:flex;gap:8px;flex-wrap:wrap;margin:18px 0}.world span{border:2px solid #526b75;background:#14232d;padding:7px 10px;font-size:17px;color:#b9c4bf}.world .done{border-color:#8fbd71;color:#c8eaa5;background:#233c34}.actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:18px}.enemy{padding:17px;border:3px solid #b65d58;background:#311e25;box-shadow:4px 4px 0 #091017}.enemy h3{margin:8px 0;color:#f3a08e;font-size:15px;line-height:1.8}.bar{height:14px;background:#5a3033;border:2px solid #9a5b54;overflow:hidden}.bar i{display:block;height:100%;background:#d86d62;width:100%;transition:width .2s}.enemy p{font-size:18px;color:#d4aca2}#battleHint{font-size:18px;color:var(--muted)}#log{margin-top:18px;max-height:150px;overflow:auto;color:#d7d0b9;font-size:18px;line-height:1.45}.logline{border-top:2px dashed #354b55;padding:7px 0}footer{text-align:center;color:#93a19b;font-family:'Press Start 2P',monospace;font-size:8px;line-height:2;padding:22px 8px}footer span{color:var(--gold)}#toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#263e45;border:3px solid var(--gold);box-shadow:4px 4px 0 #050b10;padding:12px 18px;opacity:0;pointer-events:none;transition:.2s;max-width:90vw;text-align:center;font-size:21px;z-index:5}#toast.show{opacity:1}
 @media(max-width:720px){body{padding:10px}.columns{grid-template-columns:1fr}.panel{padding:15px}.roombar{padding:13px}.roombar strong{font-size:16px}.overworld{min-height:210px;aspect-ratio:1.8/1}.mobile-pad{display:flex}button{font-size:8px}.music-tools{flex-wrap:wrap}.map-title,.map-hint{font-size:6px}}
 .character{margin-top:14px;padding:10px 12px;border:2px solid #617b83;background:#10212b;color:#e1cf99;font-size:18px;line-height:1.5;box-shadow:3px 3px 0 #09131b}.merchant{margin-top:14px;padding:14px;border:3px solid #b49a5d;background:#2b302a;box-shadow:4px 4px 0 #09131b}.merchant h3{font-family:'Press Start 2P',monospace;font-size:10px;line-height:1.8;color:var(--gold);margin:0 0 8px}.merchant p{margin:6px 0 12px;color:#cfccaf}.town-actions{padding-top:12px;border-top:2px dashed #425762}.town-actions button{font-size:8px}
+
+
+/* Diário de campanha e objetivos do grupo */
+.quest-panel{margin:16px 0;padding:14px;border:1px solid rgba(226,189,97,.25);border-radius:12px;background:rgba(10,16,23,.55)}
+.quest-panel h3{margin:0 0 10px;color:#e2bd61;font-size:1rem}
+.quest-item{padding:10px 0;border-top:1px solid rgba(255,255,255,.08)}
+.quest-item strong{display:block;color:#f1e5c7}
+.quest-item p{margin:4px 0;color:#b9c0c8;font-size:.88rem}
+.quest-item small{color:#d4ad5d}
+.quest-item.completed strong,.quest-item.completed small{color:#83bd88}
