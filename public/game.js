@@ -1,6 +1,7 @@
 const socket = io();
 const $ = id => document.getElementById(id);
 let currentCode = null, latestState = null, toastTimer;
+const characterId=localStorage.getItem('eldoriaCharacterId')||(crypto.randomUUID?crypto.randomUUID():'hero-'+Math.random().toString(36).slice(2));localStorage.setItem('eldoriaCharacterId',characterId);
 let localPosition = null;
 const heldKeys = new Set();
 let moveFrame = null, lastMoveSent = 0;
@@ -22,8 +23,8 @@ function log(msg){ const el=document.createElement("div"); el.className="logline
 function enterGame(){ $("entry").classList.add("hidden"); $("game").classList.remove("hidden"); $("roomLabel").textContent=currentCode; }
 function chosenHero(){ return $("heroClass").value || 'warrior'; }
 
-$("createBtn").onclick=()=>socket.emit("createRoom",{name:$("playerName").value,heroClass:chosenHero()});
-$("joinBtn").onclick=()=>socket.emit("joinRoom",{name:$("playerName").value,roomCode:$("roomCode").value,heroClass:chosenHero()});
+$("createBtn").onclick=()=>socket.emit("createRoom",{name:$("playerName").value,heroClass:chosenHero(),characterId});
+$("joinBtn").onclick=()=>socket.emit("joinRoom",{name:$("playerName").value,roomCode:$("roomCode").value,heroClass:chosenHero(),characterId});
 $("copyBtn").onclick=async()=>{try{await navigator.clipboard.writeText(currentCode);toast("Código copiado! Envie para seus amigos.")}catch{toast("Código da sala: "+currentCode)}};
 $("readyBtn").onclick=()=>socket.emit("ready");
 $("restBtn").onclick=()=>socket.emit("rest");
@@ -40,6 +41,11 @@ document.querySelectorAll("[data-npc]").forEach(button=>button.onclick=()=>socke
 $("defendBtn").onclick=()=>socket.emit("battleAction",{action:"defend"});
 $("skillBtn").onclick=()=>socket.emit("battleAction",{action:"skill"});
 $("skillUpgradeBtn").onclick=()=>socket.emit("upgradeSkill");
+$("dungeonStartBtn").onclick=()=>socket.emit('startDungeon',{area:latestState?.activeRegion==='village'?'forest':latestState?.activeRegion});
+$("dungeonRoomBtn").onclick=()=>{const d=latestState?.dungeon;const r=window.dungeonData?.[d?.region]?.[d?.currentRoom];const answer=r?.kind==='puzzle'?prompt('Enigma: '+r.description+'\nDica: a palavra que representa o reino onde tudo começou.') : undefined;socket.emit('dungeonAction',{action:'enter',answer});};
+$("dungeonAdvanceBtn").onclick=()=>socket.emit('dungeonAction',{action:'advance'});
+$("dungeonLeaveBtn").onclick=()=>socket.emit('dungeonAction',{action:'leave'});
+$("continueCampaignBtn").onclick=()=>{$("transitionScreen").classList.add('hidden');};
 document.querySelectorAll("[data-boss-area]").forEach(button=>button.onclick=()=>socket.emit("explore",{area:button.dataset.bossArea,action:"enter",boss:true}));
 
 // Sprites SVG originais desenhados em blocos para manter o visual pixel art.
@@ -69,6 +75,18 @@ function heroSprite(heroKey, walking=false, facing='down', equipment={}) {
   </g></svg>`;
 }
 
+function renderCampaign(state){
+ const scenes=window.regionScenes||{},key=state.activeRegion||'village',scene=scenes[key]||scenes.village;
+ if(scene){$('sceneTitle').textContent=scene.title;$('sceneSubtitle').textContent=scene.subtitle;$('regionScene').className='region-scene theme-'+scene.theme;$('sceneLandmarks').innerHTML='';scene.landmarks.forEach(place=>{const tag=document.createElement('span');tag.textContent='✦ '+place;$('sceneLandmarks').append(tag);});}
+ const regionData=window.gameRegions?.find(r=>r.id===key);$('enemyGallery').innerHTML='';(regionData?.enemies||[]).forEach(enemy=>{const chip=document.createElement('span');chip.className='enemy-chip';chip.textContent='☠ '+enemy.name+' • '+enemy.hp+' HP';$('enemyGallery').append(chip);});
+ const dungeon=state.dungeon,dRooms=window.dungeonData?.[dungeon?.region]||[];
+ $('dungeonDescription').textContent=dungeon?'Dungeon: '+(scenes[dungeon.region]?.title||dungeon.region):'Entre na dungeon da região atual. Cada dungeon possui quatro salas, incluindo um enigma e um guardião.';
+ $('dungeonStatus').innerHTML='';
+ if(dungeon){dRooms.forEach((room,i)=>{const line=document.createElement('div');line.className='dungeon-room';line.textContent=(dungeon.cleared[i]?'✓ ':'◇ ')+(i+1)+'. '+room.name+' — '+room.description;$('dungeonStatus').append(line);});$('dungeonRoomBtn').textContent=dRooms[dungeon.currentRoom]?.kind==='puzzle'?'Resolver enigma':'Explorar sala '+(dungeon.currentRoom+1);$('dungeonRoomBtn').disabled=!!dungeon.cleared[dungeon.currentRoom]||!!state.battle;$('dungeonAdvanceBtn').disabled=!dungeon.cleared[dungeon.currentRoom]||!!state.battle;$('dungeonLeaveBtn').disabled=!!state.battle;}else{$('dungeonRoomBtn').disabled=true;$('dungeonAdvanceBtn').disabled=true;$('dungeonLeaveBtn').disabled=true;}
+ $('dungeonStartBtn').disabled=!!state.battle||!!dungeon;
+ $('sideQuestList').innerHTML='';(window.sideQuestData||[]).filter(q=>q.region===key).forEach(q=>{const p=state.sideQuests?.[q.id]||{};const item=document.createElement('div');item.className='sidequest';const title=document.createElement('strong');title.textContent=q.title;const desc=document.createElement('p');desc.textContent=q.description+' ('+(p.progress||0)+'/'+q.goal+')';item.append(title,desc);const btn=document.createElement('button');btn.textContent=p.completed?'Concluída':p.accepted?(p.progress>=q.goal?'Resgatar recompensa':'Em andamento'):'Aceitar missão';btn.disabled=!!state.battle||p.completed;btn.onclick=()=>socket.emit('sideQuest',{id:q.id,action:p.accepted?(p.progress>=q.goal?'claim':'accept'):'accept'});item.append(btn);$('sideQuestList').append(item);});
+ if(state.transition&&window.lastTransitionAt!==state.transition.at){window.lastTransitionAt=state.transition.at;$('transitionTitle').textContent=state.transition.title+' conquistada!';$('transitionMessage').textContent=state.transition.message;$('transitionScreen').classList.remove('hidden');}
+}
 function renderMap() {
   if (!latestState) return;
   const layer = $("avatarLayer");
@@ -212,7 +230,8 @@ $("musicVolume").addEventListener('input', () => {
   if (masterGain) masterGain.gain.setTargetAtTime(Number($("musicVolume").value)/100*0.16, audioContext.currentTime, 0.04);
 });
 
-fetch("/game-data").then(response=>response.json()).then(data=>{window.gameClasses=data.classes;window.gameQuests=data.quests;const select=$("heroClass");select.innerHTML="";Object.entries(data.classes).forEach(([key,hero])=>{const option=document.createElement("option");option.value=key;option.textContent=`${hero.name} — ${hero.role} | ${hero.skill.name}`;select.append(option);});}).catch(()=>{});
+fetch("/game-data").then(response=>response.json()).then(data=>{window.gameClasses=data.classes;window.gameQuests=data.quests;window.gameRegions=data.regions;const select=$("heroClass");select.innerHTML="";Object.entries(data.classes).forEach(([key,hero])=>{const option=document.createElement("option");option.value=key;option.textContent=`${hero.name} — ${hero.role} | ${hero.skill.name}`;select.append(option);});}).catch(()=>{});
+fetch('/campaign-data').then(r=>r.json()).then(data=>{window.regionScenes=data.scenes;window.dungeonData=data.dungeons;window.sideQuestData=data.sideQuests;}).catch(()=>{});
 socket.on("joined",data=>{currentCode=data.code;localPosition=null;enterGame();toast("Você entrou na aventura! Compartilhe o código.")});
 socket.on("errorMessage",toast);
 socket.on("notice",msg=>{toast(msg);log(msg)});
@@ -233,6 +252,7 @@ socket.on('playerMoved', data => {
 });
 socket.on("state",state=>{
  latestState=state;
+ renderCampaign(state);
  const meNow = state.players.find(p => p.id === socket.id);
  if (meNow) localPosition = {x:meNow.x,y:meNow.y};
  if (state.battle) { heldKeys.clear(); localPosition = null; }

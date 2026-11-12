@@ -17,7 +17,7 @@ const INDEX_FILE = path.join(PUBLIC_DIR, 'index.html');
 
 // Rotas de diagnóstico e da página inicial.
 app.get('/health', (_req, res) => {
-  res.status(200).json({ ok: true, game: 'Reino Sombrio Online', indexExists: fs.existsSync(INDEX_FILE) });
+  res.status(200).json({ ok: true, game: 'Reino Sombrio Online', indexExists: fs.existsSync(INDEX_FILE), database: persistence.hasDatabase() });
 });
 
 app.get('/', (_req, res) => {
@@ -36,7 +36,12 @@ app.use(express.static(PUBLIC_DIR, { index: false }));
 
 const rooms = new Map();
 const { HERO_CLASSES, EQUIPMENT, REGIONS, QUESTS } = require('./game-data');
+const { REGION_SCENES, DUNGEONS, SIDE_QUESTS, DIALOGUES } = require('./campaign-expansion');
+const persistence = require('./persistence');
 app.get('/game-data', (_req, res) => res.json({ classes: HERO_CLASSES, regions: REGIONS, quests: QUESTS, equipment: EQUIPMENT }));
+app.get('/campaign-data', (_req,res)=>res.json({scenes:REGION_SCENES,dungeons:DUNGEONS,sideQuests:SIDE_QUESTS}));
+app.get('/health', (_req,res)=>res.status(200).json({ok:true,database:persistence.hasDatabase()}));
+app.get('/campaign-data', (_req,res)=>res.json({scenes:REGION_SCENES,dungeons:DUNGEONS,sideQuests:SIDE_QUESTS}));
 
 const SPAWN_POINTS = [
   { x: 46, y: 78 }, { x: 55, y: 82 }, { x: 64, y: 77 }, { x: 36, y: 83 },
@@ -46,11 +51,11 @@ const SPAWN_POINTS = [
 const cleanName = (value) => String(value || '').replace(/[<>]/g, '').trim().slice(0, 18);
 const createRoomCode = () => crypto.randomBytes(3).toString('hex').toUpperCase();
 
-function makePlayer(id, name, classKey, spawn) {
+function makePlayer(id, name, classKey, spawn, characterId, saved = {}) {
   const hero = HERO_CLASSES[classKey] ? classKey : 'warrior';
   const config = HERO_CLASSES[hero];
-  return {
-    id, name, classKey: hero, className: config.name,
+  const fresh = {
+    id, name, characterId, classKey: hero, className: config.name,
     x: spawn.x, y: spawn.y, facing: 'down',
     hp: config.hp, maxHp: config.hp, attack: config.attack, baseAttack: config.attack, defense: config.defense, baseDefense: config.defense,
     mana: config.mana, maxMana: config.mana, level: 1, xp: 0, gold: 50, potions: 3,
@@ -58,6 +63,7 @@ function makePlayer(id, name, classKey, spawn) {
     inventory: ['Poção de vida x3'], skillPoints: 0, skillLevel: 1, skillCooldown: 0, defending: false, buffs: {},
     ready: false, lastMoveAt: 0
   };
+  return { ...fresh, ...saved, id, name, characterId, classKey: hero, className: config.name, ready: false, lastMoveAt: 0 };
 }
 
 function nextSpawn(room) {
@@ -76,13 +82,13 @@ function publicRoom(room) {
       weapon: player.weapon, armor: player.armor, equipment: player.equipment, inventory: { potions: player.potions, weapon: player.weapon, armor: player.armor },
       skillPoints: player.skillPoints, skillLevel: player.skillLevel, skillCooldown: player.skillCooldown, ready: player.ready
     })),
-    world: room.world,
+    world: room.world, activeRegion: room.activeRegion, dungeon: room.dungeon, sideQuests: room.sideQuests, transition: room.transition,
     quests: room.quests,
     battle: room.battle
   };
 }
 
-function emitRoom(room) { io.to(room.code).emit('state', publicRoom(room)); }
+function emitRoom(room) { for (const player of room.players.values()) persistence.saveCharacter(player); io.to(room.code).emit('state', publicRoom(room)); }
 function sendRoomMessage(room, text) { io.to(room.code).emit('notice', text); }
 function sendPlayerMessage(player, text) { io.to(player.id).emit('notice', text); }
 
@@ -131,9 +137,11 @@ function addExperience(player, amount) {
 }
 
 io.on('connection', (socket) => {
-  socket.on('createRoom', (payload = {}) => {
+  socket.on('createRoom', async (payload = {}) => {
     const name = cleanName(payload.name) || 'Aventureiro';
     const heroClass = HERO_CLASSES[payload.heroClass] ? payload.heroClass : 'warrior';
+    const characterId = String(payload.characterId || crypto.randomUUID()).slice(0,80);
+    const saved = await persistence.loadCharacter(characterId);
     let roomCode;
     do { roomCode = createRoomCode(); } while (rooms.has(roomCode));
 
@@ -143,19 +151,22 @@ io.on('connection', (socket) => {
       players: new Map(),
       world: { forest: false, cave: false, fire: false, castle: false, shadow: false },
       quests: Object.fromEntries(QUESTS.map((quest) => [quest.id, { progress: 0, completed: false }])),
-      battle: null
+      battle: null, activeRegion: 'village', dungeon: null, transition: null,
+      sideQuests: Object.fromEntries(SIDE_QUESTS.map(q => [q.id,{accepted:false,progress:0,completed:false}]))
     };
 
-    room.players.set(socket.id, makePlayer(socket.id, name, heroClass, nextSpawn(room)));
+    room.players.set(socket.id, makePlayer(socket.id, name, saved?.classKey || heroClass, nextSpawn(room), characterId, saved || {}));
     rooms.set(roomCode, room);
     socket.join(roomCode);
     socket.emit('joined', { code: roomCode });
     emitRoom(room);
   });
 
-  socket.on('joinRoom', (payload = {}) => {
+  socket.on('joinRoom', async (payload = {}) => {
     const name = cleanName(payload.name) || 'Aventureiro';
     const heroClass = HERO_CLASSES[payload.heroClass] ? payload.heroClass : 'warrior';
+    const characterId = String(payload.characterId || crypto.randomUUID()).slice(0,80);
+    const saved = await persistence.loadCharacter(characterId);
     const roomCode = String(payload.roomCode || '').trim().toUpperCase();
     const room = rooms.get(roomCode);
     if (!room) return socket.emit('errorMessage', 'Sala não encontrada. Confira o código.');
@@ -164,7 +175,7 @@ io.on('connection', (socket) => {
       return socket.emit('errorMessage', 'Esse nome já está sendo usado nesta sala.');
     }
 
-    room.players.set(socket.id, makePlayer(socket.id, name, heroClass, nextSpawn(room)));
+    room.players.set(socket.id, makePlayer(socket.id, name, saved?.classKey || heroClass, nextSpawn(room), characterId, saved || {}));
     if (room.battle) room.battle.turnOrder.push(socket.id);
     socket.join(roomCode);
     socket.emit('joined', { code: roomCode });
@@ -247,6 +258,7 @@ io.on('connection', (socket) => {
     }
 
     if (action !== 'enter') return;
+    room.activeRegion = area; room.transition = null; room.dungeon = null;
     const regionData = REGIONS.find((entry) => entry.id === area);
     const isBoss = payload.boss === true;
     const enemy = isBoss ? regionData.boss : regionData.enemies[Math.floor(Math.random() * regionData.enemies.length)];
@@ -255,6 +267,43 @@ io.on('connection', (socket) => {
     emitRoom(room);
   });
 
+  socket.on('startDungeon', (payload = {}) => {
+    const room=findRoomByPlayerId(socket.id); if(!room||room.battle)return;
+    const area=payload.area; const region=REGIONS.find(r=>r.id===area);
+    if(!region||!DUNGEONS[area])return;
+    if(region.unlock&&!room.world[region.unlock])return socket.emit('errorMessage','Conquiste a região anterior para abrir esta dungeon.');
+    if(room.dungeon&&!room.dungeon.finished)return socket.emit('errorMessage','Você já está em uma dungeon.');
+    room.activeRegion=area; room.transition=null;
+    room.dungeon={region:area,currentRoom:0,cleared:Array(DUNGEONS[area].length).fill(false),finished:false};
+    sendRoomMessage(room,'🗝 Uma dungeon foi descoberta. Avancem sala por sala!');emitRoom(room);
+  });
+  socket.on('dungeonAction',(payload={})=>{
+    const room=findRoomByPlayerId(socket.id);if(!room||room.battle||!room.dungeon)return;
+    const dungeon=room.dungeon, roomsData=DUNGEONS[dungeon.region], index=dungeon.currentRoom, action=payload.action;
+    const player=room.players.get(socket.id);
+    if(action==='leave'){room.dungeon=null;sendPlayerMessage(player,'Você deixou a dungeon.');emitRoom(room);return;}
+    if(action==='advance'){
+      if(!dungeon.cleared[index])return socket.emit('errorMessage','Conclua a sala atual antes de avançar.');
+      if(index>=roomsData.length-1){dungeon.finished=true;player.gold+=75;player.potions+=2;sendRoomMessage(room,'🏆 Dungeon concluída! Recompensa extra: 75 ouros e 2 poções.');}
+      else dungeon.currentRoom++;emitRoom(room);return;
+    }
+    const roomData=roomsData[index];if(!roomData||dungeon.cleared[index])return socket.emit('errorMessage','Esta sala já foi concluída.');
+    if(roomData.kind==='puzzle'){if(payload.answer!=='eldoria')return socket.emit('errorMessage','O mecanismo não reagiu. Leia as inscrições e tente novamente.');dungeon.cleared[index]=true;player.xp+=35;player.gold+=20;sendRoomMessage(room,'🔓 Enigma resolvido! A passagem secreta se abriu.');emitRoom(room);return;}
+    const isBoss=roomData.kind==='boss';
+    room.battle=createBattle(room,{area:dungeon.region,enemy:roomData.enemy,hp:roomData.hp,maxHp:roomData.hp,atk:roomData.atk,xp:roomData.xp,gold:roomData.gold,boss:isBoss,dungeonRoomIndex:index});
+    sendRoomMessage(room,isBoss?'☠ Guardião da dungeon à vista!':'⚔ Uma criatura bloqueia a passagem!');emitRoom(room);
+  });
+  socket.on('sideQuest',(payload={})=>{
+    const room=findRoomByPlayerId(socket.id);if(!room||room.battle)return;
+    const quest=SIDE_QUESTS.find(q=>q.id===payload.id);if(!quest)return;
+    const progress=room.sideQuests[quest.id],player=room.players.get(socket.id);
+    if(payload.action==='accept'){progress.accepted=true;sendPlayerMessage(player,'📜 Missão secundária aceita: '+quest.title);}
+    else if(payload.action==='claim'){
+      if(!progress.accepted||progress.progress<quest.goal)return socket.emit('errorMessage','Objetivo ainda não concluído.');
+      if(progress.completed)return socket.emit('errorMessage','Recompensa já recebida.');
+      progress.completed=true;player.gold+=quest.reward.gold;addExperience(player,quest.reward.xp);sendPlayerMessage(player,'🎖 Recompensa recebida: '+quest.reward.gold+' ouros e '+quest.reward.xp+' XP.');
+    }emitRoom(room);
+  });
   socket.on('shop', (payload = {}) => {
     const room = findRoomByPlayerId(socket.id);
     if (!room) return;
@@ -368,8 +417,12 @@ io.on('connection', (socket) => {
         candidate.gold += defeated.gold;
         addExperience(candidate, defeated.xp);
       }
-      if (defeated.boss) {
+      if (defeated.boss && defeated.dungeonRoomIndex === undefined) {
         room.world[defeated.area] = true;
+        const regionIndex = REGIONS.findIndex(region => region.id === defeated.area);
+        const nextRegion = REGIONS[regionIndex + 1]?.id || null;
+        room.activeRegion = nextRegion || 'village';
+        room.transition = { region: defeated.area, nextRegion, title: REGION_SCENES[defeated.area]?.title || defeated.area, message: nextRegion ? 'A passagem para a próxima região foi aberta.' : 'Malakar caiu. Eldoria está livre!', at: Date.now() };
         const quest = QUESTS.find((entry) => entry.region === defeated.area);
         if (quest && !room.quests[quest.id].completed) {
           room.quests[quest.id].progress = 1; room.quests[quest.id].completed = true;
@@ -377,8 +430,10 @@ io.on('connection', (socket) => {
           sendRoomMessage(room, `📜 Missão concluída: ${quest.title}! Recompensas adicionais concedidas.`);
         }
       }
+      if (defeated.dungeonRoomIndex !== undefined && room.dungeon) room.dungeon.cleared[defeated.dungeonRoomIndex] = true;
+      if (!defeated.boss) { for (const q of SIDE_QUESTS) { const progress = room.sideQuests?.[q.id]; if (q.region === defeated.area && progress?.accepted && !progress.completed) progress.progress = Math.min(q.goal, progress.progress + 1); } }
       sendRoomMessage(room, defeated.boss
-        ? `🏆 ${defeated.enemy} foi derrotado! ${defeated.area === 'shadow' ? 'O reino está livre da escuridão!' : 'Uma nova região foi conquistada!'}`
+        ? `🏆 ${defeated.enemy} foi derrotado! ${defeated.dungeonRoomIndex !== undefined ? 'A sala foi conquistada!' : defeated.area === 'shadow' ? 'O reino está livre da escuridão!' : 'Uma nova região foi conquistada!'}`
         : `🎉 ${defeated.enemy} derrotado! Os aventureiros vivos receberam ${defeated.xp} XP e ${defeated.gold} ouros.`);
       emitRoom(room);
       return;
@@ -452,13 +507,14 @@ io.on('connection', (socket) => {
     if (payload.npc === 'healer') {
       if (player.gold < 15) return socket.emit('errorMessage', 'A curandeira cobra 15 ouros pelo tratamento.');
       player.gold -= 15; player.hp = player.maxHp; player.mana = player.maxMana;
-      sendPlayerMessage(player, '✚ A curandeira restaurou toda a sua vida e mana.');
+      socket.emit('dialogue',{title:'Mira, a Curandeira',lines:DIALOGUES.healer.map(line=>line.text).concat('Pronto. Suas forças foram restauradas.')});
     } else if (payload.npc === 'blacksmith') {
-      sendPlayerMessage(player, '⚒ O ferreiro oferece armas e armaduras. Abra o mercador para conferir os equipamentos disponíveis.');
+      socket.emit('dialogue', { title:'Eldrin, o Ferreiro', lines:DIALOGUES.blacksmith.map(line=>line.text).concat('Abra o mercador para conferir armas e armaduras disponíveis.') });
     } else if (payload.npc === 'chronicler') {
       const next = QUESTS.find(quest => !room.quests[quest.id].completed);
-      sendPlayerMessage(player, next ? `📜 Cronista: ${next.title} — ${next.description}` : '📜 Cronista: você concluiu todas as crônicas de Eldoria.');
-    } else return;
+      socket.emit('dialogue', { title:'Cronista Aderic', lines:DIALOGUES.chronicler.map(line=>line.text).concat(next ? `A próxima crônica é: ${next.title}. ${next.description}` : 'Você concluiu todas as crônicas de Eldoria.') });
+    } else if (payload.npc === 'villager') { socket.emit('dialogue',{title:'Moradora de Eldoria',lines:DIALOGUES.villager.map(line=>line.text).concat('Se encontrar a relíquia, leve-a ao cronista. Ele saberá o que fazer.')}); }
+    else return;
     emitRoom(room);
   });
 
@@ -474,10 +530,11 @@ io.on('connection', (socket) => {
     emitRoom(room);
   });
 
-  socket.on('disconnect', () => {
+  socket.on('disconnect', async () => {
     const room = findRoomByPlayerId(socket.id);
     if (!room) return;
     const player = room.players.get(socket.id);
+    if (player) await persistence.saveCharacter(player);
     room.players.delete(socket.id);
     if (player) sendRoomMessage(room, `${player.name} saiu da sala.`);
     if (room.players.size === 0) {

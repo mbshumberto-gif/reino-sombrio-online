@@ -2,7 +2,7 @@
   "name": "reino-sombrio-online",
   "version": "1.0.0",
   "private": true,
-  "description": "MVP multiplayer cooperativo de As Crônicas do Reino Sombrio",
+  "description": "RPG cooperativo online com campanha persistente",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
@@ -10,7 +10,8 @@
   },
   "dependencies": {
     "express": "^4.21.2",
-    "socket.io": "^4.8.1"
+    "socket.io": "^4.8.1",
+    "pg": "^8.13.1"
   },
   "engines": {
     "node": ">=20"
