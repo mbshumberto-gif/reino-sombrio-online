@@ -462,7 +462,7 @@ socket.on("state",state=>{
  $("townActions").classList.add("hidden");
  if(state.battle) $("merchant").classList.add("hidden");
  const b=state.battle;
- $("battle").classList.toggle("hidden",!b);
+ $("battle").classList.toggle("hidden",!b);$("overworld").classList.toggle("hidden",!!b);document.querySelector(".mobile-pad")?.classList.toggle("hidden",!!b);
  const campaignOrder=['forest','cave','fire','castle','shadow'];
  const current=state.activeRegion||'village';
  const nextIndex=campaignOrder.indexOf(current)+1;
