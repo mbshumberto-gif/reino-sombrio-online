@@ -50,7 +50,7 @@
       {floors:[[0,300],[400,650],[750,1000],[1100,1350],[1450,1800]],platforms:[[140,335,120],[450,245,130],[800,300,130],[1150,235,130],[1500,290,160]],hazards:[[300,400],[650,750],[1000,1100],[1350,1450]]}
     ]
   };
-  const mobsByRegion = {village:[],forest:[470,930,1390],cave:[450,940,1430],fire:[430,900,1390],castle:[500,980,1450],shadow:[430,920,1420]};
+  const mobsByRegion = {village:[],forest:[470,930,1390],cave:[250,650,1450],fire:[500,850,1550],castle:[250,620,1390],shadow:[200,500,1550]};
   const mobs = () => mobsByRegion[region] || [];
   const levelData = () => (stages[region] || stages.village)[Math.min(stage,2)];
   const me = () => latestState?.players?.find(p => p.id === socket.id);
