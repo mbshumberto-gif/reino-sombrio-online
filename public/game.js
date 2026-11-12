@@ -266,7 +266,7 @@ function pixelHero(ctx,p,time=0){
 function drawGate(ctx,x,y,label,locked=false){
  rect(ctx,x-25,y-20,50,40,locked?"#51424a":"#72523a");rect(ctx,x-19,y-16,38,34,locked?"#2b2534":"#263e45");
  rect(ctx,x-13,y-12,26,27,locked?"#473047":"#73a6a0");rect(ctx,x-7,y-7,14,20,locked?"#332239":"#b6d28c");
- ctx.fillStyle=locked?"#c16d63":"#f4cf72";ctx.font="bold 12px monospace";ctx.textAlign="center";ctx.fillText(label,x,y+34);
+ ctx.fillStyle=locked?"#c16d63":"#f4cf72";ctx.font="bold 12px monospace";ctx.textAlign="center";ctx.fillText(label,x,y-25);
 }
 function nearest(a,b){return Math.hypot(a.x-b.x,a.y-b.y);}
 function currentPlayer(){return latestState?.players.find(p=>p.id===socket.id);}
@@ -277,6 +277,7 @@ function worldInteractionPrompt(){
  if(area!=="village"&&me.y<65){
    const idx=["forest","cave","fire","castle","shadow"].indexOf(area),next=["forest","cave","fire","castle","shadow"][idx+1];
    if(next)return latestState.world?.[area]?"E — AVANÇAR PARA A PRÓXIMA REGIÃO":"O PORTÃO ESTÁ SELADO — DERROTE O GUARDIÃO";
+   if(!next&&latestState.world?.[area])return "A JORNADA FOI CONCLUÍDA. ELDORIA ESTÁ LIVRE.";
  }
  if(area!=="village"&&me.y>510){const idx=["forest","cave","fire","castle","shadow"].indexOf(area);return idx===0?"E — VOLTAR À VILA":"E — REGRESSAR À REGIÃO ANTERIOR";}
  if(area==="village"){const npc=NPC_POINTS.find(n=>nearest(me,n)<48);if(npc)return "E — CONVERSAR";}
@@ -319,7 +320,7 @@ function drawWorld(){
    const next=["forest","cave","fire","castle","shadow"][idx+1];
    drawGate(ctx,480,25,next?(latestState.world?.[area]?"PRÓXIMA":"SELADO"):"FIM",!latestState.world?.[area]);
    const enemies=window.gameRegions?.find(r=>r.id===area)?.enemies||[],defeated=latestState.defeatedEnemies?.[area]||[];
-   enemies.forEach((enemy,i)=>{if(!defeated.includes(i)){pixelMonster(ctx,enemy.name,ENEMY_POINTS[area][i].x,ENEMY_POINTS[area][i].y,2.2,false,Date.now());ctx.fillStyle="#fff0c2";ctx.font="12px monospace";ctx.textAlign="center";ctx.fillText(enemy.name,ENEMY_POINTS[area][i].x,ENEMY_POINTS[area][i].y+31);}});
+   if(!latestState.world?.[area])enemies.forEach((enemy,i)=>{if(!defeated.includes(i)){pixelMonster(ctx,enemy.name,ENEMY_POINTS[area][i].x,ENEMY_POINTS[area][i].y,2.2,false,Date.now());ctx.fillStyle="#fff0c2";ctx.font="12px monospace";ctx.textAlign="center";ctx.fillText(enemy.name,ENEMY_POINTS[area][i].x,ENEMY_POINTS[area][i].y+31);}});
    const region=window.gameRegions?.find(r=>r.id===area);
    if(region?.boss&&!latestState.world?.[area]){pixelMonster(ctx,region.boss.name,BOSS_POINTS[area].x,BOSS_POINTS[area].y,3.5,true,Date.now());ctx.fillStyle="#f4cf72";ctx.font="bold 13px monospace";ctx.textAlign="center";ctx.fillText("GUARDIÃO",480,135);}
  }
