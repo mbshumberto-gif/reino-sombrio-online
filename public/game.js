@@ -80,7 +80,7 @@ function heroSprite(heroKey, walking=false, facing='down', equipment={}) {
 
 function renderCampaign(state){
  const scenes=window.regionScenes||{},key=state.activeRegion||'village',scene=scenes[key]||scenes.village;
- if(scene){$('sceneTitle').textContent=scene.title;$('sceneSubtitle').textContent=scene.subtitle;$('regionScene').className='region-scene theme-'+scene.theme;$('overworld').className='overworld map-theme-'+scene.theme;$('sceneLandmarks').innerHTML='';scene.landmarks.forEach(place=>{const tag=document.createElement('span');tag.textContent='✦ '+place;$('sceneLandmarks').append(tag);});}
+ if(scene){$('sceneTitle').textContent=scene.title;$('sceneSubtitle').textContent=scene.subtitle;$('mapTitle').textContent=scene.title.toUpperCase();$('regionScene').className='region-scene theme-'+scene.theme;$('overworld').className='overworld map-theme-'+scene.theme;$('sceneLandmarks').innerHTML='';scene.landmarks.forEach(place=>{const tag=document.createElement('span');tag.textContent='✦ '+place;$('sceneLandmarks').append(tag);});}
  const regionData=window.gameRegions?.find(r=>r.id===key);$('enemyGallery').innerHTML='';(regionData?.enemies||[]).forEach(enemy=>{const chip=document.createElement('span');chip.className='enemy-chip';chip.textContent='☠ '+enemy.name+' • '+enemy.hp+' HP';$('enemyGallery').append(chip);});
  const dungeon=state.dungeon,dRooms=window.dungeonData?.[dungeon?.region]||[];
  $('dungeonDescription').textContent=dungeon?'Dungeon: '+(scenes[dungeon.region]?.title||dungeon.region):'Entre na dungeon da região atual. Cada dungeon possui quatro salas, incluindo um enigma e um guardião.';
@@ -327,7 +327,15 @@ socket.on("state",state=>{
  $("townActions").classList.add("hidden");
  if(state.battle) $("merchant").classList.add("hidden");
  const b=state.battle;
- $("battle").classList.toggle("hidden",!b);$("actions").classList.toggle("hidden",!!b || (state.activeRegion && state.activeRegion!=="village"));
+ $("battle").classList.toggle("hidden",!b);
+ const campaignOrder=['forest','cave','fire','castle','shadow'];
+ const current=state.activeRegion||'village';
+ const nextIndex=campaignOrder.indexOf(current)+1;
+ const nextArea=campaignOrder[nextIndex];
+ const actionButton=$("actions").querySelector('[data-area]');
+ const regionCleared=!!state.world?.[current];
+ $("actions").classList.toggle("hidden",!!b || (current!=='village'&&!regionCleared) || !nextArea && current!=='village');
+ if(actionButton){actionButton.dataset.area=current==='village'?'forest':(regionCleared?nextArea:'forest');actionButton.textContent=current==='village'?'Seguir para a Floresta':(regionCleared&&nextArea?'Avançar para '+(window.regionScenes?.[nextArea]?.title||nextArea):'');}
  if(b){
    $("areaTitle").textContent="Combate cooperativo";
    $("storyText").textContent="A equipe precisa agir em conjunto. Cada jogador tem uma ação por rodada.";
