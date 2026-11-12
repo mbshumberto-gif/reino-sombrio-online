@@ -190,3 +190,9 @@ body{background:#101a23;color:#fff0c2}
 .mobile-pad button[data-jump]{background:#7b6337;border-color:#e7c36c;min-width:88px}
 #overworld.hidden{display:none!important}
 @media(max-width:560px){.overworld.pixel-world{aspect-ratio:16/9;min-height:0}#worldCanvas{height:auto;object-fit:contain}.mobile-pad button{min-width:42px;min-height:40px;font-size:7px}}
+
+
+/* Modo plataforma: canvas ocupa toda a área de jogo, sem mapa antigo por baixo. */
+.overworld.pixel-world{background:#18251e!important;}
+#worldCanvas{display:block;width:100%;height:auto;aspect-ratio:16/9;object-fit:contain;background:#18251e;}
+.mobile-pad [data-interact]{border-color:#a8c66c;background:#31543d;}
