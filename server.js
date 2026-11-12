@@ -269,12 +269,12 @@ io.on('connection', (socket) => {
     } else if (item === 'sword') {
       if (player.gold < 40) return socket.emit('errorMessage', 'Você precisa de 40 ouros para comprar a espada de aço.');
       if (player.attack >= 20) return socket.emit('errorMessage', 'Você já possui uma arma deste nível ou superior.');
-      player.gold -= 40; player.attack += 8; player.weapon = 'Espada de aço';
+      player.gold -= 40; player.baseAttack += 8; recalculateEquipment(player); player.weapon = 'Espada de aço';
       sendRoomMessage(room, `🗡️ ${player.name} comprou a Espada de aço!`);
     } else if (item === 'armor') {
       if (player.gold < 35) return socket.emit('errorMessage', 'Você precisa de 35 ouros para comprar a armadura reforçada.');
       if (player.defense >= 10) return socket.emit('errorMessage', 'Sua armadura já está no nível máximo da loja.');
-      player.gold -= 35; player.defense += 4;
+      player.gold -= 35; player.baseDefense += 4; recalculateEquipment(player);
       sendRoomMessage(room, `🛡️ ${player.name} comprou a Armadura reforçada!`);
     } else if (EQUIPMENT[item]) {
       const gear = EQUIPMENT[item];
@@ -308,10 +308,13 @@ io.on('connection', (socket) => {
       if (player.potions < 1) return socket.emit('errorMessage', 'Você não tem poções.');
       if (player.hp === player.maxHp) return socket.emit('errorMessage', 'Sua vida já está cheia.');
       player.potions -= 1;
-      player.hp = Math.min(player.maxHp, player.hp + 35);
+      player.hp = Math.min(player.maxHp, player.hp + (player.classKey === 'cleric' ? 45 : 35));
       sendRoomMessage(room, `🧪 ${player.name} usou uma poção.`);
     } else if (action === 'attack') {
-      const damage = Math.max(1, player.attack + Math.floor(Math.random() * 7) - 2);
+      let damage = Math.max(1, player.attack + Math.floor(Math.random() * 7) - 2);
+      if (player.classKey === 'rogue' && Math.random() < 0.25) damage = Math.floor(damage * 1.75);
+      if (player.classKey === 'ranger') damage = Math.floor(damage * 1.15);
+      if (player.buffs.inspired) { damage = Math.floor(damage * 1.25); player.buffs.inspired = 0; }
       battle.hp = Math.max(0, battle.hp - damage);
       if (player.classKey === 'monk') player.hp = Math.min(player.maxHp, player.hp + 4);
       sendRoomMessage(room, `⚔️ ${player.name} causou ${damage} de dano em ${battle.enemy}!`);
@@ -320,8 +323,9 @@ io.on('connection', (socket) => {
       sendRoomMessage(room, `🛡️ ${player.name} assumiu uma postura defensiva.`);
     } else if (action === 'skill') {
       const skill = HERO_CLASSES[player.classKey].skill;
-      if (player.mana < skill.cost) return socket.emit('errorMessage', `Mana insuficiente. ${skill.name} custa ${skill.cost} MP.`);
-      player.mana -= skill.cost;
+      const skillCost = player.classKey === 'sorceress' ? Math.ceil(skill.cost * 0.8) : skill.cost;
+      if (player.mana < skillCost) return socket.emit('errorMessage', `Mana insuficiente. ${skill.name} custa ${skillCost} MP.`);
+      player.mana -= skillCost;
       if (player.classKey === 'cleric') {
         for (const ally of room.players.values()) if (ally.hp > 0) ally.hp = Math.min(ally.maxHp, ally.hp + skill.power);
         sendRoomMessage(room, `✨ ${player.name} lançou ${skill.name} e curou o grupo.`);
@@ -332,7 +336,10 @@ io.on('connection', (socket) => {
         for (const ally of room.players.values()) if (ally.hp > 0) ally.buffs.lightShield = 1;
         sendRoomMessage(room, `🛡️ ${player.name} invocou ${skill.name}; o grupo recebeu proteção.`);
       } else {
-        const damage = Math.max(1, Math.floor(player.attack * skill.power) + Math.floor(Math.random() * 8));
+        let damage = Math.max(1, Math.floor(player.attack * skill.power * (player.classKey === 'mage' ? 1.2 : 1)) + Math.floor(Math.random() * 8));
+        if (player.classKey === 'rogue' && Math.random() < 0.25) damage = Math.floor(damage * 1.75);
+        if (player.classKey === 'ranger') damage = Math.floor(damage * 1.15);
+        if (player.buffs.inspired) { damage = Math.floor(damage * 1.25); player.buffs.inspired = 0; }
         battle.hp = Math.max(0, battle.hp - damage);
         sendRoomMessage(room, `✨ ${player.name} usou ${skill.name} e causou ${damage} de dano!`);
       }
@@ -370,7 +377,7 @@ io.on('connection', (socket) => {
         }
       }
       sendRoomMessage(room, defeated.boss
-        ? '🏆 O Senhor das Sombras foi derrotado! O reino está livre! Um abraço do Beto San! Até a próxima aventura.'
+        ? `🏆 ${defeated.enemy} foi derrotado! ${defeated.area === 'shadow' ? 'O reino está livre da escuridão!' : 'Uma nova região foi conquistada!'}`
         : `🎉 ${defeated.enemy} derrotado! Os aventureiros vivos receberam ${defeated.xp} XP e ${defeated.gold} ouros.`);
       emitRoom(room);
       return;
@@ -395,10 +402,11 @@ io.on('connection', (socket) => {
       // Todos os aventureiros vivos agiram: agora o inimigo realiza seu turno.
       for (const target of livingPlayers) {
         let damage = Math.max(1, battle.atk - Math.floor(target.defense / 2) + Math.floor(Math.random() * 5));
+        if (target.classKey === 'warrior') damage = Math.ceil(damage * 0.85);
+        if (target.classKey === 'paladin' && battle.boss) damage = Math.ceil(damage * 0.8);
         if (target.defending) damage = Math.ceil(damage * 0.4);
         if (target.buffs.lightShield) { damage = Math.ceil(damage * 0.5); target.buffs.lightShield = 0; }
         target.defending = false;
-        if (target.buffs.inspired) { target.baseAttack += 2; target.buffs.inspired = 0; recalculateEquipment(target); }
         target.hp = Math.max(0, target.hp - damage);
         target.mana = Math.min(target.maxMana, target.mana + 6);
         sendPlayerMessage(target, `💥 ${battle.enemy} atacou você e causou ${damage} de dano.`);
