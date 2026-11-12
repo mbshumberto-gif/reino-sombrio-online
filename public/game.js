@@ -30,7 +30,7 @@ $("closeMerchant").onclick=()=>$("merchant").classList.add("hidden");
 document.querySelectorAll("[data-buy]").forEach(b=>b.onclick=()=>socket.emit("shop",{item:b.dataset.buy}));
 $("attackBtn").onclick=()=>socket.emit("battleAction",{action:"attack"});
 $("potionBtn").onclick=()=>socket.emit("battleAction",{action:"potion"});
-$("fleeBtn").onclick=()=>socket.emit("flee");
+$("fleeBtn").onclick=()=>socket.emit("battleAction",{action:"flee"});
 
 // Sprites SVG originais desenhados em blocos para manter o visual pixel art.
 function heroSprite(heroKey, walking=false, facing='down') {
@@ -255,9 +255,14 @@ socket.on("state",state=>{
    $("enemyName").textContent=b.enemy;$("enemyHp").textContent=`${b.hp} / ${b.maxHp} de vida`;
    $("enemyBar").style.width=(100*b.hp/b.maxHp)+"%";
    const me=state.players.find(p=>p.id===socket.id);
-   const acted=b.acted.includes(socket.id);
-   $("attackBtn").disabled=acted||!me||me.hp<=0;$("potionBtn").disabled=acted||!me||me.hp<=0;$("fleeBtn").disabled=acted||!me||me.hp<=0||b.boss;
-   $("battleHint").textContent=acted?"Sua ação foi realizada. Aguarde os demais.":"Escolha sua ação nesta rodada.";
+   const isMyTurn=!!me&&b.activePlayerId===socket.id&&me.hp>0;
+   const activePlayer=state.players.find(p=>p.id===b.activePlayerId);
+   $("attackBtn").disabled=!isMyTurn;$("potionBtn").disabled=!isMyTurn;$("fleeBtn").disabled=!isMyTurn||b.boss;
+   $("battleHint").textContent=isMyTurn
+     ? `Sua vez! Rodada ${b.turn}. Escolha sua ação.`
+     : activePlayer
+       ? `Rodada ${b.turn}: vez de ${activePlayer.name}. Aguarde sua vez.`
+       : "Aguardando o próximo turno.";
  } else {
    $("areaTitle").textContent="Vila de Eldoria";
    $("storyText").textContent=state.world.castle?"O reino está livre da escuridão! A vitória pertence à equipe.":"Reúnam seus aliados e preparem-se para enfrentar as sombras. Caminhe pela vila usando WASD, as setas ou os controles na tela.";
