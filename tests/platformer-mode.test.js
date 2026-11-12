@@ -20,3 +20,12 @@ test('o controle mobile aciona pulo e interação do portal', () => {
   assert.match(script, /keys\.add\("interact"\)/);
   assert.match(script, /socket\.emit\("platformerAdvance"\)/);
 });
+
+test('cada região possui três fases e cenário próprios', () => {
+  const script = fs.readFileSync(path.join(__dirname, '../public/platformer.js'), 'utf8');
+  for (const region of ['village', 'forest', 'cave', 'fire', 'castle', 'shadow']) {
+    assert.match(script, new RegExp(region + ':\\s*\\['));
+  }
+  assert.match(script, /const levelData = \\(\\) => \\(stages\\[region\\] \\|\\| stages\\.village\\)/);
+  assert.match(script, /function drawBackground/);
+});
