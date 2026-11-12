@@ -36,6 +36,7 @@ document.querySelectorAll("[data-buy]").forEach(b=>b.onclick=()=>socket.emit("sh
 $("attackBtn").onclick=()=>socket.emit("battleAction",{action:"attack"});
 $("potionBtn").onclick=()=>socket.emit("battleAction",{action:"potion"});
 $("fleeBtn").onclick=()=>socket.emit("battleAction",{action:"flee"});
+document.querySelectorAll("[data-npc]").forEach(button=>button.onclick=()=>socket.emit("talkNpc",{npc:button.dataset.npc}));
 $("defendBtn").onclick=()=>socket.emit("battleAction",{action:"defend"});
 $("skillBtn").onclick=()=>socket.emit("battleAction",{action:"skill"});
 document.querySelectorAll("[data-boss-area]").forEach(button=>button.onclick=()=>socket.emit("explore",{area:button.dataset.bossArea,action:"enter",boss:true}));
@@ -253,6 +254,7 @@ socket.on("state",state=>{
  $("treasureCaveBtn").disabled=!state.world.forest||!!state.battle;
  $("treasureForestBtn").disabled=!!state.battle;
  $("merchantBtn").disabled=!!state.battle;
+ if(meNow) $("inventoryPanel").textContent=`Poções: ${meNow.inventory?.potions ?? meNow.potions} • Arma: ${meNow.weapon} • Armadura: ${meNow.armor} • Pontos de habilidade: ${meNow.skillPoints}`;
  if(state.quests&&window.gameQuests){$("questList").innerHTML="";window.gameQuests.forEach(quest=>{const progress=state.quests[quest.id];const item=document.createElement("div");item.className="quest-item"+(progress?.completed?" completed":"");const title=document.createElement("strong");title.textContent=(progress?.completed?"✓ ":"◇ ")+quest.title;const desc=document.createElement("p");desc.textContent=quest.description;const reward=document.createElement("small");reward.textContent=progress?.completed?"Concluída":`Recompensa: ${quest.reward.xp} XP • ${quest.reward.gold} ouros`;item.append(title,desc,reward);$("questList").append(item);});}
 
  document.querySelectorAll("[data-area]").forEach(button=>{const area=button.dataset.area;const unlock={forest:null,cave:"forest",fire:"cave",castle:"fire",shadow:"castle"}[area];button.disabled=!!state.battle||!!state.world[area]||(!!unlock&&!state.world[unlock]);});
