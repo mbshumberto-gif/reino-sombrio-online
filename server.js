@@ -35,14 +35,8 @@ app.get('/', (_req, res) => {
 app.use(express.static(PUBLIC_DIR, { index: false }));
 
 const rooms = new Map();
-
-// Classes jogáveis: cada uma tem aparência e atributos próprios.
-const HERO_CLASSES = {
-  warrior: { name: 'Guerreiro', hp: 120, attack: 13, defense: 6, weapon: 'Espada de ferro' },
-  archer:  { name: 'Arqueira', hp: 100, attack: 16, defense: 3, weapon: 'Arco simples' },
-  mage:    { name: 'Maga', hp: 90, attack: 19, defense: 2, weapon: 'Cajado arcano' },
-  druid:   { name: 'Druida', hp: 110, attack: 12, defense: 5, weapon: 'Cajado de madeira' }
-};
+const { HERO_CLASSES, EQUIPMENT, REGIONS, QUESTS } = require('./game-data');
+app.get('/game-data', (_req, res) => res.json({ classes: HERO_CLASSES, regions: REGIONS, quests: QUESTS, equipment: EQUIPMENT }));
 
 const SPAWN_POINTS = [
   { x: 46, y: 78 }, { x: 55, y: 82 }, { x: 64, y: 77 }, { x: 36, y: 83 },
@@ -58,9 +52,11 @@ function makePlayer(id, name, classKey, spawn) {
   return {
     id, name, classKey: hero, className: config.name,
     x: spawn.x, y: spawn.y, facing: 'down',
-    hp: config.hp, maxHp: config.hp, attack: config.attack, defense: config.defense,
-    level: 1, xp: 0, gold: 20, potions: 3,
-    weapon: config.weapon, ready: false, lastMoveAt: 0
+    hp: config.hp, maxHp: config.hp, attack: config.attack, baseAttack: config.attack, defense: config.defense, baseDefense: config.defense,
+    mana: config.mana, maxMana: config.mana, level: 1, xp: 0, gold: 50, potions: 3,
+    weapon: config.weapon, armor: 'Vestuário de aventureiro', equipment: { weapon: null, armor: null },
+    inventory: ['Poção de vida x3'], skillPoints: 0, skillLevel: 1, skillCooldown: 0, defending: false, buffs: {},
+    ready: false, lastMoveAt: 0
   };
 }
 
@@ -76,10 +72,12 @@ function publicRoom(room) {
       id: player.id, name: player.name, classKey: player.classKey, className: player.className,
       x: player.x, y: player.y, facing: player.facing,
       hp: player.hp, maxHp: player.maxHp, attack: player.attack, defense: player.defense,
-      level: player.level, xp: player.xp, gold: player.gold, potions: player.potions,
-      weapon: player.weapon, ready: player.ready
+      mana: player.mana, maxMana: player.maxMana, level: player.level, xp: player.xp, gold: player.gold, potions: player.potions,
+      weapon: player.weapon, armor: player.armor, equipment: player.equipment, inventory: { potions: player.potions, weapon: player.weapon, armor: player.armor },
+      skillPoints: player.skillPoints, skillLevel: player.skillLevel, skillCooldown: player.skillCooldown, ready: player.ready
     })),
     world: room.world,
+    quests: room.quests,
     battle: room.battle
   };
 }
@@ -108,15 +106,26 @@ function findRoomByPlayerId(playerId) {
   return null;
 }
 
+function recalculateEquipment(player) {
+  const weapon = player.equipment.weapon ? EQUIPMENT[player.equipment.weapon] : null;
+  const armor = player.equipment.armor ? EQUIPMENT[player.equipment.armor] : null;
+  player.attack = player.baseAttack + (weapon?.attack || 0);
+  player.defense = player.baseDefense + (weapon?.defense || 0) + (armor?.defense || 0);
+  if (weapon) player.weapon = weapon.name;
+  if (armor) player.armor = armor.name;
+}
+
 function addExperience(player, amount) {
   player.xp += amount;
   while (player.xp >= 100) {
     player.xp -= 100;
     player.level += 1;
-    player.maxHp += 15;
+    player.maxHp += 12;
     player.hp = player.maxHp;
-    player.attack += 3;
-    player.defense += 1;
+    player.maxMana += 8; player.mana = player.maxMana;
+    player.baseAttack += 2; player.baseDefense += 1;
+    player.skillPoints += 1;
+    recalculateEquipment(player);
     sendPlayerMessage(player, `✨ ${player.name} chegou ao nível ${player.level}!`);
   }
 }
@@ -132,7 +141,8 @@ io.on('connection', (socket) => {
       code: roomCode,
       hostId: socket.id,
       players: new Map(),
-      world: { forest: false, cave: false, castle: false },
+      world: { forest: false, cave: false, fire: false, castle: false, shadow: false },
+      quests: Object.fromEntries(QUESTS.map((quest) => [quest.id, { progress: 0, completed: false }])),
       battle: null
     };
 
@@ -205,10 +215,10 @@ io.on('connection', (socket) => {
     const player = room.players.get(socket.id);
     const area = payload.area;
     const action = payload.action;
-    if (!['forest', 'cave', 'castle'].includes(area)) return;
-    if (area === 'cave' && !room.world.forest) return socket.emit('errorMessage', 'Explore e conclua a Floresta Sombria primeiro.');
-    if (area === 'castle' && !room.world.cave) return socket.emit('errorMessage', 'Conclua a Caverna dos Ecos antes de entrar no castelo.');
-    if (area === 'castle' && room.world.castle) return socket.emit('errorMessage', 'O castelo já foi conquistado! O reino está livre.');
+    if (!REGIONS.some((region) => region.id === area)) return;
+    const region = REGIONS.find((entry) => entry.id === area);
+    if (region.unlock && !room.world[region.unlock]) return socket.emit('errorMessage', `Conclua ${REGIONS.find((entry) => entry.id === region.unlock).name} primeiro.`);
+    if (region.boss && room.world[area]) return socket.emit('errorMessage', `${region.name} já foi conquistada!`);
 
     if (action === 'treasure') {
       if (area === 'forest') {
@@ -237,25 +247,11 @@ io.on('connection', (socket) => {
     }
 
     if (action !== 'enter') return;
-    if (area === 'castle') {
-      room.battle = createBattle(room, { area, enemy: 'Senhor das Sombras', hp: 180, maxHp: 180, atk: 20, xp: 120, gold: 150, boss: true });
-      sendRoomMessage(room, '☠️ O Senhor das Sombras apareceu! Todos juntos!');
-    } else {
-      const enemies = area === 'forest'
-        ? [
-            { name: 'Lobo sombrio', hp: 35, atk: 9, xp: 25, gold: 12 },
-            { name: 'Goblin ladrão', hp: 45, atk: 11, xp: 30, gold: 16 },
-            { name: 'Aranha gigante', hp: 40, atk: 12, xp: 35, gold: 18 }
-          ]
-        : [
-            { name: 'Orc guerreiro', hp: 65, atk: 15, xp: 40, gold: 25 },
-            { name: 'Esqueleto amaldiçoado', hp: 55, atk: 17, xp: 45, gold: 28 },
-            { name: 'Troll da caverna', hp: 85, atk: 13, xp: 50, gold: 35 }
-          ];
-      const enemy = enemies[Math.floor(Math.random() * enemies.length)];
-      room.battle = createBattle(room, { area, enemy: enemy.name, hp: enemy.hp, maxHp: enemy.hp, atk: enemy.atk, xp: enemy.xp, gold: enemy.gold, boss: false });
-      sendRoomMessage(room, `⚔️ ${player.name} encontrou ${enemy.name}! A equipe pode atacar.`);
-    }
+    const regionData = REGIONS.find((entry) => entry.id === area);
+    const isBoss = payload.boss === true;
+    const enemy = isBoss ? regionData.boss : regionData.enemies[Math.floor(Math.random() * regionData.enemies.length)];
+    room.battle = createBattle(room, { area, enemy: enemy.name, hp: enemy.hp, maxHp: enemy.hp, atk: enemy.atk, xp: enemy.xp, gold: enemy.gold, boss: isBoss });
+    sendRoomMessage(room, isBoss ? `☠️ ${enemy.name} apareceu! Preparem-se!` : `⚔️ ${player.name} encontrou ${enemy.name}! A equipe pode atacar.`);
     emitRoom(room);
   });
 
@@ -273,13 +269,20 @@ io.on('connection', (socket) => {
     } else if (item === 'sword') {
       if (player.gold < 40) return socket.emit('errorMessage', 'Você precisa de 40 ouros para comprar a espada de aço.');
       if (player.attack >= 20) return socket.emit('errorMessage', 'Você já possui uma arma deste nível ou superior.');
-      player.gold -= 40; player.attack += 8; player.weapon = 'Espada de aço';
+      player.gold -= 40; player.baseAttack += 8; recalculateEquipment(player); player.weapon = 'Espada de aço';
       sendRoomMessage(room, `🗡️ ${player.name} comprou a Espada de aço!`);
     } else if (item === 'armor') {
       if (player.gold < 35) return socket.emit('errorMessage', 'Você precisa de 35 ouros para comprar a armadura reforçada.');
       if (player.defense >= 10) return socket.emit('errorMessage', 'Sua armadura já está no nível máximo da loja.');
-      player.gold -= 35; player.defense += 4;
+      player.gold -= 35; player.baseDefense += 4; recalculateEquipment(player);
       sendRoomMessage(room, `🛡️ ${player.name} comprou a Armadura reforçada!`);
+    } else if (EQUIPMENT[item]) {
+      const gear = EQUIPMENT[item];
+      if (player.gold < gear.price) return socket.emit('errorMessage', `Você precisa de ${gear.price} ouros.`);
+      player.gold -= gear.price;
+      player.equipment[gear.slot] = item;
+      recalculateEquipment(player);
+      sendRoomMessage(room, `🧰 ${player.name} equipou ${gear.name}.`);
     } else {
       return socket.emit('errorMessage', 'Item não encontrado na loja.');
     }
@@ -305,12 +308,42 @@ io.on('connection', (socket) => {
       if (player.potions < 1) return socket.emit('errorMessage', 'Você não tem poções.');
       if (player.hp === player.maxHp) return socket.emit('errorMessage', 'Sua vida já está cheia.');
       player.potions -= 1;
-      player.hp = Math.min(player.maxHp, player.hp + 35);
+      player.hp = Math.min(player.maxHp, player.hp + (player.classKey === 'cleric' ? 45 : 35));
       sendRoomMessage(room, `🧪 ${player.name} usou uma poção.`);
     } else if (action === 'attack') {
-      const damage = Math.max(1, player.attack + Math.floor(Math.random() * 7) - 2);
+      let damage = Math.max(1, player.attack + Math.floor(Math.random() * 7) - 2);
+      if (player.classKey === 'rogue' && Math.random() < 0.25) damage = Math.floor(damage * 1.75);
+      if (player.classKey === 'ranger') damage = Math.floor(damage * 1.15);
+      if (player.buffs.inspired) { damage = Math.floor(damage * 1.25); player.buffs.inspired = 0; }
       battle.hp = Math.max(0, battle.hp - damage);
+      if (player.classKey === 'monk') player.hp = Math.min(player.maxHp, player.hp + 4);
       sendRoomMessage(room, `⚔️ ${player.name} causou ${damage} de dano em ${battle.enemy}!`);
+    } else if (action === 'defend') {
+      player.defending = true;
+      sendRoomMessage(room, `🛡️ ${player.name} assumiu uma postura defensiva.`);
+    } else if (action === 'skill') {
+      const skill = HERO_CLASSES[player.classKey].skill;
+      const skillPower = skill.power * (1 + ((player.skillLevel || 1) - 1) * 0.2);
+      const skillCost = player.classKey === 'sorceress' ? Math.ceil(skill.cost * 0.8) : skill.cost;
+      if (player.mana < skillCost) return socket.emit('errorMessage', `Mana insuficiente. ${skill.name} custa ${skillCost} MP.`);
+      player.mana -= skillCost;
+      if (player.classKey === 'cleric') {
+        for (const ally of room.players.values()) if (ally.hp > 0) ally.hp = Math.min(ally.maxHp, ally.hp + skillPower);
+        sendRoomMessage(room, `✨ ${player.name} lançou ${skill.name} e curou o grupo.`);
+      } else if (player.classKey === 'bard') {
+        for (const ally of room.players.values()) if (ally.hp > 0) ally.buffs.inspired = 1;
+        sendRoomMessage(room, `🎵 ${player.name} tocou ${skill.name}; o grupo foi inspirado.`);
+      } else if (player.classKey === 'paladin') {
+        for (const ally of room.players.values()) if (ally.hp > 0) ally.buffs.lightShield = 1;
+        sendRoomMessage(room, `🛡️ ${player.name} invocou ${skill.name}; o grupo recebeu proteção.`);
+      } else {
+        let damage = Math.max(1, Math.floor(player.attack * skillPower * (player.classKey === 'mage' ? 1.2 : 1)) + Math.floor(Math.random() * 8));
+        if (player.classKey === 'rogue' && Math.random() < 0.25) damage = Math.floor(damage * 1.75);
+        if (player.classKey === 'ranger') damage = Math.floor(damage * 1.15);
+        if (player.buffs.inspired) { damage = Math.floor(damage * 1.25); player.buffs.inspired = 0; }
+        battle.hp = Math.max(0, battle.hp - damage);
+        sendRoomMessage(room, `✨ ${player.name} usou ${skill.name} e causou ${damage} de dano!`);
+      }
     } else if (action === 'flee') {
       if (battle.boss) return socket.emit('errorMessage', 'Não há como fugir da batalha final!');
       if (Math.floor(Math.random() * 2) === 0) {
@@ -335,11 +368,17 @@ io.on('connection', (socket) => {
         candidate.gold += defeated.gold;
         addExperience(candidate, defeated.xp);
       }
-      if (defeated.area === 'forest') room.world.forest = true;
-      if (defeated.area === 'cave') room.world.cave = true;
-      if (defeated.boss) room.world.castle = true;
+      if (defeated.boss) {
+        room.world[defeated.area] = true;
+        const quest = QUESTS.find((entry) => entry.region === defeated.area);
+        if (quest && !room.quests[quest.id].completed) {
+          room.quests[quest.id].progress = 1; room.quests[quest.id].completed = true;
+          for (const candidate of livingPlayers) { candidate.gold += quest.reward.gold; addExperience(candidate, quest.reward.xp); }
+          sendRoomMessage(room, `📜 Missão concluída: ${quest.title}! Recompensas adicionais concedidas.`);
+        }
+      }
       sendRoomMessage(room, defeated.boss
-        ? '🏆 O Senhor das Sombras foi derrotado! O reino está livre! Um abraço do Beto San! Até a próxima aventura.'
+        ? `🏆 ${defeated.enemy} foi derrotado! ${defeated.area === 'shadow' ? 'O reino está livre da escuridão!' : 'Uma nova região foi conquistada!'}`
         : `🎉 ${defeated.enemy} derrotado! Os aventureiros vivos receberam ${defeated.xp} XP e ${defeated.gold} ouros.`);
       emitRoom(room);
       return;
@@ -363,8 +402,14 @@ io.on('connection', (socket) => {
     } else {
       // Todos os aventureiros vivos agiram: agora o inimigo realiza seu turno.
       for (const target of livingPlayers) {
-        const damage = Math.max(1, battle.atk - Math.floor(target.defense / 2) + Math.floor(Math.random() * 5));
+        let damage = Math.max(1, battle.atk - Math.floor(target.defense / 2) + Math.floor(Math.random() * 5));
+        if (target.classKey === 'warrior') damage = Math.ceil(damage * 0.85);
+        if (target.classKey === 'paladin' && battle.boss) damage = Math.ceil(damage * 0.8);
+        if (target.defending) damage = Math.ceil(damage * 0.4);
+        if (target.buffs.lightShield) { damage = Math.ceil(damage * 0.5); target.buffs.lightShield = 0; }
+        target.defending = false;
         target.hp = Math.max(0, target.hp - damage);
+        target.mana = Math.min(target.maxMana, target.mana + 6);
         sendPlayerMessage(target, `💥 ${battle.enemy} atacou você e causou ${damage} de dano.`);
       }
 
@@ -387,6 +432,36 @@ io.on('connection', (socket) => {
     emitRoom(room);
   });
 
+  socket.on('upgradeSkill', () => {
+    const room = findRoomByPlayerId(socket.id);
+    if (!room) return;
+    if (room.battle) return socket.emit('errorMessage', 'Aprimore sua habilidade fora de combate.');
+    const player = room.players.get(socket.id);
+    if (player.skillPoints < 1) return socket.emit('errorMessage', 'Você precisa de um ponto de habilidade. Suba de nível para ganhar mais.');
+    player.skillPoints -= 1;
+    player.skillLevel = (player.skillLevel || 1) + 1;
+    sendPlayerMessage(player, `✨ Sua habilidade ${HERO_CLASSES[player.classKey].skill.name} chegou ao nível ${player.skillLevel}!`);
+    emitRoom(room);
+  });
+
+  socket.on('talkNpc', (payload = {}) => {
+    const room = findRoomByPlayerId(socket.id);
+    if (!room) return;
+    if (room.battle) return socket.emit('errorMessage', 'Não é possível conversar durante o combate.');
+    const player = room.players.get(socket.id);
+    if (payload.npc === 'healer') {
+      if (player.gold < 15) return socket.emit('errorMessage', 'A curandeira cobra 15 ouros pelo tratamento.');
+      player.gold -= 15; player.hp = player.maxHp; player.mana = player.maxMana;
+      sendPlayerMessage(player, '✚ A curandeira restaurou toda a sua vida e mana.');
+    } else if (payload.npc === 'blacksmith') {
+      sendPlayerMessage(player, '⚒ O ferreiro oferece armas e armaduras. Abra o mercador para conferir os equipamentos disponíveis.');
+    } else if (payload.npc === 'chronicler') {
+      const next = QUESTS.find(quest => !room.quests[quest.id].completed);
+      sendPlayerMessage(player, next ? `📜 Cronista: ${next.title} — ${next.description}` : '📜 Cronista: você concluiu todas as crônicas de Eldoria.');
+    } else return;
+    emitRoom(room);
+  });
+
   socket.on('rest', () => {
     const room = findRoomByPlayerId(socket.id);
     if (!room) return;
@@ -394,8 +469,8 @@ io.on('connection', (socket) => {
     const player = room.players.get(socket.id);
     if (player.gold < 10) return socket.emit('errorMessage', 'Você precisa de 10 ouros para descansar.');
     player.gold -= 10;
-    player.hp = player.maxHp;
-    socket.emit('notice', 'Você descansou e recuperou toda a vida.');
+    player.hp = player.maxHp; player.mana = player.maxMana; player.defending = false;
+    socket.emit('notice', 'Você descansou e recuperou toda a vida e mana.');
     emitRoom(room);
   });
 

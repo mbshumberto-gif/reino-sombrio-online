@@ -14,10 +14,7 @@
       <label for="playerName">Nome do seu herói</label><input id="playerName" maxlength="18" placeholder="Ex.: Beto San">
       <label for="heroClass">Escolha sua classe</label>
       <select id="heroClass">
-        <option value="warrior">⚔ Guerreiro — resistente e equilibrado</option>
-        <option value="archer">🏹 Arqueira — rápida e precisa</option>
-        <option value="mage">✨ Maga — alto poder de ataque</option>
-        <option value="druid">🌿 Druida — defesa e equilíbrio</option>
+        <option value="warrior">⚔ Guerreiro</option><option value="mage">✨ Mago</option><option value="sorceress">☄ Feiticeira</option><option value="cleric">✚ Clérigo</option><option value="rogue">🗡 Ladino</option><option value="bard">♫ Bardo</option><option value="paladin">🛡 Paladino</option><option value="ranger">🏹 Ranger</option><option value="monk">☯ Monge</option>
       </select>
       <button id="createBtn" class="primary">Criar nova sala</button>
       <div class="or">OU ENTRE NA AVENTURA</div>
@@ -39,14 +36,12 @@
             <button type="button" data-move="up" aria-label="Mover para cima">▲</button>
             <div><button type="button" data-move="left" aria-label="Mover para esquerda">◀</button><button type="button" data-move="down" aria-label="Mover para baixo">▼</button><button type="button" data-move="right" aria-label="Mover para direita">▶</button></div>
           </div>
-          <div id="world" class="world"></div>
+          <div id="world" class="world"></div><section class="quest-panel"><h3>🎒 Inventário e equipamento</h3><div id="inventoryPanel">Entre na aventura para ver seus itens.</div><button id="skillUpgradeBtn" class="secondary">Aprimorar habilidade (1 ponto)</button></section><section class="quest-panel"><h3>👥 Personagens de Eldoria</h3><div class="actions"><button data-npc="chronicler">Conversar com o cronista</button><button data-npc="healer">Visitar a curandeira (15 ouros)</button><button data-npc="blacksmith">Falar com o ferreiro</button></div></section><section class="quest-panel"><h3>📜 Diário de missões</h3><div id="questList">Carregando objetivos...</div></section>
           <div id="actions" class="actions">
-            <button data-area="forest" data-action="enter">Floresta Sombria</button>
-            <button data-area="cave" data-action="enter">Caverna dos Ecos</button>
-            <button data-area="castle" data-action="enter" class="danger">Castelo Sombrio</button>
+            <button data-area="forest" data-action="enter">Floresta Amaldiçoada</button><button data-area="cave" data-action="enter">Caverna dos Ecos</button><button data-area="fire" data-action="enter">Terras do Fogo</button><button data-area="castle" data-action="enter">Castelo dos Condenados</button><button data-area="shadow" data-action="enter" class="danger">Reino Sombrio</button>
           </div>
           <div id="townActions" class="actions town-actions">
-            <button id="treasureForestBtn">Buscar tesouros na floresta</button>
+            <button id="treasureForestBtn">Buscar tesouros na floresta</button><button data-boss-area="forest">Desafiar Ent Corrompido</button><button data-boss-area="cave">Desafiar Rei das Profundezas</button><button data-boss-area="fire">Desafiar Draco de Brasas</button><button data-boss-area="castle">Desafiar General Vharok</button><button data-boss-area="shadow">Enfrentar Malakar</button>
             <button id="treasureCaveBtn">Vasculhar escombros</button>
             <button id="merchantBtn">Visitar mercador</button>
           </div>
@@ -56,12 +51,12 @@
             <div class="actions">
               <button data-buy="potion">Poção de vida — 10 ouros</button>
               <button data-buy="sword">Espada de aço — 40 ouros</button>
-              <button data-buy="armor">Armadura reforçada — 35 ouros</button>
+              <button data-buy="armor">Armadura reforçada — 35 ouros</button><button data-buy="steelSword">Espada de aço — 90 ouros</button><button data-buy="oakStaff">Cajado de carvalho — 70 ouros</button><button data-buy="leatherArmor">Armadura de couro — 45 ouros</button><button data-buy="chainArmor">Cota de malha — 110 ouros</button><button data-buy="shadowCloak">Manto sombrio — 220 ouros</button>
               <button id="closeMerchant" class="secondary">Fechar loja</button>
             </div>
           </div>
           <div id="character" class="character"></div>
-          <div id="battle" class="hidden"><div class="enemy"><small>INIMIGO</small><h3 id="enemyName">---</h3><div class="bar"><i id="enemyBar"></i></div><p id="enemyHp"></p></div><p id="battleHint">Cada jogador pode realizar uma ação por rodada.</p><div class="actions"><button id="attackBtn" class="primary">Atacar</button><button id="potionBtn">Usar poção</button><button id="fleeBtn" class="danger">Tentar fugir</button></div></div>
+          <div id="battle" class="hidden"><div class="enemy"><small>INIMIGO</small><h3 id="enemyName">---</h3><div class="bar"><i id="enemyBar"></i></div><p id="enemyHp"></p></div><p id="battleHint">Cada jogador pode realizar uma ação por rodada.</p><div class="actions"><button id="attackBtn" class="primary">Atacar</button><button id="potionBtn">Usar poção</button><button id="defendBtn">Defender</button><button id="skillBtn">Habilidade</button><button id="fleeBtn" class="danger">Tentar fugir</button></div></div>
           <div id="log" aria-live="polite"></div>
         </section>
       </div>
@@ -70,6 +65,4 @@
     <div id="toast" role="status"></div>
   </main>
   <script src="/socket.io/socket.io.js"></script><script src="game.js"></script>
-</body></html>
-<script src="game.js"></script>
 </body></html>

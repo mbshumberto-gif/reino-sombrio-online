@@ -6,10 +6,15 @@ const heldKeys = new Set();
 let moveFrame = null, lastMoveSent = 0;
 
 const HEROES = {
-  warrior: { label: 'Guerreiro', skin: '#d9a77b', hair: '#6b422b', outfit: '#416f91', accent: '#e2bd61', trim: '#263b55', gear: 'sword' },
-  archer:  { label: 'Arqueira', skin: '#e3b88d', hair: '#5b3029', outfit: '#547a4e', accent: '#bd5b50', trim: '#304b35', gear: 'bow' },
-  mage:    { label: 'Maga', skin: '#e6bb98', hair: '#3a294b', outfit: '#65518f', accent: '#c58bf0', trim: '#392c5e', gear: 'staff' },
-  druid:   { label: 'Druida', skin: '#c98e65', hair: '#493c27', outfit: '#557b55', accent: '#a8c66c', trim: '#314b3b', gear: 'staff' }
+ warrior:{label:'Guerreiro',skin:'#d9a77b',hair:'#6b422b',outfit:'#416f91',accent:'#e2bd61',trim:'#263b55',gear:'sword'},
+ mage:{label:'Mago',skin:'#e6bb98',hair:'#3a294b',outfit:'#65518f',accent:'#c58bf0',trim:'#392c5e',gear:'staff'},
+ sorceress:{label:'Feiticeira',skin:'#e7c1a5',hair:'#432c58',outfit:'#704b91',accent:'#dc91ed',trim:'#432b62',gear:'staff'},
+ cleric:{label:'Clérigo',skin:'#e5bd91',hair:'#a17b42',outfit:'#e8e0c9',accent:'#e3bf5c',trim:'#8d7545',gear:'staff'},
+ rogue:{label:'Ladino',skin:'#c98e65',hair:'#30252b',outfit:'#4a4d5e',accent:'#ad4554',trim:'#282b39',gear:'sword'},
+ bard:{label:'Bardo',skin:'#e3b88d',hair:'#70452e',outfit:'#8b4e67',accent:'#e1b65c',trim:'#56364e',gear:'staff'},
+ paladin:{label:'Paladino',skin:'#d9a77b',hair:'#6b422b',outfit:'#b9c4ce',accent:'#e5c46a',trim:'#617488',gear:'sword'},
+ ranger:{label:'Ranger',skin:'#c98e65',hair:'#493c27',outfit:'#557b55',accent:'#a8c66c',trim:'#314b3b',gear:'bow'},
+ monk:{label:'Monge',skin:'#d9a77b',hair:'#493c27',outfit:'#a45c38',accent:'#e4c46b',trim:'#633b2d',gear:'sword'}
 };
 
 function toast(msg){ $("toast").textContent=msg; $("toast").classList.add("show"); clearTimeout(toastTimer); toastTimer=setTimeout(()=>$("toast").classList.remove("show"),3000); }
@@ -31,10 +36,17 @@ document.querySelectorAll("[data-buy]").forEach(b=>b.onclick=()=>socket.emit("sh
 $("attackBtn").onclick=()=>socket.emit("battleAction",{action:"attack"});
 $("potionBtn").onclick=()=>socket.emit("battleAction",{action:"potion"});
 $("fleeBtn").onclick=()=>socket.emit("battleAction",{action:"flee"});
+document.querySelectorAll("[data-npc]").forEach(button=>button.onclick=()=>socket.emit("talkNpc",{npc:button.dataset.npc}));
+$("defendBtn").onclick=()=>socket.emit("battleAction",{action:"defend"});
+$("skillBtn").onclick=()=>socket.emit("battleAction",{action:"skill"});
+$("skillUpgradeBtn").onclick=()=>socket.emit("upgradeSkill");
+document.querySelectorAll("[data-boss-area]").forEach(button=>button.onclick=()=>socket.emit("explore",{area:button.dataset.bossArea,action:"enter",boss:true}));
 
 // Sprites SVG originais desenhados em blocos para manter o visual pixel art.
-function heroSprite(heroKey, walking=false, facing='down') {
+function heroSprite(heroKey, walking=false, facing='down', equipment={}) {
   const c = HEROES[heroKey] || HEROES.warrior;
+  const armorTone = equipment?.armor === 'shadowCloak' ? '#382b4f' : equipment?.armor === 'chainArmor' ? '#9da9b2' : equipment?.armor === 'leatherArmor' ? '#9a6844' : '';
+  const armorOverlay = armorTone ? `<path d="M9 14 L26 14 L28 28 L18 31 L7 28 Z" fill="${armorTone}" stroke="#25232b" stroke-width="1"/><rect x="15" y="17" width="5" height="9" fill="${c.accent}"/>` : '';
   const face = facing === 'left' ? 'scale(-1 1) translate(-32 0)' : '';
   let headgear = '', accessory = '';
   if (heroKey === 'warrior') headgear = `<rect x="7" y="3" width="18" height="5" fill="${c.accent}"/><rect x="5" y="7" width="22" height="5" fill="#8f9ba0"/><rect x="10" y="10" width="3" height="3" fill="#f2d47d"/>`;
@@ -48,7 +60,7 @@ function heroSprite(heroKey, walking=false, facing='down') {
     ${accessory}
     <g class="leg leg-left"><rect x="9" y="29" width="7" height="9" fill="#4b3c39"/><rect x="7" y="37" width="9" height="4" fill="#242b31"/></g>
     <g class="leg leg-right"><rect x="19" y="29" width="7" height="9" fill="#4b3c39"/><rect x="19" y="37" width="9" height="4" fill="#242b31"/></g>
-    <rect x="8" y="13" width="19" height="17" fill="${c.outfit}"/><rect x="11" y="14" width="13" height="4" fill="${c.trim}"/><rect x="14" y="18" width="5" height="10" fill="${c.accent}"/>
+    <rect x="8" y="13" width="19" height="17" fill="${c.outfit}"/>${armorOverlay}<rect x="11" y="14" width="13" height="4" fill="${c.trim}"/><rect x="14" y="18" width="5" height="10" fill="${c.accent}"/>
     <g class="arm arm-left"><rect x="4" y="16" width="6" height="12" fill="${c.outfit}"/><rect x="4" y="26" width="6" height="5" fill="${c.skin}"/></g>
     <g class="arm arm-right"><rect x="25" y="16" width="6" height="12" fill="${c.outfit}"/><rect x="25" y="26" width="6" height="5" fill="${c.skin}"/></g>
     <rect x="10" y="5" width="15" height="12" fill="${c.skin}"/><rect x="10" y="12" width="15" height="4" fill="${c.hair}" opacity=".9"/><rect x="13" y="9" width="2" height="2" fill="#20232a"/><rect x="21" y="9" width="2" height="2" fill="#20232a"/>
@@ -78,9 +90,9 @@ function renderMap() {
     marker.style.top = `${p.y}%`;
     marker.style.zIndex = String(20 + Math.round(p.y));
     marker.querySelector('.map-player-name').textContent = p.name;
-    const signature = `${p.classKey}|${p.facing}|${!!p.moving}`;
+    const signature = `${p.classKey}|${p.facing}|${!!p.moving}|${p.equipment?.armor}|${p.equipment?.weapon}`;
     if (marker.dataset.spriteSignature !== signature) {
-      marker.querySelector('.sprite-holder').innerHTML = heroSprite(p.classKey, !!p.moving, p.facing);
+      marker.querySelector('.sprite-holder').innerHTML = heroSprite(p.classKey, !!p.moving, p.facing, p.equipment);
       marker.dataset.spriteSignature = signature;
     }
     existing.delete(p.id);
@@ -200,6 +212,7 @@ $("musicVolume").addEventListener('input', () => {
   if (masterGain) masterGain.gain.setTargetAtTime(Number($("musicVolume").value)/100*0.16, audioContext.currentTime, 0.04);
 });
 
+fetch("/game-data").then(response=>response.json()).then(data=>{window.gameClasses=data.classes;window.gameQuests=data.quests;const select=$("heroClass");select.innerHTML="";Object.entries(data.classes).forEach(([key,hero])=>{const option=document.createElement("option");option.value=key;option.textContent=`${hero.name} — ${hero.role} | ${hero.skill.name}`;select.append(option);});}).catch(()=>{});
 socket.on("joined",data=>{currentCode=data.code;localPosition=null;enterGame();toast("Você entrou na aventura! Compartilhe o código.")});
 socket.on("errorMessage",toast);
 socket.on("notice",msg=>{toast(msg);log(msg)});
@@ -226,25 +239,27 @@ socket.on("state",state=>{
  $("players").innerHTML="";
  state.players.forEach(p=>{
    const el=document.createElement("div");el.className="player";
-   const icon=document.createElement('span'); icon.className='player-class-icon'; icon.textContent=({warrior:'⚔',archer:'🏹',mage:'✦',druid:'🌿'})[p.classKey]||'⚔';
+   const icon=document.createElement('span'); icon.className='player-class-icon'; icon.textContent=({warrior:'⚔',mage:'✦',sorceress:'☄',cleric:'✚',rogue:'🗡',bard:'♫',paladin:'🛡',ranger:'🏹',monk:'☯'})[p.classKey]||'⚔';
    const info=document.createElement('div');
    const name=document.createElement("strong");name.textContent=p.name+(p.id===state.hostId?" 👑":"");
    const classLine=document.createElement('span'); classLine.className='class-label'; classLine.textContent=p.className;
-   const stats=document.createElement("span");stats.className="hp";stats.textContent=`Nível ${p.level} • Vida ${p.hp}/${p.maxHp} • ATQ ${p.attack} • DEF ${p.defense} • ${p.gold} ouros • ${p.potions} poções${p.ready?" • Pronto":""}`;
+   const stats=document.createElement("span");stats.className="hp";stats.textContent=`Nível ${p.level} • Vida ${p.hp}/${p.maxHp} • ATQ ${p.attack} • DEF ${p.defense} • MP ${p.mana}/${p.maxMana} • ${p.gold} ouros • ${p.potions} poções${p.ready?" • Pronto":""}`;
    info.append(name,classLine,stats);el.append(icon,info);$("players").append(el);
  });
- if (meNow) $("character").textContent=`HERÓI: ${meNow.name} • ${meNow.className} | XP: ${meNow.xp}/100 | ARMA: ${meNow.weapon}`;
+ if (meNow) { $("character").textContent=`HERÓI: ${meNow.name} • ${meNow.className} | NÍVEL ${meNow.level} • XP: ${meNow.xp}/100 | HP ${meNow.hp}/${meNow.maxHp} • MP ${meNow.mana}/${meNow.maxMana} | ARMA: ${meNow.weapon} | ARMADURA: ${meNow.armor}`; const skill=window.gameClasses?.[meNow.classKey]?.skill; if(skill) $("skillBtn").textContent=`${skill.name} (${skill.cost} MP)`; }
  $("readyBtn").textContent=state.players.find(p=>p.id===socket.id)?.ready?"Cancelar prontidão":"Estou pronto";
  $("world").innerHTML="";
- [["Floresta Sombria",state.world.forest],["Caverna dos Ecos",state.world.cave],["Castelo Sombrio",state.world.castle]].forEach(([name,done])=>{
+ [["Floresta Amaldiçoada",state.world.forest],["Caverna dos Ecos",state.world.cave],["Terras do Fogo",state.world.fire],["Castelo dos Condenados",state.world.castle],["Reino Sombrio",state.world.shadow]].forEach(([name,done])=>{
    const tag=document.createElement("span");tag.textContent=(done?"✓ ":"◇ ")+name;if(done)tag.className="done";$("world").append(tag);
  });
  $("treasureCaveBtn").disabled=!state.world.forest||!!state.battle;
  $("treasureForestBtn").disabled=!!state.battle;
  $("merchantBtn").disabled=!!state.battle;
- document.querySelector('[data-area="cave"]').disabled=!state.world.forest||!!state.battle;
- document.querySelector('[data-area="castle"]').disabled=!state.world.cave||state.world.castle||!!state.battle;
- document.querySelector('[data-area="forest"]').disabled=!!state.battle;
+ if(meNow) { $("inventoryPanel").textContent=`Poções: ${meNow.inventory?.potions ?? meNow.potions} • Arma: ${meNow.weapon} • Armadura: ${meNow.armor} • Pontos de habilidade: ${meNow.skillPoints} • Habilidade nível ${meNow.skillLevel}`; $("skillUpgradeBtn").disabled=!meNow.skillPoints; }
+ if(state.quests&&window.gameQuests){$("questList").innerHTML="";window.gameQuests.forEach(quest=>{const progress=state.quests[quest.id];const item=document.createElement("div");item.className="quest-item"+(progress?.completed?" completed":"");const title=document.createElement("strong");title.textContent=(progress?.completed?"✓ ":"◇ ")+quest.title;const desc=document.createElement("p");desc.textContent=quest.description;const reward=document.createElement("small");reward.textContent=progress?.completed?"Concluída":`Recompensa: ${quest.reward.xp} XP • ${quest.reward.gold} ouros`;item.append(title,desc,reward);$("questList").append(item);});}
+
+ document.querySelectorAll("[data-area]").forEach(button=>{const area=button.dataset.area;const unlock={forest:null,cave:"forest",fire:"cave",castle:"fire",shadow:"castle"}[area];button.disabled=!!state.battle||!!state.world[area]||(!!unlock&&!state.world[unlock]);});
+ const bossUnlock={forest:true,cave:state.world.forest,fire:state.world.cave,castle:state.world.fire,shadow:state.world.castle};document.querySelectorAll("[data-boss-area]").forEach(button=>{const area=button.dataset.bossArea;button.disabled=!!state.battle||!bossUnlock[area]||!!state.world[area];});
  $("townActions").classList.toggle("hidden",!!state.battle);
  if(state.battle) $("merchant").classList.add("hidden");
  const b=state.battle;
@@ -257,7 +272,7 @@ socket.on("state",state=>{
    const me=state.players.find(p=>p.id===socket.id);
    const isMyTurn=!!me&&b.activePlayerId===socket.id&&me.hp>0;
    const activePlayer=state.players.find(p=>p.id===b.activePlayerId);
-   $("attackBtn").disabled=!isMyTurn;$("potionBtn").disabled=!isMyTurn;$("fleeBtn").disabled=!isMyTurn||b.boss;
+   $("attackBtn").disabled=!isMyTurn;$("potionBtn").disabled=!isMyTurn;$("fleeBtn").disabled=!isMyTurn||b.boss;$("defendBtn").disabled=!isMyTurn;$("skillBtn").disabled=!isMyTurn||!me||me.mana<((window.gameClasses?.[me.classKey]?.skill?.cost)||999);
    $("battleHint").textContent=isMyTurn
      ? `Sua vez! Rodada ${b.turn}. Escolha sua ação.`
      : activePlayer
@@ -265,7 +280,7 @@ socket.on("state",state=>{
        : "Aguardando o próximo turno.";
  } else {
    $("areaTitle").textContent="Vila de Eldoria";
-   $("storyText").textContent=state.world.castle?"O reino está livre da escuridão! A vitória pertence à equipe.":"Reúnam seus aliados e preparem-se para enfrentar as sombras. Caminhe pela vila usando WASD, as setas ou os controles na tela.";
+   $("storyText").textContent=state.world.shadow?"O reino está livre da escuridão! Malakar foi derrotado. A vitória pertence à equipe.":"Reúnam seus aliados e preparem-se para enfrentar as sombras. Caminhe pela vila usando WASD, as setas ou os controles na tela.";
  }
  renderMap();
 });
