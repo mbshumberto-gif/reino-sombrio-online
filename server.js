@@ -63,7 +63,7 @@ function makePlayer(id, name, classKey, spawn, characterId, saved = {}) {
     inventory: ['Poção de vida x3'], skillPoints: 0, skillLevel: 1, skillCooldown: 0, defending: false, buffs: {},
     ready: false, lastMoveAt: 0
   };
-  return { ...fresh, ...saved, id, name, characterId, classKey: hero, className: config.name, ready: false, lastMoveAt: 0 };
+  return { ...fresh, ...saved, id, name, characterId, classKey: hero, className: config.name, x: spawn.x, y: spawn.y, facing: 'down', ready: false, lastMoveAt: 0 };
 }
 
 function nextSpawn(room) {
@@ -217,9 +217,11 @@ io.on('connection', (socket) => {
     const target = String(payload.area || '');
     const targetIndex = REGIONS.findIndex(region => region.id === target);
     const currentIndex = room.activeRegion === 'village' ? -1 : REGIONS.findIndex(region => region.id === room.activeRegion);
-    if (target === 'village') room.activeRegion = 'village';
-    else {
-      if (targetIndex < 0 || targetIndex > currentIndex + 1) return socket.emit('errorMessage','A passagem ainda está bloqueada.');
+    if (target === 'village') {
+      if (currentIndex !== 0) return socket.emit('errorMessage','A vila só pode ser alcançada pela passagem da floresta.');
+      room.activeRegion = 'village';
+    } else {
+      if (targetIndex < 0 || targetIndex < currentIndex - 1 || targetIndex > currentIndex + 1) return socket.emit('errorMessage','A passagem ainda está bloqueada.');
       if (REGIONS[targetIndex].unlock && !room.world[REGIONS[targetIndex].unlock]) return socket.emit('errorMessage','Derrote o guardião da região anterior para abrir esta passagem.');
       room.activeRegion = target;
     }
