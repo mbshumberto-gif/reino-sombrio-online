@@ -17,34 +17,94 @@
     castle:["#24283c","#50546b","#383c50","#8d7d82","#e1c27a"],
     shadow:["#130f27","#38254f","#251b3b","#675078","#ce8af0"]
   };
-  const stages = [
-    {floors:[[0,390],[490,760],[860,1200],[1300,1800]], platforms:[[250,360,130],[600,310,120],[980,350,150],[1450,300,150]], hazards:[[760,860],[1200,1300]]},
-    {floors:[[0,300],[390,680],[770,1060],[1150,1450],[1540,1800]], platforms:[[180,345,130],[470,280,120],[850,340,140],[1230,290,120],[1600,345,100]], hazards:[[300,390],[680,770],[1060,1150],[1450,1540]]},
-    {floors:[[0,340],[430,820],[920,1260],[1360,1800]], platforms:[[260,330,120],[520,270,140],[900,330,120],[1120,260,130],[1480,310,130]], hazards:[[340,430],[820,920],[1260,1360]]}
-  ];
-  const mobs = [500, 990, 1450];
-  const levelData = () => stages[Math.min(stage,2)];
+  // Cada região tem três percursos próprios. O desenho do cenário e os obstáculos mudam por capítulo.
+  const stages = {
+    village:[
+      {floors:[[0,500],[590,980],[1080,1800]],platforms:[[250,365,130],[690,320,140],[1190,360,150],[1480,300,120]],hazards:[[500,590],[980,1080]]},
+      {floors:[[0,360],[450,900],[990,1300],[1390,1800]],platforms:[[150,350,110],[520,280,150],[1080,330,120],[1510,290,130]],hazards:[[360,450],[900,990],[1300,1390]]},
+      {floors:[[0,320],[410,760],[850,1180],[1280,1800]],platforms:[[210,340,120],[510,270,140],[930,320,120],[1370,280,150],[1600,350,100]],hazards:[[320,410],[760,850],[1180,1280]]}
+    ],
+    forest:[
+      {floors:[[0,330],[430,720],[830,1120],[1230,1510],[1610,1800]],platforms:[[170,350,130],[510,285,125],[900,330,150],[1290,265,120],[1650,330,100]],hazards:[[330,430],[720,830],[1120,1230],[1510,1610]]},
+      {floors:[[0,430],[530,810],[910,1190],[1290,1800]],platforms:[[250,340,120],[590,275,140],[970,320,140],[1370,285,150]],hazards:[[430,530],[810,910],[1190,1290]]},
+      {floors:[[0,290],[390,650],[750,1030],[1130,1400],[1500,1800]],platforms:[[130,345,120],[450,260,140],[820,310,130],[1200,250,130],[1570,320,140]],hazards:[[290,390],[650,750],[1030,1130],[1400,1500]]}
+    ],
+    cave:[
+      {floors:[[0,420],[520,790],[890,1160],[1260,1800]],platforms:[[180,355,120],[570,285,130],[940,335,120],[1320,275,150],[1600,350,100]],hazards:[[420,520],[790,890],[1160,1260]]},
+      {floors:[[0,300],[400,680],[780,1060],[1160,1440],[1540,1800]],platforms:[[140,345,120],[470,265,120],[850,320,130],[1230,250,130],[1600,320,120]],hazards:[[300,400],[680,780],[1060,1160],[1440,1540]]},
+      {floors:[[0,360],[460,740],[840,1120],[1220,1500],[1600,1800]],platforms:[[210,315,120],[510,245,140],[900,300,130],[1280,230,140],[1640,320,100]],hazards:[[360,460],[740,840],[1120,1220],[1500,1600]]}
+    ],
+    fire:[
+      {floors:[[0,300],[400,650],[750,1000],[1100,1350],[1450,1800]],platforms:[[140,345,120],[440,265,130],[790,325,120],[1140,255,130],[1510,315,140]],hazards:[[300,400],[650,750],[1000,1100],[1350,1450]]},
+      {floors:[[0,460],[560,810],[910,1160],[1260,1800]],platforms:[[220,350,130],[610,275,130],[960,330,140],[1330,270,150]],hazards:[[460,560],[810,910],[1160,1260]]},
+      {floors:[[0,280],[380,620],[720,970],[1070,1320],[1420,1800]],platforms:[[120,330,130],[430,245,120],[770,300,140],[1120,235,130],[1480,300,150]],hazards:[[280,380],[620,720],[970,1070],[1320,1420]]}
+    ],
+    castle:[
+      {floors:[[0,380],[480,760],[860,1140],[1240,1520],[1620,1800]],platforms:[[180,345,130],[520,265,120],[900,325,140],[1280,255,130],[1650,330,100]],hazards:[[380,480],[760,860],[1140,1240],[1520,1620]]},
+      {floors:[[0,300],[400,700],[800,1100],[1200,1500],[1600,1800]],platforms:[[130,340,120],[460,250,140],[860,315,120],[1260,245,130],[1640,310,100]],hazards:[[300,400],[700,800],[1100,1200],[1500,1600]]},
+      {floors:[[0,420],[520,780],[880,1140],[1240,1500],[1600,1800]],platforms:[[210,340,120],[570,260,130],[930,320,130],[1290,250,140],[1650,325,100]],hazards:[[420,520],[780,880],[1140,1240],[1500,1600]]}
+    ],
+    shadow:[
+      {floors:[[0,280],[380,640],[740,1000],[1100,1360],[1460,1800]],platforms:[[120,340,130],[430,255,130],[790,315,120],[1150,245,130],[1510,305,150]],hazards:[[280,380],[640,740],[1000,1100],[1360,1460]]},
+      {floors:[[0,360],[460,700],[800,1040],[1140,1380],[1480,1800]],platforms:[[190,320,120],[500,240,120],[850,300,130],[1190,230,130],[1530,290,140]],hazards:[[360,460],[700,800],[1040,1140],[1380,1480]]},
+      {floors:[[0,300],[400,650],[750,1000],[1100,1350],[1450,1800]],platforms:[[140,335,120],[450,245,130],[800,300,130],[1150,235,130],[1500,290,160]],hazards:[[300,400],[650,750],[1000,1100],[1350,1450]]}
+    ]
+  };
+  const mobsByRegion = {village:[],forest:[470,930,1390],cave:[450,940,1430],fire:[430,900,1390],castle:[500,980,1450],shadow:[430,920,1420]};
+  const mobs = () => mobsByRegion[region] || [];
+  const levelData = () => (stages[region] || stages.village)[Math.min(stage,2)];
   const me = () => latestState?.players?.find(p => p.id === socket.id);
   const areaName = () => window.regionScenes?.[region]?.title || (region === "village" ? "Vila de Eldoria" : region);
   function rect(x,y,w,h,color){ctx.fillStyle=color;ctx.fillRect(Math.round(x),Math.round(y),Math.round(w),Math.round(h));}
   function drawBackground(c){
-    const pal=palette[region]||palette.village;
-    const grad=ctx.createLinearGradient(0,0,0,540);grad.addColorStop(0,pal[0]);grad.addColorStop(1,pal[1]);ctx.fillStyle=grad;ctx.fillRect(0,0,960,540);
-    // Camadas de cenário em parallax, para dar sensação de avanço.
-    const shift=camera*.22;
-    for(let i=0;i<8;i++){
-      const x=((i*280-shift)%2200+2200)%2200-100;
-      if(region==="village"||region==="forest"){
-        rect(x+30,245,22,210,"#294638");rect(x,220,82,92,pal[2]);rect(x+13,190,56,75,pal[1]);
-      } else if(region==="cave"){
-        rect(x+20,0,36,250,pal[2]);rect(x+5,0,70,35,pal[3]);rect(x+32,210,12,70,pal[4]);
-      } else if(region==="fire"){
-        rect(x+20,150,38,300,pal[2]);rect(x,130,75,50,pal[3]);rect(x+34,310,10,110,pal[4]);
-      } else {
-        rect(x+12,100,55,355,pal[2]);rect(x,85,80,35,pal[3]);rect(x+27,190,24,85,pal[4]);
-      }
+    const pal=palette[region]||palette.village, time=performance.now()/1000;
+    const grad=ctx.createLinearGradient(0,0,0,540);
+    grad.addColorStop(0,pal[0]);grad.addColorStop(.68,pal[1]);grad.addColorStop(1,pal[2]);
+    ctx.fillStyle=grad;ctx.fillRect(0,0,960,540);
+    const shift=c*.2;
+    // Silhuetas e marcos exclusivos de cada região, com deslocamento em parallax.
+    if(region==="village"){
+      rect(0,300,960,145,"#799b82");
+      for(let i=0;i<7;i++){const x=((i*310-shift*.7)%2300+2300)%2300-120;
+        rect(x+20,270,115,175,"#5c5949");rect(x+9,255,137,28,"#754b3e");
+        rect(x+36,300,30,55,"#d4b66c");rect(x+80,315,24,25,"#9ec3b5");
+        rect(x+60,375,35,70,"#3b3030");}
+      rect(0,390,960,8,"#d3ba7a");
+    }else if(region==="forest"){
+      rect(0,300,960,150,"#1b382a");
+      for(let i=0;i<12;i++){const x=((i*190-shift*.8)%2200+2200)%2200-80,h=125+(i%4)*28;
+        rect(x+23,300-h*.35,24,h,"#3d4d32");rect(x,260-h*.35,72,90,"#244c35");
+        rect(x+10,230-h*.35,52,65,i%2?"#315c3c":"#3b6943");}
+      for(let i=0;i<18;i++){const x=((i*83-shift+time*12)%1000+1000)%1000,y=120+(i*47)%280+Math.sin(time*1.8+i)*8;rect(x,y,4,4,"#a8d879");}
+    }else if(region==="cave"){
+      rect(0,0,960,445,"#101b2a");
+      for(let i=0;i<13;i++){const x=((i*170-shift*.65)%2100+2100)%2100-70,h=80+(i%4)*32;
+        rect(x,0,18,h,"#34475b");rect(x-8,h-18,34,18,"#536b7c");}
+      for(let i=0;i<9;i++){const x=((i*230-shift)%2100+2100)%2100-50,y=290+(i%3)*34;
+        rect(x,y,10,80,"#4b7890");rect(x-7,y+18,24,8,"#9ce1d7");rect(x+2,y+8,6,55,"#b7f5e7");}
+    }else if(region==="fire"){
+      rect(0,300,960,150,"#3a2225");
+      for(let i=0;i<7;i++){const x=((i*330-shift*.7)%2300+2300)%2300-160;
+        rect(x,180,210,270,"#542d32");rect(x+20,150,170,45,"#763b34");rect(x+70,115,75,45,"#a24e37");
+        rect(x+90,90+Math.sin(time*2+i)*5,35,35,"#f08b43");}
+      for(let i=0;i<24;i++){const x=((i*71-shift+time*(18+i%5))%980+980)%980,y=180+((i*37+time*22)%250);rect(x,y,3,5,i%2?"#ffbf58":"#e66b3b");}
+    }else if(region==="castle"){
+      rect(0,300,960,150,"#24283c");
+      for(let i=0;i<6;i++){const x=((i*260-shift*.72)%2200+2200)%2200-80;
+        rect(x,130,115,315,"#3c4054");rect(x-10,112,135,22,"#8d7d82");
+        for(let j=0;j<4;j++)rect(x+8+j*30,92,16,26,"#56566b");
+        rect(x+42,190,30,70,"#202638");rect(x+50,205,14,30,"#e1c27a");}
+      rect(390,210,180,235,"#30344a");rect(425,165,110,85,"#53546a");
+    }else{
+      rect(0,300,960,150,"#171127");
+      for(let i=0;i<10;i++){const x=((i*210-shift*.75)%2200+2200)%2200-80,y=90+(i%3)*75;
+        rect(x,y,55,270,"#29203e");rect(x-8,y-20,71,24,"#604477");rect(x+17,y+65,21,80,"#3f2b59");}
+      for(let i=0;i<28;i++){const x=((i*59-shift+time*(5+i%4))%1000+1000)%1000,y=60+(i*43)%330+Math.sin(time+i)*7;rect(x,y,3,3,"#d08bf2");}
     }
-    rect(0,440,960,100,"#17251f");
+    // Céu e horizonte com detalhes que se movem sem depender de imagens externas.
+    const glow=region==="fire"?"#ffb347":region==="cave"?"#8be9e4":region==="shadow"?"#d08bf2":"#f4cf72";
+    ctx.globalAlpha=.22;ctx.fillStyle=glow;ctx.beginPath();ctx.arc(790,100,38+Math.sin(time*1.4)*3,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1;
+    rect(0,440,960,100,region==="cave"?"#111923":region==="fire"?"#281b20":region==="shadow"?"#0c0a17":"#17251f");
   }
   function drawPlatform(x,y,w,pal){
     rect(x,y,w,18,pal[3]);rect(x,y+18,w,9,pal[2]);rect(x,y,w,5,pal[4]);
@@ -79,7 +139,7 @@
     }
     if(region!=="village"){
       const defeated=latestState.defeatedEnemies?.[region]||[];
-      mobs.forEach((x,i)=>{if(!defeated.includes(i)&&stage===0)drawMob(x,i,pal);});
+      mobs().forEach((x,i)=>{if(!defeated.includes(i)&&stage===0)drawMob(x,i,pal);});
     }
     // Portal de fim de fase e identificação da campanha.
     const gateX=1715-camera;
@@ -135,7 +195,7 @@
     if(py>540||inPit&&py>FLOOR-18){px=Math.max(60,Math.floor(px/360)*360-180);py=FLOOR;vy=0;grounded=true;toast("Você caiu! Voltou ao último trecho seguro.");}
     if(region!=="village"&&stage===0&&Date.now()>enemyCooldown){
       const defeated=latestState.defeatedEnemies?.[region]||[];
-      for(let i=0;i<mobs.length;i++)if(!defeated.includes(i)&&Math.abs(px-mobs[i])<35&&Math.abs(py-FLOOR)<55){
+      for(let i=0;i<mobs().length;i++)if(!defeated.includes(i)&&Math.abs(px-mobs()[i])<35&&Math.abs(py-FLOOR)<55){
         enemyCooldown=Date.now()+2200;socket.emit("explore",{area:region,action:"enter",enemyIndex:i});break;
       }
     }
