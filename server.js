@@ -264,7 +264,8 @@ io.on('connection', (socket) => {
       sendRoomMessage(room, '⚔️ O CHEFÃO APARECEU! A equipe precisa derrotá-lo para liberar a próxima região.');
     }
     room.transition = null;
-    [...room.players.values()].forEach((member, index) => { member.x = 60 + index * 34; member.y = 430; member.facing = 'right'; });
+    [...room.players.values()].forEach((member, index) => { member.x = 440 + (index % 4) * 30; member.y = (enteringFromNorth ? 110 : 465) + Math.floor(index / 4) * 28;
+ member.facing = 'right'; });
     emitRoom(room);
   });
 
@@ -487,7 +488,8 @@ io.on('connection', (socket) => {
         const nextRegion = REGIONS[regionIndex + 1]?.id || null;
         room.activeRegion = defeated.area;
         room.levelIndex = 3;
-        [...room.players.values()].forEach(member => { member.x = 1700; member.y = 430; member.facing = 'right'; });
+        [...room.players.values()].forEach(member, index => {member.x = 440 + (index % 4) * 30; member.y = 130 + Math.floor(index / 4) * 28; member.facing = 'down';
+ });
         room.transition = { region: defeated.area, nextRegion, title: REGION_SCENES[defeated.area]?.title || defeated.area, message: nextRegion ? 'A passagem para a próxima região foi aberta.' : 'Malakar caiu. Eldoria está livre!', at: Date.now() };
         const quest = QUESTS.find((entry) => entry.region === defeated.area);
         if (quest && !room.quests[quest.id].completed) {
