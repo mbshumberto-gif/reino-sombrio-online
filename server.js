@@ -226,7 +226,7 @@ io.on('connection', (socket) => {
       room.activeRegion = target;
     }
     room.dungeon = null; room.transition = null;
-    const enteringFromNorth = target === 'village' || targetIndex < currentIndex;
+    const enteringFromNorth = target !== 'village' && targetIndex < currentIndex;
     [...room.players.values()].forEach((member,index) => {
       member.x = 480 + (index - (room.players.size-1)/2)*42;
       member.y = enteringFromNorth ? 66 : 510;
