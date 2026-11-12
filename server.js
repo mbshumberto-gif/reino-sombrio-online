@@ -433,7 +433,7 @@ io.on('connection', (socket) => {
       if (defeated.dungeonRoomIndex !== undefined && room.dungeon) room.dungeon.cleared[defeated.dungeonRoomIndex] = true;
       if (!defeated.boss) { for (const q of SIDE_QUESTS) { const progress = room.sideQuests?.[q.id]; if (q.region === defeated.area && progress?.accepted && !progress.completed) progress.progress = Math.min(q.goal, progress.progress + 1); } }
       sendRoomMessage(room, defeated.boss
-        ? `🏆 ${defeated.enemy} foi derrotado! ${defeated.area === 'shadow' ? 'O reino está livre da escuridão!' : 'Uma nova região foi conquistada!'}`
+        ? `🏆 ${defeated.enemy} foi derrotado! ${defeated.dungeonRoomIndex !== undefined ? 'A sala foi conquistada!' : defeated.area === 'shadow' ? 'O reino está livre da escuridão!' : 'Uma nova região foi conquistada!'}`
         : `🎉 ${defeated.enemy} derrotado! Os aventureiros vivos receberam ${defeated.xp} XP e ${defeated.gold} ouros.`);
       emitRoom(room);
       return;
