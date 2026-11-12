@@ -149,3 +149,22 @@ body{background:#101a23;color:#fff0c2}
 .title-forest{background:linear-gradient(180deg,transparent,#101a23 25%),repeating-linear-gradient(90deg,transparent 0 5%,#101a23 5% 7%,transparent 7% 11%)}
 .title-copy .eyebrow{color:#8fbd71}
 .world-panel{background:linear-gradient(180deg,#243744,#1a2935)}
+
+
+/* Mundo 2D explorável em pixel art */
+.overworld.pixel-world{position:relative;aspect-ratio:5/3;width:100%;min-height:0;max-height:none;overflow:hidden;background:#18251e;border:4px solid #a58c5c;box-shadow:inset 0 0 0 3px #273d35}
+#worldCanvas{display:block;width:100%;height:auto;aspect-ratio:5/3;image-rendering:pixelated;image-rendering:crisp-edges;background:#263e32;touch-action:none}
+.pixel-world .map-title{position:absolute;top:9px;left:50%;transform:translateX(-50%);z-index:5;white-space:nowrap;background:#111b23e8;border:1px solid #c2a565;color:#fff0c2;padding:7px 10px;font:8px 'Press Start 2P';letter-spacing:.3px;pointer-events:none}
+.nearby-prompt{position:absolute;bottom:8px;left:50%;transform:translateX(-50%);z-index:5;max-width:94%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:#101a23e8;border:1px solid #c5a65e;color:#f4cf72;padding:7px 10px;font:8px 'Press Start 2P';line-height:1.6;text-align:center;pointer-events:none}
+.mobile-pad{gap:7px}
+.mobile-pad button{background:#263d45;border-color:#8a9a7a;color:#fff0c2;box-shadow:3px 3px 0 #101a23}
+.enemy-portrait{width:160px;height:140px;max-width:40%;font-size:0;image-rendering:pixelated}
+.battle-stage{background:linear-gradient(135deg,#263744,#1c2937);border-color:#b18b58}
+.scene-caption p{max-width:64%;line-height:1.45}
+@media(max-width:560px){
+ .overworld.pixel-world{aspect-ratio:5/4;min-height:0}
+ #worldCanvas{aspect-ratio:5/4;height:100%;object-fit:cover}
+ .pixel-world .map-title{font-size:6px;max-width:90%;overflow:hidden;text-overflow:ellipsis}
+ .nearby-prompt{font-size:6px}
+ .enemy-portrait{width:120px;height:110px}
+}
