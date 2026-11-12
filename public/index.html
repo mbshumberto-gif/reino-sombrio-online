@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#101a23">
+  <title>As Crônicas do Reino Sombrio</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main class="shell">
+    <header><div class="sigil">☠</div><p class="eyebrow">UMA AVENTURA COOPERATIVA</p><h1>AS CRÔNICAS DO<br><span>REINO SOMBRIO</span></h1><p class="sub">O destino de Eldoria será decidido em grupo.</p></header>
+    <section id="entry" class="panel">
+      <label for="playerName">Nome do seu herói</label><input id="playerName" maxlength="18" placeholder="Ex.: Beto San">
+      <button id="createBtn" class="primary">Criar nova sala</button>
+      <div class="or">OU ENTRE NA AVENTURA</div>
+      <label for="roomCode">Código da sala</label><input id="roomCode" maxlength="6" placeholder="ABC123" class="code">
+      <button id="joinBtn">Entrar na sala</button>
+      <p class="hint">Até 8 aventureiros por sala. Compartilhe o código com seus amigos.</p>
+    </section>
+    <section id="game" class="hidden">
+      <div class="roombar panel"><div><small>SALA DA AVENTURA</small><strong id="roomLabel">------</strong></div><button id="copyBtn" class="small">Copiar código</button></div>
+      <div class="columns">
+        <section class="panel"><h2>⚔ Aventureiros</h2><div id="players"></div><button id="readyBtn">Estou pronto</button><button id="restBtn" class="secondary">Descansar (10 ouros)</button></section>
+        <section class="panel story"><h2 id="areaTitle">Vila de Eldoria</h2><p id="storyText">As sombras avançam sobre o reino. Reúnam seus aliados.</p>
+          <div class="pixel-scene" role="img" aria-label="Paisagem em pixel art: floresta, castelo e um aventureiro"><div class="scene-caption">ELDORIA • 16-BIT ADVENTURE</div></div>
+          <div id="world" class="world"></div>
+          <div id="actions" class="actions">
+            <button data-area="forest" data-action="enter">Floresta Sombria</button>
+            <button data-area="cave" data-action="enter">Caverna dos Ecos</button>
+            <button data-area="castle" data-action="enter" class="danger">Castelo Sombrio</button>
+          </div>
+          <div id="townActions" class="actions town-actions">
+            <button id="treasureForestBtn">Buscar tesouros na floresta</button>
+            <button id="treasureCaveBtn">Vasculhar escombros</button>
+            <button id="merchantBtn">Visitar mercador</button>
+          </div>
+          <div id="merchant" class="merchant hidden">
+            <h3>▣ MERCADOR DE ELDORIA</h3>
+            <p>Melhore seu equipamento antes da próxima batalha.</p>
+            <div class="actions">
+              <button data-buy="potion">Poção de vida — 10 ouros</button>
+              <button data-buy="sword">Espada de aço — 40 ouros</button>
+              <button data-buy="armor">Armadura reforçada — 35 ouros</button>
+              <button id="closeMerchant" class="secondary">Fechar loja</button>
+            </div>
+          </div>
+          <div id="character" class="character"></div>
+          <div id="battle" class="hidden"><div class="enemy"><small>INIMIGO</small><h3 id="enemyName">---</h3><div class="bar"><i id="enemyBar"></i></div><p id="enemyHp"></p></div><p id="battleHint">Cada jogador pode realizar uma ação por rodada.</p><div class="actions"><button id="attackBtn" class="primary">Atacar</button><button id="potionBtn">Usar poção</button><button id="fleeBtn" class="danger">Tentar fugir</button></div></div>
+          <div id="log" aria-live="polite"></div>
+        </section>
+      </div>
+      <footer>FEITO PARA JOGAR JUNTO <span>◆</span> UMA CRIAÇÃO DO BETO SAN</footer>
+    </section>
+    <div id="toast" role="status"></div>
+  </main>
+  <script src="/socket.io/socket.io.js"></script><script src="game.js"></script>
+</body></html>
