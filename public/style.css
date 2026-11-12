@@ -137,3 +137,15 @@ kbd{font:9px 'Press Start 2P';padding:5px 7px;margin-left:8px;border:1px solid #
 .overworld.map-theme-shadow{background-image:radial-gradient(ellipse at 50% 30%,#663e79 0 2%,transparent 22%),linear-gradient(180deg,#100e22,#291d3c 52%,#080a17)}
 .map-boss .monster-glyph{font-size:clamp(42px,6vw,66px);filter:drop-shadow(0 0 10px #f4cf72) drop-shadow(4px 5px 0 #101a23)}
 .map-boss .monster-name{border-color:#e5a05e;color:#ffdca1;background:#351d20}
+
+/* Preserva a paleta azul-petróleo, dourado e creme da versão anterior */
+body{background:#101a23;color:#fff0c2}
+.game-topbar,.world-panel,.party-panel,.drawer{background:linear-gradient(180deg,#243744,#1a2935);border-color:#526b75}
+.world-panel{box-shadow:5px 5px 0 #09131b}
+.party-panel,.drawer{box-shadow:3px 3px 0 #09131b}
+.entry-panel{background:linear-gradient(180deg,#243744,#1a2935);border-color:#526b75}
+.game-header h1,.scene-caption span,.drawer summary,.party-panel h2{color:#f4cf72}
+.title-screen{border-color:#526b75}
+.title-forest{background:linear-gradient(180deg,transparent,#101a23 25%),repeating-linear-gradient(90deg,transparent 0 5%,#101a23 5% 7%,transparent 7% 11%)}
+.title-copy .eyebrow{color:#8fbd71}
+.world-panel{background:linear-gradient(180deg,#243744,#1a2935)}
