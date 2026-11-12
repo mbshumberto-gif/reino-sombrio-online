@@ -165,16 +165,17 @@
   window.addEventListener("keyup",e=>{if(setKey(e.code,false)){e.preventDefault();e.stopImmediatePropagation();}},true);
   window.addEventListener("blur",()=>keys.clear());
   document.addEventListener("pointerdown",e=>{
-    const button=e.target.closest("[data-move],[data-jump]");
+    const button=e.target.closest("[data-move],[data-jump],[data-interact]");
     if(!button)return;
     e.preventDefault();e.stopImmediatePropagation();
     if(button.dataset.jump){if(grounded){vy=JUMP;grounded=false;}return;}
+    if(button.dataset.interact){keys.add("interact");return;}
     const direction=button.dataset.move;
     if(direction==="left")keys.add("left");if(direction==="right")keys.add("right");
     button.setPointerCapture?.(e.pointerId);
   },true);
   ["pointerup","pointercancel","lostpointercapture"].forEach(type=>document.addEventListener(type,e=>{
-    const button=e.target.closest?.("[data-move]");if(button){keys.delete(button.dataset.move);e.stopImmediatePropagation();}
+    const button=e.target.closest?.("[data-move],[data-interact]");if(button){if(button.dataset.interact)keys.delete("interact");else keys.delete(button.dataset.move);e.stopImmediatePropagation();}
   },true));
   window.renderMap=paint;
   window.worldAnimation=()=>{};
