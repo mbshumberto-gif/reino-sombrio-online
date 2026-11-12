@@ -31,11 +31,11 @@
     <section class="world-panel">
       <div class="scene-caption"><span id="areaTitle">Vila de Eldoria</span><p id="storyText">As sombras avançam sobre o reino.</p></div>
       <div id="overworld" class="overworld pixel-world" role="application" aria-label="Mundo de Eldoria. Use WASD ou as setas para andar.">
-        <canvas id="worldCanvas" width="960" height="576" aria-label="Mapa pixel art de Eldoria"></canvas>
+        <canvas id="worldCanvas" width="960" height="540" aria-label="Mapa pixel art de Eldoria"></canvas>
         <div class="map-title" id="mapTitle">ELDORIA • VILA DOS AVENTUREIROS</div>
         <div id="nearbyPrompt" class="nearby-prompt">WASD / SETAS PARA ANDAR • E PARA INTERAGIR</div>
       </div>
-      <div class="mobile-pad" aria-label="Controles de movimento"><button data-move="up">▲</button><div><button data-move="left">◀</button><button data-move="down">▼</button><button data-move="right">▶</button></div></div>
+      <div class="mobile-pad" aria-label="Controles de movimento"><button data-move="up">▲</button><div><button data-move="left">◀</button><button data-move="down">▼</button><button data-move="right">▶</button><button data-jump="true">PULAR</button></div></div>
       <div id="battle" class="battle-stage hidden">
         <div class="battle-art"><canvas id="enemyPortrait" class="enemy-portrait" width="160" height="140" aria-label="Inimigo em pixel art"></canvas><div class="enemy-info"><small>INIMIGO</small><h3 id="enemyName">---</h3><div class="bar"><i id="enemyBar"></i></div><p id="enemyHp"></p></div></div>
         <p id="battleHint">A batalha começou!</p><button id="attackBtn" class="primary attack-main">⚔ ATACAR <kbd>ESPAÇO</kbd></button>
@@ -61,5 +61,5 @@
 </section>
 <div id="toast" role="status"></div>
 </main>
-<script src="/socket.io/socket.io.js"></script><script src="game.js"></script>
+<script src="/socket.io/socket.io.js"></script><script src="game.js"></script><script src="platformer.js"></script>
 </body></html>
