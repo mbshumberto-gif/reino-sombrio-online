@@ -169,7 +169,7 @@
     if(!button)return;
     e.preventDefault();e.stopImmediatePropagation();
     if(button.dataset.jump){if(grounded){vy=JUMP;grounded=false;}return;}
-    if(button.dataset.interact){keys.add("interact");return;}
+    if(button.dataset.interact){keys.add("interact");button.setPointerCapture?.(e.pointerId);return;}
     const direction=button.dataset.move;
     if(direction==="left")keys.add("left");if(direction==="right")keys.add("right");
     button.setPointerCapture?.(e.pointerId);
