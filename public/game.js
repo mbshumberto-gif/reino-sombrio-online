@@ -161,6 +161,10 @@ function makeTileMap(area){
    paint(4,4,2,2,5);paint(23,12,2,2,5);paint(18,4,2,2,6);
  }
  for(let x=13;x<=17;x++){g[0][x]=2;g[17][x]=2;}
+ for(const point of [...(ENEMY_POINTS[area]||[]),...(BOSS_POINTS[area]?[BOSS_POINTS[area]]:[]),...(area==="village"?NPC_POINTS:[])]) {
+   const tx=Math.floor(point.x/32),ty=Math.floor(point.y/32);
+   for(let yy=ty-1;yy<=ty+1;yy++)for(let xx=tx-1;xx<=tx+1;xx++)if(g[yy]?.[xx]!==undefined&&g[yy][xx]!==2)g[yy][xx]=0;
+ }
  return g;
 }
 function colorSet(area){
