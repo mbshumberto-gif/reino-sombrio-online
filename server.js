@@ -486,6 +486,8 @@ io.on('connection', (socket) => {
         const regionIndex = REGIONS.findIndex(region => region.id === defeated.area);
         const nextRegion = REGIONS[regionIndex + 1]?.id || null;
         room.activeRegion = defeated.area;
+        room.levelIndex = 3;
+        [...room.players.values()].forEach(member => { member.x = 1700; member.y = 430; member.facing = 'right'; });
         room.transition = { region: defeated.area, nextRegion, title: REGION_SCENES[defeated.area]?.title || defeated.area, message: nextRegion ? 'A passagem para a próxima região foi aberta.' : 'Malakar caiu. Eldoria está livre!', at: Date.now() };
         const quest = QUESTS.find((entry) => entry.region === defeated.area);
         if (quest && !room.quests[quest.id].completed) {
