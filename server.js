@@ -82,7 +82,7 @@ function publicRoom(room) {
       weapon: player.weapon, armor: player.armor, equipment: player.equipment, inventory: { potions: player.potions, weapon: player.weapon, armor: player.armor },
       skillPoints: player.skillPoints, skillLevel: player.skillLevel, skillCooldown: player.skillCooldown, ready: player.ready
     })),
-    world: room.world, activeRegion: room.activeRegion, defeatedEnemies: room.defeatedEnemies || {}, dungeon: room.dungeon, sideQuests: room.sideQuests, transition: room.transition,
+    world: room.world, activeRegion: room.activeRegion, levelIndex: room.levelIndex || 0, defeatedEnemies: room.defeatedEnemies || {}, dungeon: room.dungeon, sideQuests: room.sideQuests, transition: room.transition,
     quests: room.quests,
     battle: room.battle
   };
@@ -152,11 +152,12 @@ io.on('connection', (socket) => {
       world: { forest: false, cave: false, fire: false, castle: false, shadow: false },
       defeatedEnemies: { forest: [], cave: [], fire: [], castle: [], shadow: [] },
       quests: Object.fromEntries(QUESTS.map((quest) => [quest.id, { progress: 0, completed: false }])),
-      battle: null, activeRegion: 'village', dungeon: null, transition: null,
+      battle: null, activeRegion: 'village', levelIndex: 0, dungeon: null, transition: null,
       sideQuests: Object.fromEntries(SIDE_QUESTS.map(q => [q.id,{accepted:false,progress:0,completed:false}]))
     };
 
     room.players.set(socket.id, makePlayer(socket.id, name, saved?.classKey || heroClass, nextSpawn(room), characterId, saved || {}));
+    room.players.get(socket.id).x = 60; room.players.get(socket.id).y = 430;
     rooms.set(roomCode, room);
     socket.join(roomCode);
     socket.emit('joined', { code: roomCode });
@@ -177,6 +178,7 @@ io.on('connection', (socket) => {
     }
 
     room.players.set(socket.id, makePlayer(socket.id, name, saved?.classKey || heroClass, nextSpawn(room), characterId, saved || {}));
+    room.players.get(socket.id).x = 90 + room.players.size * 34; room.players.get(socket.id).y = 430;
     if (room.battle) room.battle.turnOrder.push(socket.id);
     socket.join(roomCode);
     socket.emit('joined', { code: roomCode });
@@ -201,8 +203,8 @@ io.on('connection', (socket) => {
     const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
     const deltaX = clamp(requestedX - player.x, -18, 18);
     const deltaY = clamp(requestedY - player.y, -18, 18);
-    player.x = clamp(player.x + deltaX, 16, 944);
-    player.y = clamp(player.y + deltaY, 16, 560);
+    player.x = clamp(player.x + deltaX, 24, 1780);
+    player.y = clamp(player.y + deltaY, 30, 520);
     player.facing = allowedFacing.includes(payload.facing) ? payload.facing : player.facing;
     player.lastMoveAt = now;
 
@@ -225,17 +227,47 @@ io.on('connection', (socket) => {
       if (REGIONS[targetIndex].unlock && !room.world[REGIONS[targetIndex].unlock]) return socket.emit('errorMessage','Derrote o guardião da região anterior para abrir esta passagem.');
       room.activeRegion = target;
     }
-    room.dungeon = null; room.transition = null;
+    room.dungeon = null; room.transition = null; room.levelIndex = 0;
     const enteringFromNorth = target !== 'village' && targetIndex < currentIndex;
     [...room.players.values()].forEach((member,index) => {
-      member.x = 480 + (index - (room.players.size-1)/2)*42;
-      member.y = enteringFromNorth ? 66 : 510;
+      member.x = 60 + index * 34;
+      member.y = 430;
       member.facing = enteringFromNorth ? 'down' : 'up';
     });
     const chapter = target === 'village' ? 'Vila de Eldoria' : REGION_SCENES[target]?.title || target;
     sendRoomMessage(room, target === 'village' ? 'Vocês retornaram à Vila de Eldoria.' : `A jornada continua: ${chapter}.`);
     emitRoom(room);
   });
+  socket.on('platformerAdvance', () => {
+    const room = findRoomByPlayerId(socket.id);
+    if (!room || room.battle) return;
+    const area = room.activeRegion || 'village';
+    const player = room.players.get(socket.id);
+    if (player.x < 1580) return socket.emit('notice', 'Chegue ao portal no fim da fase para avançar!');
+    if (area === 'village') {
+      if ((room.levelIndex || 0) < 2) room.levelIndex = (room.levelIndex || 0) + 1;
+      else { room.activeRegion = 'forest'; room.levelIndex = 0; }
+    } else if (room.world[area]) {
+      const index = REGIONS.findIndex(region => region.id === area);
+      const next = REGIONS[index + 1]?.id;
+      if (!next) return socket.emit('notice', '🏆 Malakar foi derrotado. Eldoria está livre!');
+      room.activeRegion = next; room.levelIndex = 0;
+      sendRoomMessage(room, '🌟 A próxima região foi desbloqueada!');
+    } else if ((room.levelIndex || 0) < 2) {
+      room.levelIndex = (room.levelIndex || 0) + 1;
+    } else {
+      const region = REGIONS.find(entry => entry.id === area);
+      if (!region?.boss) return socket.emit('errorMessage', 'O guardião desta região ainda não foi definido.');
+      const enemy = region.boss;
+      room.levelIndex = 3;
+      room.battle = createBattle(room, { area, enemy: enemy.name, hp: enemy.hp, maxHp: enemy.hp, atk: enemy.atk, xp: enemy.xp, gold: enemy.gold, boss: true });
+      sendRoomMessage(room, '⚔️ O CHEFÃO APARECEU! A equipe precisa derrotá-lo para liberar a próxima região.');
+    }
+    room.transition = null;
+    [...room.players.values()].forEach((member, index) => { member.x = 60 + index * 34; member.y = 430; member.facing = 'right'; });
+    emitRoom(room);
+  });
+
   socket.on('ready', () => {
     const room = findRoomByPlayerId(socket.id);
     if (!room) return;
@@ -454,6 +486,8 @@ io.on('connection', (socket) => {
         const regionIndex = REGIONS.findIndex(region => region.id === defeated.area);
         const nextRegion = REGIONS[regionIndex + 1]?.id || null;
         room.activeRegion = defeated.area;
+        room.levelIndex = 3;
+        [...room.players.values()].forEach(member => { member.x = 1700; member.y = 430; member.facing = 'right'; });
         room.transition = { region: defeated.area, nextRegion, title: REGION_SCENES[defeated.area]?.title || defeated.area, message: nextRegion ? 'A passagem para a próxima região foi aberta.' : 'Malakar caiu. Eldoria está livre!', at: Date.now() };
         const quest = QUESTS.find((entry) => entry.region === defeated.area);
         if (quest && !room.quests[quest.id].completed) {

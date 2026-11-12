@@ -179,3 +179,14 @@ body{background:#101a23;color:#fff0c2}
 #overworld.hidden,.mobile-pad.hidden{display:none!important}
 .battle-stage{min-height:245px}
 @media(max-width:850px){.game-menu>.side-rail{grid-template-columns:1fr}.game-menu .party-panel{grid-column:auto}}
+
+/* Aventura de plataforma 2D */
+.overworld.pixel-world{aspect-ratio:16/9;min-height:0;max-height:none;height:auto;border:4px solid #a58c5c;background:#17251f}
+#worldCanvas{display:block;width:100%;height:auto;aspect-ratio:16/9;image-rendering:pixelated;touch-action:none}
+.nearby-prompt{font-size:9px;bottom:8px}
+.mobile-pad{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
+.mobile-pad>div{display:flex;gap:8px}
+.mobile-pad button{min-width:48px;min-height:44px;touch-action:none;user-select:none}
+.mobile-pad button[data-jump]{background:#7b6337;border-color:#e7c36c;min-width:88px}
+#overworld.hidden{display:none!important}
+@media(max-width:560px){.overworld.pixel-world{aspect-ratio:16/9;min-height:0}#worldCanvas{height:auto;object-fit:contain}.mobile-pad button{min-width:42px;min-height:40px;font-size:7px}}
