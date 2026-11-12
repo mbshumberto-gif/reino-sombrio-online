@@ -44,8 +44,8 @@ app.get('/health', (_req,res)=>res.status(200).json({ok:true,database:persistenc
 app.get('/campaign-data', (_req,res)=>res.json({scenes:REGION_SCENES,dungeons:DUNGEONS,sideQuests:SIDE_QUESTS}));
 
 const SPAWN_POINTS = [
-  { x: 46, y: 78 }, { x: 55, y: 82 }, { x: 64, y: 77 }, { x: 36, y: 83 },
-  { x: 73, y: 82 }, { x: 27, y: 77 }, { x: 49, y: 88 }, { x: 59, y: 87 }
+  { x: 448, y: 470 }, { x: 496, y: 470 }, { x: 400, y: 470 }, { x: 544, y: 470 },
+  { x: 352, y: 470 }, { x: 592, y: 470 }, { x: 304, y: 470 }, { x: 640, y: 470 }
 ];
 
 const cleanName = (value) => String(value || '').replace(/[<>]/g, '').trim().slice(0, 18);
@@ -63,7 +63,7 @@ function makePlayer(id, name, classKey, spawn, characterId, saved = {}) {
     inventory: ['Poção de vida x3'], skillPoints: 0, skillLevel: 1, skillCooldown: 0, defending: false, buffs: {},
     ready: false, lastMoveAt: 0
   };
-  return { ...fresh, ...saved, id, name, characterId, classKey: hero, className: config.name, ready: false, lastMoveAt: 0 };
+  return { ...fresh, ...saved, id, name, characterId, classKey: hero, className: config.name, x: spawn.x, y: spawn.y, facing: 'down', ready: false, lastMoveAt: 0 };
 }
 
 function nextSpawn(room) {
@@ -82,7 +82,7 @@ function publicRoom(room) {
       weapon: player.weapon, armor: player.armor, equipment: player.equipment, inventory: { potions: player.potions, weapon: player.weapon, armor: player.armor },
       skillPoints: player.skillPoints, skillLevel: player.skillLevel, skillCooldown: player.skillCooldown, ready: player.ready
     })),
-    world: room.world, activeRegion: room.activeRegion, dungeon: room.dungeon, sideQuests: room.sideQuests, transition: room.transition,
+    world: room.world, activeRegion: room.activeRegion, defeatedEnemies: room.defeatedEnemies || {}, dungeon: room.dungeon, sideQuests: room.sideQuests, transition: room.transition,
     quests: room.quests,
     battle: room.battle
   };
@@ -150,6 +150,7 @@ io.on('connection', (socket) => {
       hostId: socket.id,
       players: new Map(),
       world: { forest: false, cave: false, fire: false, castle: false, shadow: false },
+      defeatedEnemies: { forest: [], cave: [], fire: [], castle: [], shadow: [] },
       quests: Object.fromEntries(QUESTS.map((quest) => [quest.id, { progress: 0, completed: false }])),
       battle: null, activeRegion: 'village', dungeon: null, transition: null,
       sideQuests: Object.fromEntries(SIDE_QUESTS.map(q => [q.id,{accepted:false,progress:0,completed:false}]))
@@ -198,10 +199,10 @@ io.on('connection', (socket) => {
     if (!Number.isFinite(requestedX) || !Number.isFinite(requestedY)) return;
 
     const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
-    const deltaX = clamp(requestedX - player.x, -2.2, 2.2);
-    const deltaY = clamp(requestedY - player.y, -2.2, 2.2);
-    player.x = clamp(player.x + deltaX, 5, 95);
-    player.y = clamp(player.y + deltaY, 58, 91);
+    const deltaX = clamp(requestedX - player.x, -18, 18);
+    const deltaY = clamp(requestedY - player.y, -18, 18);
+    player.x = clamp(player.x + deltaX, 16, 944);
+    player.y = clamp(player.y + deltaY, 16, 560);
     player.facing = allowedFacing.includes(payload.facing) ? payload.facing : player.facing;
     player.lastMoveAt = now;
 
@@ -210,6 +211,31 @@ io.on('connection', (socket) => {
     });
   });
 
+  socket.on('travelRegion', (payload = {}) => {
+    const room = findRoomByPlayerId(socket.id);
+    if (!room || room.battle) return;
+    const target = String(payload.area || '');
+    const targetIndex = REGIONS.findIndex(region => region.id === target);
+    const currentIndex = room.activeRegion === 'village' ? -1 : REGIONS.findIndex(region => region.id === room.activeRegion);
+    if (target === 'village') {
+      if (currentIndex !== 0) return socket.emit('errorMessage','A vila só pode ser alcançada pela passagem da floresta.');
+      room.activeRegion = 'village';
+    } else {
+      if (targetIndex < 0 || targetIndex < currentIndex - 1 || targetIndex > currentIndex + 1) return socket.emit('errorMessage','A passagem ainda está bloqueada.');
+      if (REGIONS[targetIndex].unlock && !room.world[REGIONS[targetIndex].unlock]) return socket.emit('errorMessage','Derrote o guardião da região anterior para abrir esta passagem.');
+      room.activeRegion = target;
+    }
+    room.dungeon = null; room.transition = null;
+    const enteringFromNorth = target !== 'village' && targetIndex < currentIndex;
+    [...room.players.values()].forEach((member,index) => {
+      member.x = 480 + (index - (room.players.size-1)/2)*42;
+      member.y = enteringFromNorth ? 66 : 510;
+      member.facing = enteringFromNorth ? 'down' : 'up';
+    });
+    const chapter = target === 'village' ? 'Vila de Eldoria' : REGION_SCENES[target]?.title || target;
+    sendRoomMessage(room, target === 'village' ? 'Vocês retornaram à Vila de Eldoria.' : `A jornada continua: ${chapter}.`);
+    emitRoom(room);
+  });
   socket.on('ready', () => {
     const room = findRoomByPlayerId(socket.id);
     if (!room) return;
@@ -227,6 +253,7 @@ io.on('connection', (socket) => {
     const area = payload.area;
     const action = payload.action;
     if (!REGIONS.some((region) => region.id === area)) return;
+    if (room.activeRegion !== area) return socket.emit('errorMessage', 'Aproxime-se da passagem para entrar nesta região.');
     const region = REGIONS.find((entry) => entry.id === area);
     if (region.unlock && !room.world[region.unlock]) return socket.emit('errorMessage', `Conclua ${REGIONS.find((entry) => entry.id === region.unlock).name} primeiro.`);
     if (region.boss && room.world[area]) return socket.emit('errorMessage', `${region.name} já foi conquistada!`);
@@ -261,9 +288,13 @@ io.on('connection', (socket) => {
     room.activeRegion = area; room.transition = null; room.dungeon = null;
     const regionData = REGIONS.find((entry) => entry.id === area);
     const isBoss = payload.boss === true;
-    const selectedIndex = Number.isInteger(payload.enemyIndex) ? Math.max(0, Math.min(regionData.enemies.length - 1, payload.enemyIndex)) : Math.floor(Math.random() * regionData.enemies.length);
-    const enemy = isBoss ? regionData.boss : regionData.enemies[selectedIndex];
-    room.battle = createBattle(room, { area, enemy: enemy.name, hp: enemy.hp, maxHp: enemy.hp, atk: enemy.atk, xp: enemy.xp, gold: enemy.gold, boss: isBoss });
+    const defeatedList = room.defeatedEnemies?.[area] || [];
+    const available = regionData.enemies.map((entry,index)=>({entry,index})).filter(item=>!defeatedList.includes(item.index));
+    const selected = Number.isInteger(payload.enemyIndex) ? available.find(item=>item.index===payload.enemyIndex) : available[Math.floor(Math.random()*Math.max(1,available.length))];
+    if (!isBoss && !selected) return socket.emit('errorMessage','Não há mais criaturas nesta região. Explore a passagem para seguir adiante.');
+    const selectedIndex = selected?.index ?? 0;
+    const enemy = isBoss ? regionData.boss : selected.entry;
+    room.battle = createBattle(room, { area, enemy: enemy.name, hp: enemy.hp, maxHp: enemy.hp, atk: enemy.atk, xp: enemy.xp, gold: enemy.gold, boss: isBoss, enemyIndex: isBoss ? null : selectedIndex });
     sendRoomMessage(room, isBoss ? `☠️ ${enemy.name} apareceu! Preparem-se!` : `⚔️ ${player.name} encontrou ${enemy.name}! A equipe pode atacar.`);
     emitRoom(room);
   });
@@ -422,7 +453,7 @@ io.on('connection', (socket) => {
         room.world[defeated.area] = true;
         const regionIndex = REGIONS.findIndex(region => region.id === defeated.area);
         const nextRegion = REGIONS[regionIndex + 1]?.id || null;
-        room.activeRegion = nextRegion || 'village';
+        room.activeRegion = defeated.area;
         room.transition = { region: defeated.area, nextRegion, title: REGION_SCENES[defeated.area]?.title || defeated.area, message: nextRegion ? 'A passagem para a próxima região foi aberta.' : 'Malakar caiu. Eldoria está livre!', at: Date.now() };
         const quest = QUESTS.find((entry) => entry.region === defeated.area);
         if (quest && !room.quests[quest.id].completed) {
@@ -432,6 +463,11 @@ io.on('connection', (socket) => {
         }
       }
       if (defeated.dungeonRoomIndex !== undefined && room.dungeon) room.dungeon.cleared[defeated.dungeonRoomIndex] = true;
+      if (!defeated.boss && defeated.enemyIndex !== null && defeated.enemyIndex !== undefined) {
+        room.defeatedEnemies ||= {};
+        room.defeatedEnemies[defeated.area] ||= [];
+        if (!room.defeatedEnemies[defeated.area].includes(defeated.enemyIndex)) room.defeatedEnemies[defeated.area].push(defeated.enemyIndex);
+      }
       if (!defeated.boss) { for (const q of SIDE_QUESTS) { const progress = room.sideQuests?.[q.id]; if (q.region === defeated.area && progress?.accepted && !progress.completed) progress.progress = Math.min(q.goal, progress.progress + 1); } }
       sendRoomMessage(room, defeated.boss
         ? `🏆 ${defeated.enemy} foi derrotado! ${defeated.dungeonRoomIndex !== undefined ? 'A sala foi conquistada!' : defeated.area === 'shadow' ? 'O reino está livre da escuridão!' : 'Uma nova região foi conquistada!'}`

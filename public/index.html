@@ -30,14 +30,14 @@
   <div class="game-layout">
     <section class="world-panel">
       <div class="scene-caption"><span id="areaTitle">Vila de Eldoria</span><p id="storyText">As sombras avançam sobre o reino.</p></div>
-      <div id="overworld" class="overworld" role="application" aria-label="Mundo de Eldoria. Use WASD ou as setas para andar.">
+      <div id="overworld" class="overworld pixel-world" role="application" aria-label="Mundo de Eldoria. Use WASD ou as setas para andar.">
+        <canvas id="worldCanvas" width="960" height="576" aria-label="Mapa pixel art de Eldoria"></canvas>
         <div class="map-title" id="mapTitle">ELDORIA • VILA DOS AVENTUREIROS</div>
-        <div id="avatarLayer" class="avatar-layer"></div><div id="enemyLayer" class="enemy-layer"></div>
-        <div class="map-hint">WASD / SETAS • ESPAÇO ATACA</div>
+        <div id="nearbyPrompt" class="nearby-prompt">WASD / SETAS PARA ANDAR • E PARA INTERAGIR</div>
       </div>
       <div class="mobile-pad" aria-label="Controles de movimento"><button data-move="up">▲</button><div><button data-move="left">◀</button><button data-move="down">▼</button><button data-move="right">▶</button></div></div>
       <div id="battle" class="battle-stage hidden">
-        <div class="battle-art"><div id="enemyPortrait" class="enemy-portrait">👾</div><div class="enemy-info"><small>INIMIGO</small><h3 id="enemyName">---</h3><div class="bar"><i id="enemyBar"></i></div><p id="enemyHp"></p></div></div>
+        <div class="battle-art"><canvas id="enemyPortrait" class="enemy-portrait" width="160" height="140" aria-label="Inimigo em pixel art"></canvas><div class="enemy-info"><small>INIMIGO</small><h3 id="enemyName">---</h3><div class="bar"><i id="enemyBar"></i></div><p id="enemyHp"></p></div></div>
         <p id="battleHint">A batalha começou!</p><button id="attackBtn" class="primary attack-main">⚔ ATACAR <kbd>ESPAÇO</kbd></button>
         <div class="battle-extras"><button id="potionBtn">🧪 Poção</button><button id="defendBtn">🛡 Defender</button><button id="skillBtn">✨ Habilidade</button><button id="fleeBtn" class="danger">Fugir</button></div>
       </div>
@@ -46,14 +46,14 @@
       <div id="townActions" class="town-actions hidden"><button id="treasureForestBtn">Procurar tesouro</button><button id="treasureCaveBtn">Vasculhar escombros</button><button id="merchantBtn">Mercador</button><button data-boss-area="forest">Chefe da floresta</button><button data-boss-area="cave">Chefe da caverna</button><button data-boss-area="fire">Chefe das terras do fogo</button><button data-boss-area="castle">Chefe do castelo</button><button data-boss-area="shadow">Malakar</button></div>
       <div id="merchant" class="merchant hidden"><h3>Mercador de Eldoria</h3><div class="actions"><button data-buy="potion">Poção — 10 ouros</button><button data-buy="steelSword">Espada — 90 ouros</button><button data-buy="oakStaff">Cajado — 70 ouros</button><button data-buy="leatherArmor">Armadura — 45 ouros</button><button data-buy="chainArmor">Cota — 110 ouros</button><button data-buy="shadowCloak">Manto — 220 ouros</button><button id="closeMerchant">Fechar</button></div></div>
     </section>
-    <aside class="side-rail">
+    <details class="drawer game-menu"><summary>☰ Menu do aventureiro</summary><div class="side-rail">
       <section class="party-panel"><h2>Companheiros</h2><div id="players"></div><button id="readyBtn">Estou pronto</button><button id="restBtn" class="secondary">Descansar (10 ouros)</button></section>
-      <details class="drawer"><summary>🗺 Mapa de viagem</summary><div id="world" class="world"></div><div class="actions"><button data-area="forest" data-action="enter">Floresta</button><button data-area="cave" data-action="enter">Caverna</button><button data-area="fire" data-action="enter">Terras do Fogo</button><button data-area="castle" data-action="enter">Castelo</button><button data-area="shadow" data-action="enter">Reino Sombrio</button></div></details>
+      <details class="drawer"><summary>🗺 Mapa de viagem</summary><div id="world" class="world"></div></details>
       <details class="drawer"><summary>🎒 Mochila e equipamentos</summary><div id="inventoryPanel">Entre na aventura para ver seus itens.</div><button id="skillUpgradeBtn" class="secondary">Aprimorar habilidade</button></details>
       <details class="drawer"><summary>📜 Missões e histórias</summary><div id="questList">Carregando objetivos...</div><div id="sideQuestList">Nenhuma missão secundária.</div></details>
       <details class="drawer"><summary>🏚 Dungeons e exploração</summary><p id="dungeonDescription">Descubra dungeons ao explorar o mundo.</p><div class="actions"><button id="dungeonStartBtn">Entrar na dungeon</button><button id="dungeonRoomBtn">Explorar sala</button><button id="dungeonAdvanceBtn">Avançar</button><button id="dungeonLeaveBtn">Sair</button></div><div id="dungeonStatus"></div></details>
       <details class="drawer"><summary>💬 Conversar com moradores</summary><div class="actions"><button data-npc="chronicler">Cronista</button><button data-npc="healer">Curandeira</button><button data-npc="blacksmith">Ferreiro</button></div></details>
-    </aside>
+    </div></details>
   </div>
   <section id="regionScene" class="region-scene hidden"><div class="scene-heading"><span>REGIÃO</span><h3 id="sceneTitle">Vila de Eldoria</h3><p id="sceneSubtitle">O último refúgio</p></div><div id="sceneLandmarks" class="scene-landmarks"></div><div id="enemyGallery" class="enemy-gallery"></div></section>
   <section id="dialoguePanel" class="transition-screen hidden"><div class="transition-card"><small>CONVERSA</small><h2 id="dialogueTitle">Personagem</h2><p id="dialogueText"></p><button id="dialogueNext" class="primary">Próximo</button></div></section>
