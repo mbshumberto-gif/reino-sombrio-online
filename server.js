@@ -88,6 +88,19 @@ function emitRoom(room) { io.to(room.code).emit('state', publicRoom(room)); }
 function sendRoomMessage(room, text) { io.to(room.code).emit('notice', text); }
 function sendPlayerMessage(player, text) { io.to(player.id).emit('notice', text); }
 
+function createBattle(room, details) {
+  const turnOrder = [...room.players.values()]
+    .filter((player) => player.hp > 0)
+    .map((player) => player.id);
+  return {
+    ...details,
+    turn: 1,
+    acted: [],
+    turnOrder,
+    activePlayerId: turnOrder[0] || null
+  };
+}
+
 function findRoomByPlayerId(playerId) {
   for (const room of rooms.values()) {
     if (room.players.has(playerId)) return room;
@@ -142,6 +155,7 @@ io.on('connection', (socket) => {
     }
 
     room.players.set(socket.id, makePlayer(socket.id, name, heroClass, nextSpawn(room)));
+    if (room.battle) room.battle.turnOrder.push(socket.id);
     socket.join(roomCode);
     socket.emit('joined', { code: roomCode });
     sendRoomMessage(room, `${name} entrou na aventura!`);
@@ -206,7 +220,7 @@ io.on('connection', (socket) => {
           player.potions += 1;
           sendRoomMessage(room, `🧪 ${player.name} encontrou uma poção na floresta!`);
         } else {
-          room.battle = { area, enemy: 'Goblin ladrão', hp: 45, maxHp: 45, atk: 11, xp: 30, gold: 16, boss: false, turn: 0, acted: [] };
+          room.battle = createBattle(room, { area, enemy: 'Goblin ladrão', hp: 45, maxHp: 45, atk: 11, xp: 30, gold: 16, boss: false });
           sendRoomMessage(room, `👹 Uma criatura surpreendeu ${player.name}! Goblin ladrão apareceu.`);
         }
       } else if (area === 'cave') {
@@ -224,7 +238,7 @@ io.on('connection', (socket) => {
 
     if (action !== 'enter') return;
     if (area === 'castle') {
-      room.battle = { area, enemy: 'Senhor das Sombras', hp: 180, maxHp: 180, atk: 20, xp: 120, gold: 150, boss: true, turn: 0, acted: [] };
+      room.battle = createBattle(room, { area, enemy: 'Senhor das Sombras', hp: 180, maxHp: 180, atk: 20, xp: 120, gold: 150, boss: true });
       sendRoomMessage(room, '☠️ O Senhor das Sombras apareceu! Todos juntos!');
     } else {
       const enemies = area === 'forest'
@@ -239,7 +253,7 @@ io.on('connection', (socket) => {
             { name: 'Troll da caverna', hp: 85, atk: 13, xp: 50, gold: 35 }
           ];
       const enemy = enemies[Math.floor(Math.random() * enemies.length)];
-      room.battle = { area, enemy: enemy.name, hp: enemy.hp, maxHp: enemy.hp, atk: enemy.atk, xp: enemy.xp, gold: enemy.gold, boss: false, turn: 0, acted: [] };
+      room.battle = createBattle(room, { area, enemy: enemy.name, hp: enemy.hp, maxHp: enemy.hp, atk: enemy.atk, xp: enemy.xp, gold: enemy.gold, boss: false });
       sendRoomMessage(room, `⚔️ ${player.name} encontrou ${enemy.name}! A equipe pode atacar.`);
     }
     emitRoom(room);
@@ -272,22 +286,6 @@ io.on('connection', (socket) => {
     emitRoom(room);
   });
 
-  socket.on('flee', () => {
-    const room = findRoomByPlayerId(socket.id);
-    if (!room || !room.battle) return;
-    if (room.battle.boss) return socket.emit('errorMessage', 'Não há como fugir da batalha final!');
-    const player = room.players.get(socket.id);
-    if (Math.floor(Math.random() * 2) === 0) {
-      sendRoomMessage(room, `🏃 ${player.name} conseguiu fugir do combate. A equipe voltou à vila.`);
-      room.battle = null;
-    } else {
-      const damage = Math.max(1, room.battle.atk - Math.floor(player.defense / 2));
-      player.hp = Math.max(0, player.hp - damage);
-      sendRoomMessage(room, `❌ ${player.name} não conseguiu fugir e recebeu ${damage} de dano.`);
-    }
-    emitRoom(room);
-  });
-
   socket.on('battleAction', (payload = {}) => {
     const room = findRoomByPlayerId(socket.id);
     if (!room || !room.battle) return;
@@ -296,7 +294,12 @@ io.on('connection', (socket) => {
     const action = payload.action;
 
     if (player.hp <= 0) return socket.emit('errorMessage', 'Seu personagem está sem vida. Descanse na vila.');
-    if (battle.acted.includes(socket.id)) return socket.emit('errorMessage', 'Você já agiu nesta rodada. Aguarde os outros jogadores.');
+    if (battle.activePlayerId !== socket.id) {
+      const active = room.players.get(battle.activePlayerId);
+      return socket.emit('errorMessage', active
+        ? `Aguarde sua vez. Agora é a vez de ${active.name}.`
+        : 'Aguarde o próximo turno.');
+    }
 
     if (action === 'potion') {
       if (player.potions < 1) return socket.emit('errorMessage', 'Você não tem poções.');
@@ -308,6 +311,17 @@ io.on('connection', (socket) => {
       const damage = Math.max(1, player.attack + Math.floor(Math.random() * 7) - 2);
       battle.hp = Math.max(0, battle.hp - damage);
       sendRoomMessage(room, `⚔️ ${player.name} causou ${damage} de dano em ${battle.enemy}!`);
+    } else if (action === 'flee') {
+      if (battle.boss) return socket.emit('errorMessage', 'Não há como fugir da batalha final!');
+      if (Math.floor(Math.random() * 2) === 0) {
+        sendRoomMessage(room, `🏃 ${player.name} conseguiu fugir do combate. A equipe voltou à vila.`);
+        room.battle = null;
+        emitRoom(room);
+        return;
+      }
+      const damage = Math.max(1, battle.atk - Math.floor(player.defense / 2));
+      player.hp = Math.max(0, player.hp - damage);
+      sendRoomMessage(room, `❌ ${player.name} não conseguiu fugir e recebeu ${damage} de dano.`);
     } else {
       return socket.emit('errorMessage', 'Ação inválida.');
     }
@@ -331,19 +345,45 @@ io.on('connection', (socket) => {
       return;
     }
 
-    if (livingPlayers.length > 0 && battle.acted.length >= livingPlayers.length) {
-      battle.acted = [];
-      battle.turn += 1;
+    const previousOrder = battle.turnOrder || [...room.players.keys()];
+    const currentIndex = previousOrder.indexOf(socket.id);
+    const nextId = previousOrder
+      .slice(currentIndex + 1)
+      .find((id) => room.players.has(id) && room.players.get(id).hp > 0);
+
+    if (livingPlayers.length === 0) {
+      room.battle = null;
+      sendRoomMessage(room, '💀 Todos caíram em combate. Voltem à vila e tentem novamente.');
+      emitRoom(room);
+      return;
+    }
+
+    if (nextId) {
+      battle.activePlayerId = nextId;
+    } else {
+      // Todos os aventureiros vivos agiram: agora o inimigo realiza seu turno.
       for (const target of livingPlayers) {
         const damage = Math.max(1, battle.atk - Math.floor(target.defense / 2) + Math.floor(Math.random() * 5));
         target.hp = Math.max(0, target.hp - damage);
         sendPlayerMessage(target, `💥 ${battle.enemy} atacou você e causou ${damage} de dano.`);
       }
-      if (livingPlayers.every((candidate) => candidate.hp <= 0)) {
+
+      const survivors = [...room.players.values()].filter((candidate) => candidate.hp > 0);
+      if (survivors.length === 0) {
         room.battle = null;
         sendRoomMessage(room, '💀 Todos caíram em combate. Voltem à vila e tentem novamente.');
+        emitRoom(room);
+        return;
       }
+
+      battle.turn += 1;
+      battle.acted = [];
+      battle.turnOrder = survivors.map((candidate) => candidate.id);
+      battle.activePlayerId = battle.turnOrder[0];
+      const nextPlayer = room.players.get(battle.activePlayerId);
+      sendRoomMessage(room, `🔄 Rodada ${battle.turn}: ${nextPlayer.name} começa.`);
     }
+
     emitRoom(room);
   });
 
@@ -370,7 +410,41 @@ io.on('connection', (socket) => {
       return;
     }
     if (room.hostId === socket.id) room.hostId = room.players.keys().next().value;
-    if (room.battle) room.battle.acted = room.battle.acted.filter((id) => id !== socket.id);
+    if (room.battle) {
+      const battle = room.battle;
+      const order = battle.turnOrder || [];
+      const leavingIndex = order.indexOf(socket.id);
+      battle.turnOrder = order.filter((id) => id !== socket.id);
+      battle.acted = battle.acted.filter((id) => id !== socket.id);
+      if (battle.activePlayerId === socket.id) {
+        const nextId = order.slice(leavingIndex + 1).find((id) =>
+          room.players.has(id) && room.players.get(id).hp > 0
+        );
+        const survivors = [...room.players.values()].filter((candidate) => candidate.hp > 0);
+        if (nextId) {
+          battle.activePlayerId = nextId;
+        } else if (survivors.length > 0) {
+          // Se quem saiu era o último da ordem, o inimigo conclui a rodada.
+          for (const target of survivors) {
+            const damage = Math.max(1, battle.atk - Math.floor(target.defense / 2));
+            target.hp = Math.max(0, target.hp - damage);
+            sendPlayerMessage(target, `💥 ${battle.enemy} atacou você e causou ${damage} de dano.`);
+          }
+          const remaining = [...room.players.values()].filter((candidate) => candidate.hp > 0);
+          if (remaining.length === 0) {
+            room.battle = null;
+            sendRoomMessage(room, '💀 Todos caíram em combate. Voltem à vila e tentem novamente.');
+          } else {
+            battle.turn += 1;
+            battle.acted = [];
+            battle.turnOrder = remaining.map((candidate) => candidate.id);
+            battle.activePlayerId = battle.turnOrder[0];
+          }
+        } else {
+          room.battle = null;
+        }
+      }
+    }
     emitRoom(room);
   });
 });
