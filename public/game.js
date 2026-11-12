@@ -160,7 +160,7 @@ function makeTileMap(area){
    for(let y=2;y<16;y++)for(let x=2;x<28;x++)if((x*17+y*13)%17<3&&g[y][x]===0)g[y][x]=6;
    paint(4,4,2,2,5);paint(23,12,2,2,5);paint(18,4,2,2,6);
  }
- g[0][15]=2;g[17][15]=2;
+ for(let x=13;x<=17;x++){g[0][x]=2;g[17][x]=2;}
  return g;
 }
 function colorSet(area){
