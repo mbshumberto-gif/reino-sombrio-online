@@ -6,6 +6,9 @@ if (process.env.DATABASE_URL) {
     connectionString: process.env.DATABASE_URL,
     ssl: process.env.PGSSLMODE === 'disable' ? false : { rejectUnauthorized: false }
   });
+  pool.on('error', error => {
+    console.error('Erro inesperado na conexão ociosa do PostgreSQL:', error.message);
+  });
   pool.query(`CREATE TABLE IF NOT EXISTS game_characters (
     character_id VARCHAR(80) PRIMARY KEY,
     character_name VARCHAR(40) NOT NULL,
