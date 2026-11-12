@@ -274,7 +274,7 @@ $("musicVolume").addEventListener('input', () => {
   if (masterGain) masterGain.gain.setTargetAtTime(Number($("musicVolume").value)/100*0.16, audioContext.currentTime, 0.04);
 });
 
-fetch("/game-data").then(response=>response.json()).then(data=>{window.gameClasses=data.classes;window.gameQuests=data.quests;window.gameRegions=data.regions;const select=$("heroClass");select.innerHTML="";Object.entries(data.classes).forEach(([key,hero])=>{const option=document.createElement("option");option.value=key;option.textContent=`${hero.name} — ${hero.role} | ${hero.skill.name}`;select.append(option);});}).catch(()=>{});
+fetch("/game-data").then(response=>response.json()).then(data=>{window.gameClasses=data.classes;window.gameQuests=data.quests;window.gameRegions=data.regions;const select=$("heroClass");select.innerHTML="";Object.entries(data.classes).forEach(([key,hero])=>{const option=document.createElement("option");option.value=key;option.textContent=`${hero.name} — ${hero.role} | ${hero.skill.name}`;select.append(option);});if(latestState){renderCampaign(latestState);renderMap();}}).catch(()=>{});
 fetch('/campaign-data').then(r=>r.json()).then(data=>{window.regionScenes=data.scenes;window.dungeonData=data.dungeons;window.sideQuestData=data.sideQuests;}).catch(()=>{});
 socket.on("joined",data=>{currentCode=data.code;localPosition=null;enterGame();toast("Você entrou na aventura! Compartilhe o código.")});
 socket.on("errorMessage",toast);
