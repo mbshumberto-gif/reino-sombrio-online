@@ -26,6 +26,6 @@ test('cada região possui três fases e cenário próprios', () => {
   for (const region of ['village', 'forest', 'cave', 'fire', 'castle', 'shadow']) {
     assert.match(script, new RegExp(region + ':\\s*\\['));
   }
-  assert.match(script, /const levelData = \\(\\) => \\(stages\\[region\\] \\|\\| stages\\.village\\)/);
+  assert.ok(script.includes('const levelData = () => (stages[region] || stages.village)'));
   assert.match(script, /function drawBackground/);
 });
