@@ -140,7 +140,7 @@ function renderMap() {
   enemyLayer.innerHTML = '';
   const area = latestState.activeRegion || 'village';
   const region = window.gameRegions?.find(item => item.id === area);
-  if (latestState.battle || !region) return;
+  if (latestState.battle || !region || latestState.world?.[area]) return;
   region.enemies.forEach((enemy,index) => {
     const monster = document.createElement('button');
     monster.type = 'button'; monster.className = 'map-enemy';
