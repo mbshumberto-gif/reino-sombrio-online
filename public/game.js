@@ -238,6 +238,11 @@ function pixelMonster(ctx,name,x,y,scale=3,boss=false,time=0){
  rect(ctx,px+3*scale,py+10*scale,3*scale,5*scale,dark);rect(ctx,px+w-6*scale,py+10*scale,3*scale,5*scale,dark);
  rect(ctx,px+4*scale,py+14*scale,3*scale,4*scale,dark);rect(ctx,px+w-7*scale,py+14*scale,3*scale,4*scale,dark);
  rect(ctx,px+4*scale,py+7*scale,3*scale,3*scale,eye);rect(ctx,px+w-7*scale,py+7*scale,3*scale,3*scale,eye);
+ if(n.includes("aranha")){for(let k=0;k<4;k++){const yy=py+(5+k*2)*scale;rect(ctx,px-5*scale,yy,7*scale,2*scale,dark);rect(ctx,px+w-2*scale,yy,7*scale,2*scale,dark);}rect(ctx,px+5*scale,py+12*scale,w-10*scale,4*scale,light);}
+ if(n.includes("lobo")){rect(ctx,px+w-2*scale,py+8*scale,7*scale,5*scale,light);rect(ctx,px-2*scale,py-3*scale,5*scale,6*scale,dark);rect(ctx,px+w-5*scale,py-3*scale,5*scale,6*scale,dark);rect(ctx,px-7*scale,py+8*scale,8*scale,3*scale,body);}
+ if(n.includes("draco")||n.includes("drag")){rect(ctx,px-7*scale,py+4*scale,9*scale,3*scale,light);rect(ctx,px-11*scale,py+1*scale,8*scale,4*scale,dark);rect(ctx,px+w-2*scale,py+4*scale,9*scale,3*scale,light);rect(ctx,px+w+3*scale,py+1*scale,8*scale,4*scale,dark);rect(ctx,px+w-2*scale,py+10*scale,10*scale,3*scale,dark);}
+ if(n.includes("esqueleto")){for(let k=0;k<3;k++)rect(ctx,px+4*scale,py+(10+k*2)*scale,w-8*scale,scale,light);rect(ctx,px+6*scale,py+3*scale,w-12*scale,3*scale,"#eee8d2");}
+ if(n.includes("goblin")){rect(ctx,px-5*scale,py+5*scale,7*scale,4*scale,light);rect(ctx,px+w-2*scale,py+5*scale,7*scale,4*scale,light);}
  if(boss){rect(ctx,px+2*scale,py-2*scale,4*scale,5*scale,light);rect(ctx,px+w-6*scale,py-2*scale,4*scale,5*scale,light);rect(ctx,px+5*scale,py-5*scale,w-10*scale,4*scale,dark);}
  else{rect(ctx,px+3*scale,py-2*scale,3*scale,5*scale,dark);rect(ctx,px+w-6*scale,py-2*scale,3*scale,5*scale,dark);}
 }
