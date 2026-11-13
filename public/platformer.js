@@ -246,6 +246,7 @@
   window.platformerMode=true;
   window.renderMap=paint;
   window.worldAnimation=()=>{};
+  socket.on("playerMoved",data=>{if(data.id===socket.id&&Math.abs(data.x-px)>18){px=data.x;py=data.y;vy=0;grounded=true;lastSafeX=px;paint();}});
   socket.on("state",state=>{
     const current=state.players?.find(p=>p.id===socket.id);
     const changed=region!==(state.activeRegion||"village");
