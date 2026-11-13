@@ -49,7 +49,7 @@ $("defendBtn").onclick=()=>socket.emit("battleAction",{action:"defend"});
 $("skillBtn").onclick=()=>socket.emit("battleAction",{action:"skill"});
 $("skillUpgradeBtn").onclick=()=>socket.emit("upgradeSkill");
 $("dungeonStartBtn").onclick=()=>socket.emit('startDungeon',{area:latestState?.activeRegion==='village'?'forest':latestState?.activeRegion});
-$("dungeonRoomBtn").onclick=()=>{const d=latestState?.dungeon;const r=window.dungeonData?.[d?.region]?.[d?.currentRoom];const answer=r?.kind==='puzzle'?prompt('Enigma: '+r.description+'\nDica: a palavra que representa o reino onde tudo começou.') : undefined;socket.emit('dungeonAction',{action:'enter',answer});};
+$("dungeonRoomBtn").onclick=()=>{const d=latestState?.dungeon;const r=window.dungeonData?.[d?.region]?.[d?.currentRoom];const answer=r?.kind==='puzzle'?prompt('ENIGMA: '+r.description+'\n\nDICA: '+(r.hint||'Observe a sala.')+'\n\nDigite sua resposta:') : undefined;socket.emit('dungeonAction',{action:'enter',answer});};
 $("dungeonAdvanceBtn").onclick=()=>socket.emit('dungeonAction',{action:'advance'});
 $("dungeonLeaveBtn").onclick=()=>socket.emit('dungeonAction',{action:'leave'});
 $("continueCampaignBtn").onclick=()=>{$("transitionScreen").classList.add('hidden');};
@@ -328,12 +328,12 @@ function worldInteractionPrompt(){
    if(next)return latestState.world?.[area]?"E — AVANÇAR PARA A PRÓXIMA REGIÃO":"O PORTÃO ESTÁ SELADO — DERROTE O GUARDIÃO";
    if(!next&&latestState.world?.[area])return "A JORNADA FOI CONCLUÍDA. ELDORIA ESTÁ LIVRE.";
  }
- if(area!=="village"&&me.y>510){const idx=["forest","cave","fire","castle","shadow"].indexOf(area);return idx===0?"E — VOLTAR À VILA":"E — REGRESSAR À REGIÃO ANTERIOR";}
+ if(area!=="village"&&me.y>510)return "E — VOLTAR À VILA";
  if(area==="village"){const npc=NPC_POINTS.find((n,i)=>nearest(me,movingNpcPoint(n,i))<48);if(npc)return "E — CONVERSAR";}
  const chest=(CHEST_SPOTS[area]||[]).find(c=>!latestState.openedChests?.includes(c.id)&&nearest(me,c)<48);if(chest)return "E — VASCULHAR POTE DE TESOURO";
  const points=ENEMY_POINTS[area]||[],region=window.gameRegions?.find(r=>r.id===area);
  if(points.some((p,i)=>!latestState.defeatedEnemies?.[area]?.includes(i)&&nearest(me,movingEnemyPoint(area,i))<50))return "A CRIATURA PERCEBEU SUA PRESENÇA!";
- if(region?.boss&& !latestState.world?.[area]&&nearest(me,BOSS_POINTS[area])<62)return "O GUARDIÃO ESTÁ DIANTE DE VOCÊ!";
+ if(region?.boss&&!latestState.world?.[area]&&nearest(me,BOSS_POINTS[area])<62){const left=Math.max(0,region.enemies.length-(latestState.defeatedEnemies?.[area]||[]).length);return left?("DERROTE MAIS "+left+" MONSTRO(S) ANTES DO GUARDIÃO"):"O GUARDIÃO ESTÁ DIANTE DE VOCÊ!";}
  return "WASD / SETAS PARA ANDAR • E PARA INTERAGIR";
 }
 function interactWorld(){
@@ -347,7 +347,7 @@ function interactWorld(){
    else toast("Você concluiu a campanha e libertou Eldoria!");
    return;
  }
- if(area!=="village"&&me.y>500){socket.emit("travelRegion",{area:idx===0?"village":ids[idx-1]});return;}
+ if(area!=="village"&&me.y>500){socket.emit("travelRegion",{area:"village"});return;}
  if(area==="village"){
    const npc=NPC_POINTS.find((n,i)=>nearest(me,movingNpcPoint(n,i))<48);
    if(npc){if(npc.npc==="blacksmith")$("merchant").classList.remove("hidden");socket.emit("talkNpc",{npc:npc.npc});return;}
@@ -366,7 +366,7 @@ function checkEncounters(){
  const area=latestState.activeRegion||"village",region=window.gameRegions?.find(r=>r.id===area);if(!region)return;
  const points=ENEMY_POINTS[area]||[],defeated=latestState.defeatedEnemies?.[area]||[];
  for(let i=0;i<points.length;i++){if(!defeated.includes(i)&&nearest(me,movingEnemyPoint(area,i))<35){window.encounterCooldown=Date.now()+1800;socket.emit("explore",{area,action:"enter",enemyIndex:i});return;}}
- if(region.boss&&!latestState.world?.[area]&&nearest(me,BOSS_POINTS[area])<45){window.encounterCooldown=Date.now()+1800;socket.emit("explore",{area,action:"enter",boss:true});}
+ if(region.boss&&!latestState.world?.[area]&&(latestState.defeatedEnemies?.[area]||[]).length>=region.enemies.length&&nearest(me,BOSS_POINTS[area])<45){window.encounterCooldown=Date.now()+1800;socket.emit("explore",{area,action:"enter",boss:true});}
 }
 function drawWorld(){
  const canvas=$("worldCanvas");if(!canvas||!latestState)return;
@@ -383,7 +383,7 @@ function drawWorld(){
  }
  else{
    const idx=["forest","cave","fire","castle","shadow"].indexOf(area),previous=idx===0?"VILA":(["forest","cave","fire","castle","shadow"][idx-1]||"VILA");
-   drawGate(ctx,480,550,previous,false);
+   drawGate(ctx,480,550,"VILA",false);
    const next=["forest","cave","fire","castle","shadow"][idx+1];
    drawGate(ctx,480,25,next?(latestState.world?.[area]?"PRÓXIMA":"SELADO"):"FIM",!latestState.world?.[area]);
    const enemies=window.gameRegions?.find(r=>r.id===area)?.enemies||[],defeated=latestState.defeatedEnemies?.[area]||[];
