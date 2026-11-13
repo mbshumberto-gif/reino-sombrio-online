@@ -299,7 +299,12 @@
     main.append(paragraph('Crônicas de Eldoria', 'summary'), paragraph(description || '', 'small'),
       ...state.world.quests.map(quest => paragraph((quest.completed ? '✓ ' : '◇ ') + quest.title, 'small')));
     const lume = state.self.companions.lume ? [] : [paragraph('Encontre Lume, o espírito do pomar'), paragraph(lumeHint(), 'small')];
-    $('questList').replaceChildren(main, ...lume, ...quests);
+    const enemies = World.remainingEnemies(map, state.world);
+    const guard = map.points.some(point => point.kind === 'boss') ? [paragraph(
+      state.world.cleared[map.region] ? 'Guardião derrotado' : enemies
+        ? 'Criaturas restantes: ' + enemies + ' · O guardião ainda está oculto.'
+        : 'Guardião revelado · Siga para o norte.', 'small')] : [];
+    $('questList').replaceChildren(main, ...guard, ...lume, ...quests);
     const routes = map.points.filter(p => p.kind === 'portal').map(p => {
       const blocked = p.shortcut && !state.world.orchardOpen || p.requires && !state.world.cleared[p.requires]
         || p.requiresRoom !== undefined && !state.world.rooms[map.region]?.includes(p.requiresRoom);
@@ -347,7 +352,9 @@
     const warning = battle.move ? battle.move.name + (battle.move.type === 'area' ? ' → todo o grupo' : target ? ' → ' + target.name : '') : '';
     const turn = battle.result ? 'Combate encerrado' : !active || animating && battle.lastAction?.side === 'enemy'
       ? 'Vez do monstro' : active.id === state.id ? 'Sua vez' : 'Vez de ' + active.name;
-    text('battleHint', turn + (warning ? ' · ' + warning : ''));
+    const riposte = battle.status?.[state.id]?.riposte;
+    text('battleHint', turn + (warning ? ' · ' + warning : '') + (riposte ? ' · Revide pronto +35%' : ''));
+    $('defendBtn').title = 'Reduz o dano, recupera mana e prepara um revide ao bloquear uma investida ou golpe em área.';
     text('battleLog', battle.lastAction?.text || 'Escolha sua ação.');
     const ability = data.classes[me.classKey].skill;
     const technique = data.techniques[me.classKey];

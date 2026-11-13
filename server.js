@@ -330,8 +330,8 @@ function createGame({ storage = createStorage({
     } else {
       if (room.data.cleared[map.region]) return;
       const defeated = room.data.defeated[map.region];
-      if (target.kind === 'boss' && defeated.length < region.enemies.length) {
-        throw fail('Ainda há ' + (region.enemies.length - defeated.length) + ' criaturas na região.');
+      if (target.kind === 'boss' && !World.bossVisible(map, room.data)) {
+        throw fail('O guardião ainda não apareceu. Restam ' + World.remainingEnemies(map, room.data) + ' criaturas na região.');
       }
       if (target.kind === 'enemy' && defeated.includes(target.enemyIndex)) return;
       enemy = target.kind === 'boss' ? region.boss : region.enemies[target.enemyIndex];
@@ -445,6 +445,7 @@ function createGame({ storage = createStorage({
     if (World.distance(member, position) > range) throw fail('Chegue mais perto.');
     if (point.kind === 'portal') return portalTravel(room, entry, point, send);
     if (point.kind === 'tree') return treeAction(room, entry, point, send);
+    if (point.kind === 'secret') return exploreSecret(room, entry, point, send);
     if (point.kind === 'camp') {
       const hero = entry.data;
       if (hero.hp === hero.maxHp && hero.mana === hero.maxMana) {
@@ -471,6 +472,41 @@ function createGame({ storage = createStorage({
       send(entry, 'puzzle', { title: map.name, description: puzzle.description, hint: puzzle.hint, id: point.id });
     }
     if (['enemy', 'boss', 'dungeonEnemy'].includes(point.kind)) beginEncounter(room, entry, point);
+  }
+
+  function exploreSecret(room, entry, point, send) {
+    const hero = entry.data;
+    const opened = room.data.opened;
+    const tell = (...lines) => send(entry, 'dialogue', { title:point.label, lines, options:[] });
+    if (point.id === 'dawn-sword') {
+      if (hero.owned.includes('dawnBlade')) return tell('A pedra guarda a marca da espada que você libertou.');
+      if (!opened.includes('echo-bell')) return tell('Na pedra está gravado: “Quando o sino antigo da Vila soar, a alvorada despertará.”');
+      hero.owned.push('dawnBlade');
+      return tell('O eco do sino racha a pedra. A Lâmina da Alvorada é sua!',
+        'Você pode equipá-la em Mochila e companheiros.');
+    }
+    if (opened.includes(point.id)) {
+      return tell(point.id === 'echo-bell' ? 'O eco do sino ainda ressoa na Floresta.' : 'A magia já foi despertada pelo seu grupo.');
+    }
+    if (point.id === 'echo-bell') {
+      opened.push(point.id);
+      return tell('O sino toca sozinho mais uma vez. Um clarão responde no sudeste da Floresta.');
+    }
+    if (point.id === 'wishing-well') {
+      if (hero.gold < 5) throw fail('A inscrição no poço pede cinco moedas de ouro.');
+      hero.gold -= 5;
+      hero.potions++;
+      opened.push(point.id);
+      return tell('As moedas tocam a água. Uma poção sobe à superfície entre anéis de luz.');
+    }
+    if (point.id === 'echo-crystal') {
+      if (!hero.companions.lume) return tell('Uma nota fica suspensa no ar. Talvez Lume consiga responder ao cristal.');
+      Story.reward(hero, 0, 45);
+      hero.hp = hero.maxHp;
+      hero.mana = hero.maxMana;
+      opened.push(point.id);
+      return tell('Lume responde à nota. O cristal se ilumina e restaura sua vida e mana. Você também ganhou 45 XP.');
+    }
   }
 
   function resolvePuzzle(room, entry, payload, send) {
@@ -622,6 +658,7 @@ function createGame({ storage = createStorage({
     const won = result.outcome === 'won';
     if (won && kind === 'boss') world.cleared[region] = true;
     if (won && kind === 'enemy') world.defeated[region].push(targetIndex);
+    const revealed = won && kind === 'enemy' && World.bossVisible(World.zone(zone), world);
     if (won && kind === 'dungeonEnemy') (world.rooms[region] ||= []).push(targetIndex);
     const bards = group.some(player => player.data.classKey === 'bard' && player.data.hp > 0);
     for (const [i, player] of group.entries()) {
@@ -651,7 +688,8 @@ function createGame({ storage = createStorage({
           player.encounterAt = Date.now() + 4000;
         }
       }
-      const message = won ? battle.name + ' foi derrotado. Recompensas guardadas.' :
+      const message = revealed ? 'A última criatura caiu. ' + regionById[region].boss.name + ' apareceu ao norte!' :
+        won ? battle.name + ' foi derrotado. Recompensas guardadas.' :
         result.outcome === 'lost' ? 'O grupo recuou a um ponto seguro. Descanse antes de tentar de novo.' : result.text;
       send(player, 'notice', message);
       if (won && kind === 'boss' && region !== 'shadow') send(player, 'chapter', { name: World.zone(zone).name });

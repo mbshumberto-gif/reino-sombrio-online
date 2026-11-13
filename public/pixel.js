@@ -263,6 +263,44 @@
       }
       return;
     }
+    if (p.kind === 'secret') {
+      const active = p.id === 'dawn-sword' ? state.self.owned.includes('dawnBlade') : state.world.opened.includes(p.id);
+      const shimmer = Math.floor(time / 140) % 9;
+      rect(ctx, x - 23, y + 4, 46, 7, '#17233785');
+      if (p.id === 'dawn-sword') {
+        shape(ctx, x - 20, y - 16, ['...tttt...','..ttbbtt..','.tbbbbbbt.','tbbbddbbbt','bbbbddbbbb','.dddddddd.'],
+          { t:'#a6a2a9', b:'#68677b', d:'#44475a' }, 4);
+        if (!active) {
+          rect(ctx, x - 2, y - 34, 5, 23, '#dbedf2');
+          rect(ctx, x + 1, y - 34, 2, 23, '#8eacbf');
+          rect(ctx, x - 8, y - 35, 17, 4, '#f4bf67');
+          rect(ctx, x - 2, y - 44, 5, 9, '#803f50');
+          rect(ctx, x - 3, y - 46, 7, 3, '#f4bf67');
+        }
+      } else if (p.id === 'echo-bell') {
+        rect(ctx, x - 17, y - 32, 5, 39, '#684b43');
+        rect(ctx, x + 12, y - 32, 5, 39, '#684b43');
+        rect(ctx, x - 19, y - 38, 38, 7, '#be8362');
+        const swing = active ? Math.round(Math.sin(time / 130) * 2) : 0;
+        shape(ctx, x - 10 + swing, y - 30, ['...tt...','..tbbt..','..tbbt..','.ttbbtt.','tttttttt','...bb...'],
+          { t:'#f2c67c', b:'#a86a46' }, 3);
+      } else if (p.id === 'wishing-well') {
+        rect(ctx, x - 20, y - 12, 40, 20, '#66677d');
+        rect(ctx, x - 18, y - 17, 36, 10, '#a99aa4');
+        rect(ctx, x - 13, y - 14, 26, 7, '#28506d');
+        rect(ctx, x - 11 + shimmer, y - 12, 13, 2, '#7ecfc4');
+        rect(ctx, x - 19, y - 8, 38, 2, '#858197');
+      } else {
+        shape(ctx, x - 15, y - 35, ['....t....','...ttt...','..thht...','..thht.t.','.tthtttt.','ttttbttt.','.bbbbb...'],
+          { t:'#64acc8', h:active ? '#e8ffce' : '#c0efff', b:'#46506f' }, 4);
+      }
+      if ((!active || p.id !== 'dawn-sword') && shimmer < 6) {
+        const sparkY = y - 46 - shimmer * 2;
+        rect(ctx, x + 12, sparkY, 9, 2, '#ffe2a0');
+        rect(ctx, x + 15, sparkY - 3, 2, 8, '#ffe2a0');
+      }
+      return;
+    }
     if (p.kind === 'portal') {
       const shut = p.requires && !state.world.cleared[p.requires] || p.shortcut && !state.world.orchardOpen
         || p.requiresRoom !== undefined && !state.world.rooms[map.region]?.includes(p.requiresRoom);
@@ -357,7 +395,7 @@
   function weapon(ctx, id, key, x, y, palette, scale, swinging) {
     const t = swinging ? -3 * scale : 0;
     const look = id === 'oakStaff' ? 'staff' : id === 'eclipseEdge' ? 'eclipse' : id ? 'sword' : key;
-    const cs = { o: ink, t: palette[2], a: palette[3], b: '#9b654a', d: palette[0], e: '#eff6db' };
+    const cs = { o: ink, t: id === 'dawnBlade' ? '#eab66d' : palette[2], a: palette[3], b: '#9b654a', d: palette[0], e: '#eff6db' };
     const icons = {
       sword:['...oe','..oet','..oto','.oto.','oao..','.bo..','bo...'],
       eclipse:['...ea','..ata','.atao','atao.','tao..','ao...','b....'],
@@ -459,8 +497,8 @@
   }
 
   function visiblePoint(p, map, state) {
-    if (p.kind === 'enemy') return !state.world.defeated[map.region]?.includes(p.enemyIndex);
-    if (p.kind === 'boss') return !state.world.cleared[map.region];
+    if (p.kind === 'enemy') return !state.world.cleared[map.region] && !state.world.defeated[map.region]?.includes(p.enemyIndex);
+    if (p.kind === 'boss') return W.bossVisible(map, state.world);
     if (p.kind === 'dungeonEnemy' || p.kind === 'puzzle') return !state.world.rooms[map.region]?.includes(map.dungeonIndex);
     return true;
   }
@@ -524,8 +562,8 @@
         const mob = state.mobs?.[p.id];
         const { x, y } = mob ? follow('mob:' + p.id, mob.x, mob.y) : p;
         actors.push({ y, draw: () => {
-          monster(ctx, enemy.name || enemy.enemy, x, y, time, 2, p.kind === 'boss' || map.dungeonIndex === 3);
-          if (mob?.alert) label(ctx, '!', x, y - 39);
+          monster(ctx, enemy.name || enemy.enemy, x, y, time, 3, p.kind === 'boss' || map.dungeonIndex === 3);
+          if (mob?.alert) label(ctx, '!', x, y - 50);
         } });
       } else actors.push({ y:p.y, draw: () => prop(ctx, p, map, state, time) });
     }
@@ -626,12 +664,17 @@
     const group = state.players.filter(entry => battle.heroes.includes(entry.id));
     const progress = previousTime ? (time - previousTime) / 700 : 1;
     const action = progress >= 0 && progress < 1 ? battle.lastAction : null;
-    const foe = { x:608, y:169 };
+    const foe = { x:602, y:151 };
     const enemyAction = action?.side === 'enemy';
     const heroColors = { warrior:'#ffc781', mage:'#ff7349', sorceress:'#ba8dfb', cleric:'#fff3a5',
       rogue:'#b498db', bard:'#ffc2e2', paladin:'#f7d475', ranger:'#a2de79', monk:'#72f1ce' };
     const enemyColors = { forest:'#aee16f', cave:'#7ad7f5', fire:'#ff7b4d', castle:'#f6cb8a', shadow:'#d19cff' };
     const effects = [];
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (battle.move?.type === 'charge' || battle.move?.type === 'area') {
+      ctx.fillStyle = '#8c263744';
+      ctx.fillRect(0, canvas.height - 42, canvas.width, 42);
+    }
     for (const [i, entry] of group.entries()) {
       const x = 82 + (i % 4) * 83;
       const y = 170 + Math.floor(i / 4) * 69;
@@ -643,6 +686,9 @@
       hero(ctx, { ...entry, x:x + (attack ? lift : hit && progress > 0.65 && !hit.guarded ? -7 : 0), y, facing:'right' },
         time, { scale:2.7, attacking:attack });
       const center = { x, y:y - 28 };
+      if (battle.move?.target === entry.id || battle.move?.type === 'area') {
+        rect(ctx, x - 10, y + 13, 20, 2, '#f98270');
+      }
       if (entry.companions.lume) lume(ctx, x - 24, y - 14, time);
       if (attack && action.damage) effects.push(() => battleProjectile(ctx, center, foe, progress, heroColors[entry.classKey], action.action !== 'attack'));
       if ((active && !action.damage && action.action !== 'attack') || (hit?.guarded && progress > 0.57)) {
@@ -656,16 +702,35 @@
       }
       if (hit) effects.push(() => {
         battleProjectile(ctx, foe, center, progress, enemyColors[map.region], action.action !== 'hit');
-        if (progress > 0.61) label(ctx, hit.damage ? '−' + hit.damage : 'ESQUIVA', x, y - 54 - progress * 12);
+        if (progress > 0.61) {
+          if (hit.damage) impact(ctx, center, progress, hit.guarded ? '#a8e9ff' : enemyColors[map.region]);
+          label(ctx, hit.damage ? '−' + hit.damage : 'ESQUIVA', x, y - 54 - progress * 12);
+        }
       });
     }
-    monster(ctx, battle.name, foe.x - (enemyAction ? Math.sin(progress * Math.PI) * 28 : 0), 209, time, 7, battle.boss, battle.phase);
+    const recoil = !reducedMotion && action?.damage && progress > 0.61 ? Math.sin(progress * 86) * (1 - progress) * 22 : 0;
+    monster(ctx, battle.name, foe.x + recoil - (enemyAction ? Math.sin(progress * Math.PI) * 34 : 0), 224, time,
+      battle.boss ? 8.1 : 9, battle.boss, battle.phase);
     for (let i = 0; i < battle.totems; i++) {
       stone(ctx, 535 + i * 115, 253, palette, true);
       label(ctx, 'Totem', 535 + i * 115, 264);
     }
     for (const draw of effects) draw();
-    if (action?.damage && progress > 0.61) label(ctx, '−' + action.damage, foe.x, foe.y - progress * 24);
+    if (action?.damage && progress > 0.61) {
+      impact(ctx, foe, progress, action.phaseChange ? '#ffd894' : '#f5b7a2');
+      label(ctx, '−' + action.damage, foe.x, foe.y - progress * 24);
+    }
+    if (action?.phaseChange) label(ctx, 'FASE ' + battle.phase, 380, 64);
+  }
+
+  function impact(ctx, at, progress, color) {
+    const expansion = (progress - 0.61) / 0.39;
+    for (let i = 0; i < 10; i++) {
+      const angle = i * Math.PI / 5;
+      const radius = 9 + expansion * (i % 2 ? 28 : 48);
+      const size = Math.max(2, 7 - expansion * 6);
+      rect(ctx, at.x + Math.cos(angle) * radius, at.y + Math.sin(angle) * radius, size, size, color);
+    }
   }
 
   function portrait(canvas, key, time = 0, equipment) {
