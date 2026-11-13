@@ -15,15 +15,15 @@ const BOSSES = {
 function startBattle(zone, target, enemy, heroes) {
   const regionalRank = Object.keys(BOSSES).indexOf(target.region);
   const introductory = regionalRank === 0;
-  const hp = Math.ceil(enemy.hp * (target.boss ? (introductory ? 0.72 : 0.96) : 0.88) * (1 + (heroes.length - 1) * 0.46));
+  const hp = Math.ceil(enemy.hp * (target.boss ? (introductory ? 0.90 : 1.1) : 1) * (1 + (heroes.length - 1) * 0.62));
   const ordered = heroes.map(({ id }) => id);
   return {
     id: randomUUID(), zone, target, name: enemy.name, hp, maxHp: hp,
-    attack: Math.ceil(enemy.atk * (target.boss ? (introductory ? 0.69 : 0.85) : (introductory ? 0.67 : 0.76)) * (1 + (heroes.length - 1) * 0.04)),
+    attack: Math.ceil(enemy.atk * (target.boss ? (introductory ? 1.02 : 1.12) : (introductory ? 0.95 : 1.05)) * (1 + (heroes.length - 1) * 0.08)),
     armor: target.boss ? Math.floor(enemy.atk * 0.3) : Math.floor(enemy.atk * 0.12),
     rewards: { gold: enemy.gold, xp: enemy.xp }, heroes: ordered, order: ordered.slice(), status: {},
     boss: target.boss, phase: 1, totems: 0, round: 1, turn: 1, active: ordered[0],
-    move: target.boss ? { type: 'charge', target: ordered[0], name: BOSSES[target.region][0] } : null,
+    move: announceMove({ target, boss:target.boss, round:1, phase:1 }, heroes),
     lastAction: null, supportUsed: false, expires: Date.now() + 30000
   };
 }
@@ -67,37 +67,43 @@ function announceMove(battle, alive) {
     return { type: 'area', name: moves[2], target };
   }
   if (battle.boss && battle.phase === 2 && battle.totems) return { type: 'shield', name: moves[1], target };
-  if (battle.round % 3 === 1) return { type: 'charge', name: battle.boss ? moves[0] : 'Investida preparada', target };
-  return { type: 'hit', name: 'Golpe rápido', target };
+  if (battle.round % (battle.boss ? 2 : 3) === 1) return { type: 'charge', name: battle.boss ? moves[0] : 'Investida feroz', target };
+  const names = { forest:'Garras da floresta', cave:'Estilhaço de cristal', fire:'Rajada de brasas',
+    castle:'Golpe espectral', shadow:'Pulso do vazio' };
+  return { type: 'hit', name: names[battle.target.region], target };
 }
 
 function enemyTurn(battle, entries) {
   const alive = entries.filter(entry => entry.data.hp > 0);
-  if (!alive.length) { battle.active = null; return; }
+  if (!alive.length) return { outcome:'lost' };
   const move = battle.move || announceMove(battle, alive);
   const guard = alive.find(({ id }) => effects(battle, id).guard);
   const target = guard || alive.find(entry => entry.id === move.target) || alive[0];
   const targets = move.type === 'area' ? alive : [target];
+  const hits = [];
+  const enemyHp = battle.hp;
   for (const entry of targets) {
     const hero = entry.data;
     const status = effects(battle, entry.id);
     const defense = heroStats(hero).defense;
-    const strength = move.type === 'charge' ? 1.48 : move.type === 'area' ? 1.2 : move.type === 'shield' ? 0.75 : 1;
+    const strength = move.type === 'charge' ? 1.85 : move.type === 'area' ? 1.46 : move.type === 'shield' ? 0.9 : 1;
     const interrupted = battle.interrupted && ['charge', 'area'].includes(move.type) ? 0.45 : 1;
     const guardPower = status.defending ? 0.4 : status.ward ? 0.55 : 1;
     const passive = hero.classKey === 'warrior' ? 0.85 : hero.classKey === 'paladin' && battle.boss ? 0.8 : 1;
-    const damage = status.evade ? 0 : Math.max(1, Math.floor((battle.attack * strength - defense * 0.48) * guardPower *
+    const damage = status.evade ? 0 : Math.max(1, Math.floor((battle.attack * strength - defense * 0.67) * guardPower *
       passive * interrupted * (battle.weakened ? 0.76 : 1)));
-    hero.hp = Math.max(0, hero.hp - damage);
+    const before = hero.hp;
+    hero.hp = Math.max(0, before - damage);
     if (battle.boss && move.type === 'area' && !battle.interrupted && damage > 0) {
       if (battle.target.region === 'cave') hero.mana = Math.max(0, hero.mana - 9);
       if (battle.target.region === 'fire' && !status.defending) hero.hp = Math.max(0, hero.hp - 7);
       if (battle.target.region === 'shadow' && battle.hp) battle.hp = Math.min(Math.ceil(battle.maxHp * 0.32), battle.hp + Math.ceil(damage * 0.3));
     }
     if (status.guard && status.counter && hero.hp > 0) harm(battle, heroStats(hero).attack * 0.5);
+    hits.push({ id:entry.id, damage:before - hero.hp, guarded:!!(status.defending || status.ward) });
   }
   for (const { id, data } of alive) {
-    if (data.hp > 0) restore(data, 0, 5);
+    if (data.hp > 0) restore(data, 0, 3);
     const status = effects(battle, id);
     status.defending = status.ward = status.guard = status.counter = status.evade = false;
   }
@@ -108,7 +114,14 @@ function enemyTurn(battle, entries) {
   battle.active = battle.order[0] || null;
   battle.round++;
   battle.move = survivors.length ? announceMove(battle, survivors) : null;
-  return { name:move.name, phase };
+  battle.turn++;
+  const text = move.name + ' · ' + hits.map(hit => {
+    const name = entries.find(entry => entry.id === hit.id).data.name;
+    return name + (hit.damage ? ' −' + hit.damage + ' PV' : ' esquivou') + (hit.guarded ? ' (bloqueio)' : '');
+  }).join(', ');
+  battle.lastAction = { side:'enemy', action:move.type, hits, damage:Math.max(0, enemyHp - battle.hp),
+    text: phase ? text + ' · ' + phase : text };
+  return { outcome:battle.hp <= 0 ? 'won' : survivors.length ? null : 'lost', text };
 }
 
 function powerAttack(hero, battle, multiplier, pierce = 0) {
@@ -202,13 +215,16 @@ function act(battle, id, action, entries) {
   const hero = entry.data;
   const alive = entries.filter(ally => ally.data.hp > 0);
   const status = effects(battle, id);
+  const before = battle.hp;
   let text;
   if (action === 'attack') {
     text = 'Ataque · ' + powerAttack(hero, battle, hero.classKey === 'ranger' ? 1.15 : 1) + ' de dano.';
     if (hero.classKey === 'monk') restore(hero, 4);
   } else if (action === 'defend') {
     status.defending = true;
-    text = 'Defesa preparada.';
+    const mana = hero.mana;
+    restore(hero, 0, 9);
+    text = 'Defesa preparada · −60% de dano recebido · +' + (hero.mana - mana) + ' MP.';
   } else if (action === 'potion' || action === 'apple') {
     const supply = action === 'potion' ? 'potions' : 'apples';
     if (!hero[supply] || hero.hp === hero.maxHp) return { error: 'Você precisa do item e de vida para recuperar.' };
@@ -240,25 +256,20 @@ function act(battle, id, action, entries) {
   const phase = nextPhase(battle);
   const index = battle.order.indexOf(id);
   const next = battle.order.slice(index + 1).find(heroId => entries.some(ally => ally.id === heroId && ally.data.hp > 0));
-  let enemy;
-  if (battle.hp > 0) {
-    if (next) battle.active = next;
-    else enemy = enemyTurn(battle, entries);
-  }
-  const secondPhase = enemy?.phase;
+  battle.active = battle.hp > 0 ? next || null : null;
   battle.turn++;
   battle.expires = Date.now() + 30000;
-  battle.lastAction = { heroId: id, action, text: phase || secondPhase || text, enemy:enemy?.name };
-  const outcome = battle.hp <= 0 ? 'won' : !battle.active ? 'lost' : null;
-  return { outcome, text: phase || secondPhase || text };
+  const damage = before - battle.hp;
+  if (damage && (action === 'skill' || action === 'technique')) text += ' −' + damage + ' PV.';
+  battle.lastAction = { side:'party', heroId:id, action, damage, text:phase ? text + ' · ' + phase : text };
+  return { outcome:battle.hp <= 0 ? 'won' : null, text };
 }
 
 function skip(battle, id, group) {
   const next = battle.order.slice(battle.order.indexOf(id) + 1)
     .find(heroId => group.some(ally => ally.id === heroId && ally.data.hp > 0));
-  if (next) battle.active = next;
-  else enemyTurn(battle, group);
+  battle.active = next || null;
   battle.turn++;
 }
 
-module.exports = { startBattle, act, skillCost, skip };
+module.exports = { startBattle, act, enemyTurn, skillCost, skip };

@@ -155,6 +155,7 @@
 
   addZone('village', NAMES.village, 'village', 'surface', [
     portal('forest-road', 480, 513, 'Estrada da Floresta', 'forest', [480, 458]),
+    portal('lume-trail', 754, 448, 'Trilha do Pomar · Lume', 'orchard', [475, 366]),
     point('apple-village', 'tree', 365, 408, 'Macieira da praça'),
     point('lamp-village', 'lamp', 561, 409, 'Lanterna da praça')
   ]);
@@ -182,6 +183,7 @@
       point('chest-' + branch.id, 'chest', 713, 349, 'Baú escondido')
     ];
     if (region === 'forest') {
+      branchPoints.push(portal('lume-village', 480, 492, 'Trilha de volta à Vila', 'village', [702, 448]));
       branchPoints.push(point('apple-orchard', 'tree', 343, 319, 'Macieira antiga'));
       branchPoints.push(point('lamp-orchard', 'lamp', 684, 120, 'Lanterna do pomar'));
       branchPoints.push(portal('orchard-shortcut', 480, 52, 'Atalho para a Vila', 'village', [480, 425], { shortcut: true }));
@@ -247,15 +249,10 @@
     });
   }
 
-  function patrol(p, now) {
-    const t = now / 1900 + (p.enemyIndex || 0) * 2.1;
-    return { ...p, x: p.x + Math.sin(t) * 15, y: p.y + Math.cos(t * 0.86) * 12 };
-  }
-
   const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
   const facing = (dx, dy, current) => Math.abs(dx) > Math.abs(dy)
     ? (dx < 0 ? 'left' : 'right') : dy ? (dy < 0 ? 'up' : 'down') : current;
 
   return { TILE, COLS, ROWS, WIDTH, HEIGHT, SPEED, REGIONS, BRANCHES, NAMES, DUNGEONS, NPCS, zones, zone,
-    dungeonId, canStand, walk, safePosition, npcPositions, patrol, distance, facing };
+    dungeonId, canStand, walk, safePosition, npcPositions, distance, facing };
 });

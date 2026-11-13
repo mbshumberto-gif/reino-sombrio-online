@@ -521,8 +521,12 @@
       const enemy = p.kind === 'enemy' ? region.enemies[p.enemyIndex] : p.kind === 'boss' ? region.boss
         : p.kind === 'dungeonEnemy' ? data.dungeons[map.region]?.[map.dungeonIndex] : null;
       if (enemy) {
-        const { x, y } = p.kind === 'enemy' ? W.patrol(p, time) : p;
-        actors.push({ y, draw: () => monster(ctx, enemy.name || enemy.enemy, x, y, time, 2, p.kind === 'boss' || map.dungeonIndex === 3) });
+        const mob = state.mobs?.[p.id];
+        const { x, y } = mob ? follow('mob:' + p.id, mob.x, mob.y) : p;
+        actors.push({ y, draw: () => {
+          monster(ctx, enemy.name || enemy.enemy, x, y, time, 2, p.kind === 'boss' || map.dungeonIndex === 3);
+          if (mob?.alert) label(ctx, '!', x, y - 39);
+        } });
       } else actors.push({ y:p.y, draw: () => prop(ctx, p, map, state, time) });
     }
     for (const npc of W.npcPositions(map.id, time, state.world)) actors.push({ y:npc.y, draw: () => hero(ctx, npc, time) });
@@ -532,7 +536,10 @@
       if (p.companions.lume) {
         const side = p.facing === 'right' ? -1 : 1;
         const pet = follow('lume:' + p.id, p.x + side * 25, p.y - 6);
-        actors.push({ y:pet.y, draw: () => lume(ctx, pet.x, pet.y, time) });
+        actors.push({ y:pet.y, draw: () => {
+          lume(ctx, pet.x, pet.y, time, p.self);
+          if (p.self) label(ctx, 'Lume', pet.x, pet.y - 31);
+        } });
       }
       if (p.companions.lia) {
         const location = follow('lia:' + p.id, p.x + (p.facing === 'right' ? -38 : 37), p.y + 9);
@@ -595,6 +602,20 @@
     }
   }
 
+  function battleProjectile(ctx, from, to, progress, color, large) {
+    if (progress < 0 || progress > 0.78) return;
+    const t = Math.min(1, progress / 0.68);
+    const size = large ? 10 : 6;
+    for (let i = 5; i >= 0; i--) {
+      const trail = Math.max(0, t - i * 0.045);
+      const x = from.x + (to.x - from.x) * trail;
+      const y = from.y + (to.y - from.y) * trail - Math.sin(trail * Math.PI) * 32;
+      const radius = size - i;
+      rect(ctx, x - radius, y - radius, radius * 2, radius * 2, color);
+      if (!i) rect(ctx, x - 3, y - 3, 6, 6, '#fff5ce');
+    }
+  }
+
   function drawBattle(canvas, state, time, backdrop, previousTime) {
     const ctx = canvas.getContext('2d');
     const battle = state.battle;
@@ -603,19 +624,48 @@
     ctx.imageSmoothingEnabled = false;
     arenaBackdrop(ctx, map, canvas.width, canvas.height, palette, backdrop, time);
     const group = state.players.filter(entry => battle.heroes.includes(entry.id));
-    const flash = previousTime && time - previousTime < 450;
+    const progress = previousTime ? (time - previousTime) / 700 : 1;
+    const action = progress >= 0 && progress < 1 ? battle.lastAction : null;
+    const foe = { x:608, y:169 };
+    const enemyAction = action?.side === 'enemy';
+    const heroColors = { warrior:'#ffc781', mage:'#ff7349', sorceress:'#ba8dfb', cleric:'#fff3a5',
+      rogue:'#b498db', bard:'#ffc2e2', paladin:'#f7d475', ranger:'#a2de79', monk:'#72f1ce' };
+    const enemyColors = { forest:'#aee16f', cave:'#7ad7f5', fire:'#ff7b4d', castle:'#f6cb8a', shadow:'#d19cff' };
+    const effects = [];
     for (const [i, entry] of group.entries()) {
       const x = 82 + (i % 4) * 83;
       const y = 170 + Math.floor(i / 4) * 69;
       if (entry.id === battle.active) rect(ctx, x - 16, y + 9, 32, 2, '#ffe3a2');
-      const active = flash && battle.lastAction?.heroId === entry.id;
-      hero(ctx, { ...entry, x:x + (active ? 12 : 0), y, facing:'right' }, time, { scale:2.7, attacking:active });
+      const active = action?.heroId === entry.id;
+      const attack = active && (action.action === 'attack' || action.action === 'skill' || action.action === 'technique');
+      const hit = enemyAction && action.hits.find(target => target.id === entry.id);
+      const lift = Math.sin(progress * Math.PI) * 21;
+      hero(ctx, { ...entry, x:x + (attack ? lift : hit && progress > 0.65 && !hit.guarded ? -7 : 0), y, facing:'right' },
+        time, { scale:2.7, attacking:attack });
+      const center = { x, y:y - 28 };
+      if (entry.companions.lume) lume(ctx, x - 24, y - 14, time);
+      if (attack && action.damage) effects.push(() => battleProjectile(ctx, center, foe, progress, heroColors[entry.classKey], action.action !== 'attack'));
+      if ((active && !action.damage && action.action !== 'attack') || (hit?.guarded && progress > 0.57)) {
+        effects.push(() => {
+          const size = 19 + Math.round(lift / 2);
+          rect(ctx, x - size, center.y - size, size * 2, 2, '#a8e9ff');
+          rect(ctx, x - size, center.y + size, size * 2, 2, '#a8e9ff');
+          rect(ctx, x - size, center.y - size, 2, size * 2, '#a8e9ff');
+          rect(ctx, x + size, center.y - size, 2, size * 2, '#a8e9ff');
+        });
+      }
+      if (hit) effects.push(() => {
+        battleProjectile(ctx, foe, center, progress, enemyColors[map.region], action.action !== 'hit');
+        if (progress > 0.61) label(ctx, hit.damage ? '−' + hit.damage : 'ESQUIVA', x, y - 54 - progress * 12);
+      });
     }
-    monster(ctx, battle.name, 608, 209, time, 7, battle.boss, battle.phase);
+    monster(ctx, battle.name, foe.x - (enemyAction ? Math.sin(progress * Math.PI) * 28 : 0), 209, time, 7, battle.boss, battle.phase);
     for (let i = 0; i < battle.totems; i++) {
       stone(ctx, 535 + i * 115, 253, palette, true);
       label(ctx, 'Totem', 535 + i * 115, 264);
     }
+    for (const draw of effects) draw();
+    if (action?.damage && progress > 0.61) label(ctx, '−' + action.damage, foe.x, foe.y - progress * 24);
   }
 
   function portrait(canvas, key, time = 0, equipment) {
