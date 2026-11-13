@@ -37,7 +37,7 @@ const here = (room, zone) => 'map:' + room.id + ':' + zone;
 function createGame({ storage = createStorage({
   connectionString: process.env.DATABASE_URL,
   ssl: process.env.PGSSLMODE === 'disable' ? false : { rejectUnauthorized: true }
-}), graceMs = GRACE_MS, turnMs = 30000, logger = console } = {}) {
+}), graceMs = GRACE_MS, turnMs = 30000, actionMs = 700, logger = console } = {}) {
   const app = express();
   const httpServer = http.createServer(app);
   const io = new Server(httpServer, { maxHttpBufferSize: 16 * 1024 });
@@ -73,7 +73,7 @@ function createGame({ storage = createStorage({
   function roomFrom(row) {
     const existing = rooms.get(row.id);
     if (existing) return existing;
-    const room = { ...row, players: new Map(), battles: new Map(), fruit: new Map(),
+    const room = { ...row, players: new Map(), battles: new Map(), fruit: new Map(), mobs: new Map(),
       tail: Promise.resolve(), locked: false, queued: 0, hostId: null };
     rooms.set(row.id, room);
     codes.set(row.code, room);
@@ -114,8 +114,9 @@ function createGame({ storage = createStorage({
       zone: member.zone, players, heroes, world: Story.publicCampaign(room.data),
       journal: Story.questJournal(member, room.data), seenEnding: member.seenEnding,
       self: { name, classKey, hp, maxHp, mana, maxMana, level, xp, gold, potions, apples,
+        forge: { weapon:Story.forgeOffer(entry.data, 'weapon'), armor:Story.forgeOffer(entry.data, 'armor') },
         equipment, owned, companions, skillPoints, skillLevel, xpToNext:Story.xpForNext(level), ...Story.heroStats(entry.data) },
-      battle: battle || null, activeCheckpoint: member.checkpoint, durable: storage.durable,
+      battle: battle || null, mobs: room.mobs.get(member.zone) || {}, activeCheckpoint: member.checkpoint, durable: storage.durable,
       fruit: [...room.fruit.values()].filter(fruit => fruit.zone === member.zone && fruit.expires > now)
     };
   }
@@ -247,7 +248,7 @@ function createGame({ storage = createStorage({
       selected = rooms.get(campaignId) || await storage.readCampaign({ id: campaignId });
       if (!selected) throw fail('Nenhuma aventura foi encontrada para este personagem.');
     }
-    const room = newRoom ? { ...selected, players: new Map(), battles: new Map(), fruit: new Map(),
+    const room = newRoom ? { ...selected, players: new Map(), battles: new Map(), fruit: new Map(), mobs: new Map(),
       tail: Promise.resolve(), locked: false, queued: 0, hostId: null } : roomFrom(selected);
     await queue(room, async () => {
       if (!socket.connected) return;
@@ -439,7 +440,7 @@ function createGame({ storage = createStorage({
     if (npc) return showNpc(room, entry, npc, send);
     const point = map.points.find(candidate => candidate.id === payload.id);
     if (!point) throw fail('Aproxime-se de algo com que possa interagir.');
-    const position = point.kind === 'enemy' ? World.patrol(point, Date.now()) : point;
+    const position = room.mobs.get(member.zone)?.[point.id] || point;
     const range = point.kind === 'portal' ? 69 : 64;
     if (World.distance(member, position) > range) throw fail('Chegue mais perto.');
     if (point.kind === 'portal') return portalTravel(room, entry, point, send);
@@ -558,6 +559,17 @@ function createGame({ storage = createStorage({
       send(entry, 'notice', 'Habilidade principal aprimorada.');
       return;
     }
+    if (payload.action === 'forge') {
+      const { slot } = payload;
+      if (!['weapon', 'armor'].includes(slot) || !nearbyNpc(room, entry, 'blacksmith')) throw fail('Aprimore o equipamento com Eldrin na Vila.');
+      const offer = Story.forgeOffer(hero, slot);
+      if (!offer || hero.level < offer.level || hero.gold < offer.price) throw fail('Confira o nível e o ouro exigidos na forja.');
+      if (payload.rank !== offer.rank || payload.item !== hero.equipment[slot]) throw fail('A oferta mudou. Escolha o aprimoramento novamente.');
+      hero.gold -= offer.price;
+      (hero.forged ||= {})[hero.equipment[slot] || 'starter-' + slot] = offer.rank;
+      send(entry, 'notice', (slot === 'weapon' ? 'Arma' : 'Armadura') + ' aprimorada para +' + offer.rank + '.');
+      return;
+    }
     if (payload.action === 'unequip') {
       if (!['weapon', 'armor', 'charm'].includes(payload.slot)) throw fail('Espaço de equipamento inválido.');
       hero.equipment[payload.slot] = null;
@@ -587,7 +599,7 @@ function createGame({ storage = createStorage({
   function battleAction(room, entry, payload, send, timeout = false) {
     const zone = entry.member.data.zone;
     const battle = room.battles.get(zone);
-    if (!battle || (!timeout && (payload.id !== battle.id || payload.turn !== battle.turn))) {
+    if (!battle || battle.resolveAt || !battle.active || (!timeout && (payload.id !== battle.id || payload.turn !== battle.turn))) {
       throw fail('O turno mudou. Aguarde a próxima ação.');
     }
     const group = battle.heroes.map(id => room.players.get(id)).filter(Boolean);
@@ -595,7 +607,15 @@ function createGame({ storage = createStorage({
     const result = Combat.act(battle, entry.id, action, group);
     if (result.error) throw fail(result.error);
     battle.expires = Date.now() + turnMs;
-    if (!result.outcome) return;
+    if (result.outcome === 'fled') return finishBattle(room, battle, group, result, send);
+    if (result.outcome || !battle.active) {
+      battle.result = result.outcome ? result : null;
+      battle.resolveAt = Date.now() + actionMs;
+    }
+  }
+
+  function finishBattle(room, battle, group, result, send) {
+    const { zone } = battle;
     room.battles.delete(zone);
     const { kind, region, index: targetIndex } = battle.target;
     const world = room.data;
@@ -658,16 +678,51 @@ function createGame({ storage = createStorage({
     socket.volatile.emit('moved', packet);
     socket.to(here(room, zone)).volatile.emit('moved', packet);
 
-    if (!moving || entry.encounterAt > now || room.battles.has(zone)) return;
-    const map = World.zone(zone);
-    const target = map.points.find(p => p.kind === 'enemy' && !room.data.defeated[map.region]?.includes(p.enemyIndex)
-      && World.distance(member, World.patrol(p, now)) <= 29);
-    if (!target) return;
-    try {
-      beginEncounter(room, entry, target);
-      publish(room);
-    } catch (error) {
-      if (error.code !== 'GAME_RULE') logger.error(error);
+  }
+
+  function moveMonsters(room, now) {
+    const zones = new Map();
+    for (const entry of room.players.values()) {
+      if (!entry.socketId || !entry.data.hp) continue;
+      const { zone } = entry.member.data;
+      if (!zones.has(zone)) zones.set(zone, []);
+      if (entry.encounterAt <= now) zones.get(zone).push(entry);
+    }
+    for (const zone of room.mobs.keys()) if (!zones.has(zone)) room.mobs.delete(zone);
+    for (const [zone, entries] of zones) {
+      if (room.battles.has(zone)) continue;
+      const map = World.zone(zone);
+      if (map.kind !== 'surface' || room.data.cleared[map.region]) continue;
+      const previous = room.mobs.get(zone) || {};
+      const mobs = {};
+      for (const point of map.points) {
+        if (point.kind !== 'enemy' || room.data.defeated[map.region]?.includes(point.enemyIndex)) continue;
+        const old = previous[point.id] || point;
+        const prey = entries.map(entry => ({ entry, distance:World.distance(old, entry.member.data) }))
+          .filter(candidate => candidate.distance <= (old.alert ? 265 : 225) &&
+            World.distance(point, candidate.entry.member.data) < 310)
+          .sort((a, b) => a.distance - b.distance)[0];
+        const goal = prey?.entry.member.data || point;
+        const distance = World.distance(old, goal);
+        const length = Math.max(distance, 1);
+        const speed = prey ? 76 + 7 * World.REGIONS.indexOf(map.region) : 65;
+        const position = World.walk(zone, old, (goal.x - old.x) / length, (goal.y - old.y) / length,
+          Math.min(distance, speed * 0.125) / World.SPEED);
+        mobs[point.id] = { ...position, alert:!!prey };
+        if (prey && World.distance(position, goal) <= 25) {
+          beginEncounter(room, prey.entry, point);
+          if (room.battles.has(zone)) {
+            room.mobs.set(zone, { ...previous, ...mobs });
+            publish(room);
+            break;
+          }
+        }
+      }
+      if (room.battles.has(zone)) continue;
+      room.mobs.set(zone, mobs);
+      if (Object.keys(mobs).some(id => different(mobs[id], previous[id]))) {
+        io.to(here(room, zone)).emit('monsters', { zone, mobs });
+      }
     }
   }
 
@@ -789,10 +844,24 @@ function createGame({ storage = createStorage({
 
   function settleTimeouts(room, now) {
     for (const battle of room.battles.values()) {
+      if (battle.resolveAt && battle.resolveAt <= now) {
+        queue(room, () => change(room, send => {
+          if (room.battles.get(battle.zone)?.id !== battle.id) return;
+          const current = room.battles.get(battle.zone);
+          if (!current.resolveAt || current.resolveAt > Date.now()) return;
+          const group = current.heroes.map(id => room.players.get(id)).filter(Boolean);
+          if (current.result) return finishBattle(room, current, group, current.result, send);
+          const result = Combat.enemyTurn(current, group);
+          current.result = result.outcome ? result : null;
+          current.resolveAt = current.result ? Date.now() + actionMs : null;
+          current.expires = Date.now() + turnMs;
+        })).catch(error => logger.error(error));
+        continue;
+      }
       const entry = room.players.get(battle.active);
       if (entry && battle.expires <= now && entry.socketId) {
         queue(room, () => change(room, send => {
-          if (room.battles.get(battle.zone) !== battle || battle.expires > Date.now()) return;
+          if (room.battles.get(battle.zone) !== battle || battle.resolveAt || battle.expires > Date.now()) return;
           battleAction(room, entry, {}, send, true);
         })).catch(error => logger.error(error));
       }
@@ -821,13 +890,8 @@ function createGame({ storage = createStorage({
     if (active) {
       const group = battle.heroes.map(id => room.players.get(id)).filter(Boolean);
       Combat.skip(battle, entry.id, group);
-      if (!battle.active) {
-        for (const survivor of group) {
-          survivor.data = survivor.battleBaseline || survivor.data;
-          survivor.battleBaseline = null;
-        }
-        room.battles.delete(battle.zone);
-      } else battle.expires = Date.now() + turnMs;
+      if (!battle.active) battle.resolveAt = Date.now() + actionMs;
+      else battle.expires = Date.now() + turnMs;
       for (const survivor of group) send(survivor, 'notice', entry.data.name + ' saiu do combate.');
     }
     battle.order = battle.order.filter(id => id !== entry.id);
@@ -850,6 +914,8 @@ function createGame({ storage = createStorage({
     for (const room of rooms.values()) {
       if (room.locked || room.queued) continue;
       settleTimeouts(room, now);
+      if (room.queued) continue;
+      moveMonsters(room, now);
       for (const [id, fruit] of room.fruit) if (fruit.expires <= now) room.fruit.delete(id);
       for (const entry of room.players.values()) expirePlayer(room, entry, now);
       if (room.nextPositionSave && room.nextPositionSave > now) continue;
@@ -857,7 +923,7 @@ function createGame({ storage = createStorage({
       const force = [...room.players.values()].filter(entry => entry.positionDirty).map(entry => entry.id);
       if (force.length) queue(room, () => change(room, () => {}, { force, announce: false })).catch(error => logger.error(error));
     }
-  }, 500);
+  }, 125);
   timer.unref();
 
   async function listen(port = Number(process.env.PORT) || 3000, host = '0.0.0.0') {

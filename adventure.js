@@ -153,12 +153,23 @@ function makeMember(room, heroId, legacy = {}) {
 
 function heroStats(hero) {
   const gear = Object.values(hero.equipment).map(id => EQUIPMENT[id]).filter(Boolean);
+  const weaponRank = gearRank(hero, 'weapon');
+  const armorRank = gearRank(hero, 'armor');
   return {
-    attack: gear.reduce((value, item) => value + (item.attack || 0), hero.baseAttack),
-    defense: gear.reduce((value, item) => value + (item.defense || 0), hero.baseDefense),
-    weapon: EQUIPMENT[hero.equipment.weapon]?.name || hero.baseWeapon,
-    armor: EQUIPMENT[hero.equipment.armor]?.name || hero.baseArmor
+    attack: gear.reduce((value, item) => value + (item.attack || 0), hero.baseAttack) + weaponRank * 3,
+    defense: gear.reduce((value, item) => value + (item.defense || 0), hero.baseDefense) + armorRank * 3,
+    weapon: (EQUIPMENT[hero.equipment.weapon]?.name || hero.baseWeapon) + (weaponRank ? ' +' + weaponRank : ''),
+    armor: (EQUIPMENT[hero.equipment.armor]?.name || hero.baseArmor) + (armorRank ? ' +' + armorRank : '')
   };
+}
+
+function gearRank(hero, slot) {
+  return hero.forged?.[hero.equipment[slot] || 'starter-' + slot] || 0;
+}
+
+function forgeOffer(hero, slot) {
+  const rank = gearRank(hero, slot);
+  return rank >= 5 ? null : { rank:rank + 1, level:2 + rank * 2, price:55 + rank * 45 };
 }
 
 function xpForNext(level) {
@@ -208,5 +219,5 @@ function publicCampaign(world) {
   };
 }
 
-module.exports = { own, newCampaign, makeHero, makeMember, heroStats, reward, xpForNext, canOffer,
+module.exports = { own, newCampaign, makeHero, makeMember, heroStats, forgeOffer, reward, xpForNext, canOffer,
   questJournal, publicCampaign, mainQuest, quests: QUESTS_BY_ID, clues: CLUES, dialogues: DIALOGUES, lore: LORE };

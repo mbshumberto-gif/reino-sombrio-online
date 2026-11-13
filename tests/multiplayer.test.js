@@ -168,7 +168,7 @@ test('servidor valida o trajeto, o turno e descarta a repetição de um golpe', 
   assert.match(await send(socket, 'interact', { id:'boss-forest' }, 'errorMessage'), /Chegue mais perto/);
   await walk(socket, 284, 413);
   await wait(750);
-  const target = socket.state.battle || (await interact(socket, 'forest-mob-3', state => !!state.battle)).battle;
+  const target = socket.state.battle || (await event(socket, 'state', state => !!state.battle)).battle;
   assert.equal(target.target.kind, 'enemy');
   const hit = await send(socket, 'battleAction', { id:target.id, turn:target.turn, action:'attack' },
     'state', state => state.battle?.turn > target.turn);
@@ -276,8 +276,7 @@ test('vitória, recompensa e guarda derrotado sobrevivem ao restart da campanha'
   for (const action of ['attack','totem','totem','attack','attack']) {
     const battle = socket.state.battle;
     await send(socket,'battleAction',{ id:battle.id, turn:battle.turn, action },'state',
-      state => !state.battle || state.battle.turn > battle.turn);
-    await wait(115);
+      state => !state.battle || state.battle.round > battle.round);
   }
   assert.ok(socket.state.world.cleared.forest);
   assert.equal(socket.state.battle, null);
@@ -299,12 +298,15 @@ test('Lume abre o atalho, Lia aceita o convite e o amuleto altera os atributos',
   const row = { id:hero.id, keyHash:digest(hero.key), revision:0, data:makeHero(hero.name,'sorceress') };
   row.data.homeCampaign = campaign.id;
   row.data.apples = 2;
-  const member = makeMember(campaign,hero.id,{ x:615,y:217 });
-  member.data.zone = 'orchard';
+  const member = makeMember(campaign,hero.id,{ x:752,y:448 });
   await storage.save({ campaign, players:[row], members:[member] });
   const f = await fixture(t,{ storage });
   const socket = await f.connect();
   await enter(socket,'continue',hero);
+  const orchard = await interact(socket,'lume-trail',state=>state.zone === 'orchard');
+  assert.equal(orchard.world.orchardOpen, false);
+  await walk(socket,480,283);
+  await walk(socket,607,250);
   const before = socket.state.self.attack;
   const adopted = await interact(socket,'spirit',state=>state.self.companions.lume === 1);
   assert.equal(adopted.self.apples,1);
@@ -322,6 +324,28 @@ test('Lume abre o atalho, Lia aceita o convite e o amuleto altera os atributos',
   assert.equal((await storage.readHero(hero.id)).data.companions.lia,true);
   await walk(socket,480,90);
   await interact(socket,'orchard-shortcut',state=>state.zone==='village');
+});
+
+test('Eldrin aprimora o item equipado uma vez e mantém o bônus no save', async t => {
+  const storage = createStorage();
+  const hero = identity('Aprendiz da forja');
+  const campaign = newCampaign('F0A9E1', hero.id);
+  const row = { id:hero.id, keyHash:digest(hero.key), revision:0,
+    data:makeHero(hero.name,'warrior',{ level:2, gold:120 }) };
+  row.data.homeCampaign = campaign.id;
+  await storage.save({ campaign, players:[row], members:[makeMember(campaign,hero.id,{ x:628,y:357 })] });
+  const f = await fixture(t,{ storage });
+  const socket = await f.connect();
+  const initial = await enter(socket,'continue',hero);
+  const forge = { action:'forge', slot:'weapon', item:null, rank:1 };
+  const improved = await send(socket,'inventoryAction',forge,'state',state=>state.self.weapon.endsWith('+1'));
+  assert.equal(improved.self.attack, initial.self.attack + 3);
+  assert.equal(improved.self.gold, initial.self.gold - 55);
+  await wait(200);
+  await send(socket,'inventoryAction',forge,'errorMessage');
+  const saved = await storage.readHero(hero.id);
+  assert.equal(saved.data.forged['starter-weapon'],1);
+  assert.equal(saved.data.gold,improved.self.gold);
 });
 
 test('enigma, prêmio e pista da relíquia funcionam em salas físicas', async t => {
@@ -370,8 +394,7 @@ test('Malakar não reaparece e a missão das lanternas abre depois da vitória',
   for (const action of ['attack','totem','totem','attack','attack']) {
     const battle = socket.state.battle;
     await send(socket,'battleAction',{ id:battle.id,turn:battle.turn,action },'state',
-      state=>!state.battle || state.battle.turn > battle.turn);
-    await wait(120);
+      state=>!state.battle || state.battle.round > battle.round);
   }
   assert.ok(socket.state.world.cleared.shadow);
   assert.ok(socket.state.journal.some(q=>q.id==='lanterns'));
@@ -401,8 +424,7 @@ test('um turno inativo avança e a reconexão preserva a batalha em andamento', 
   const b = await f.connect();
   await enter(a,'continue',hero);
   await enter(b,'join',other,{ code:campaign.code });
-  await wait(1900);
-  const began = await interact(a,'forest-mob-0',state=>!!state.battle);
+  const began = await event(a,'state',state=>!!state.battle);
   assert.equal(began.battle.active,hero.id);
   const timeout = await event(a,'state',state=>state.battle?.active===other.id,2400);
   assert.equal(timeout.battle.lastAction.action,'defend');

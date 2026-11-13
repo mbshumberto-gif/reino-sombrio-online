@@ -37,6 +37,7 @@
   let lastDraw = 0;
   let lastFocus = 0;
   let battleTime = 0;
+  let battleRefresh;
   let interaction;
   let pointerId = null;
   let stick = { dx: 0, dy: 0 };
@@ -220,6 +221,17 @@
   function renderShop() {
     const self = state.self;
     const children = [paragraph(self.gold + ' ouros'), button('Poção · 10 ouros', () => send('inventoryAction', { action:'buy', item:'potion' }))];
+    for (const [slot, name] of [['weapon', self.weapon], ['armor', self.armor]]) {
+      const offer = self.forge[slot];
+      if (!offer) {
+        children.push(paragraph(name + ' · aprimoramento máximo', 'small'));
+        continue;
+      }
+      const improve = button('Aprimorar ' + name + ' para +' + offer.rank + ' · ' + offer.price + ' ouros',
+        () => send('inventoryAction', { action:'forge', slot, item:self.equipment[slot], rank:offer.rank }));
+      improve.disabled = self.level < offer.level || self.gold < offer.price;
+      children.push(improve, paragraph('Nível ' + offer.level + ' · +3 ' + (slot === 'weapon' ? 'ataque' : 'defesa'), 'small'));
+    }
     for (const [id, item] of Object.entries(data.equipment)) {
       if (!item.price) continue;
       const line = document.createElement('div');
@@ -267,7 +279,7 @@
       const feed = button('Dar maçã a Lume', () => send('inventoryAction', { action:'feed' }));
       feed.disabled = !!state.battle || !me.apples || me.companions.lume >= 5;
       list.push(feed);
-    } else list.push(paragraph('Mira ouviu falar de uma luz no Pomar dos Sussurros.', 'small'));
+    } else list.push(paragraph(lumeHint(), 'small'));
     if (me.companions.lia) list.push(paragraph('Lia acompanha sua jornada. Chame-a durante o combate para apoiar o grupo.', 'small'));
     $('inventoryPanel').replaceChildren(...list);
   }
@@ -286,13 +298,21 @@
     const description = map.kind === 'dungeon' ? data.dungeons[map.region]?.[map.dungeonIndex]?.description : data.lore[map.region];
     main.append(paragraph('Crônicas de Eldoria', 'summary'), paragraph(description || '', 'small'),
       ...state.world.quests.map(quest => paragraph((quest.completed ? '✓ ' : '◇ ') + quest.title, 'small')));
-    $('questList').replaceChildren(main, ...quests);
+    const lume = state.self.companions.lume ? [] : [paragraph('Encontre Lume, o espírito do pomar'), paragraph(lumeHint(), 'small')];
+    $('questList').replaceChildren(main, ...lume, ...quests);
     const routes = map.points.filter(p => p.kind === 'portal').map(p => {
       const blocked = p.shortcut && !state.world.orchardOpen || p.requires && !state.world.cleared[p.requires]
         || p.requiresRoom !== undefined && !state.world.rooms[map.region]?.includes(p.requiresRoom);
       return paragraph((blocked ? '◇ ' : '→ ') + p.label + (blocked ? ' · Fechado' : ''), 'small');
     });
     $('routeList').replaceChildren(paragraph('Rotas nesta área'), ...routes);
+  }
+
+  function lumeHint() {
+    if (state.zone === 'orchard') return state.self.apples
+      ? 'Leve sua maçã até o velho aqueduto, a nordeste, e use AÇÃO.'
+      : 'Sacuda a macieira do pomar e use AÇÃO outra vez quando a maçã cair.';
+    return 'Colha uma maçã na Vila. Siga a trilha do Pomar a leste da praça e procure a luz no aqueduto.';
   }
 
   function renderParty() {
@@ -316,15 +336,17 @@
     show('mobileExplore', !battle);
     if (!battle) return;
     const me = state.self;
-    const myTurn = battle.active === state.id && me.hp > 0;
+    const animating = battle.lastAction && worldTime() - battleTime < 690;
+    const myTurn = battle.active === state.id && me.hp > 0 && !battle.resolveAt && !animating;
     const active = state.heroes.find(hero => hero.id === battle.active);
     text('enemyName', battle.name);
     text('enemyPhase', battle.boss ? 'FASE ' + battle.phase + '/3' : 'RODADA ' + battle.round);
     text('enemyHp', battle.hp + ' / ' + battle.maxHp + ' PV');
     setBar('enemyBar', battle.hp, battle.maxHp);
     const target = state.heroes.find(hero => hero.id === battle.move?.target);
-    const warning = battle.move ? battle.move.name + (battle.move.type === 'charge' && target ? ' → ' + target.name : '') : '';
-    const turn = myTurn ? 'Sua vez' : active ? 'Vez de ' + active.name : 'Preparando rodada';
+    const warning = battle.move ? battle.move.name + (battle.move.type === 'area' ? ' → todo o grupo' : target ? ' → ' + target.name : '') : '';
+    const turn = battle.result ? 'Combate encerrado' : !active || animating && battle.lastAction?.side === 'enemy'
+      ? 'Vez do monstro' : active.id === state.id ? 'Sua vez' : 'Vez de ' + active.name;
     text('battleHint', turn + (warning ? ' · ' + warning : ''));
     text('battleLog', battle.lastAction?.text || 'Escolha sua ação.');
     const ability = data.classes[me.classKey].skill;
@@ -347,7 +369,7 @@
 
   function battleAction(action) {
     const battle = state?.battle;
-    if (!battle || battle.active !== state.id) return;
+    if (!battle || battle.active !== state.id || battle.resolveAt || (battle.lastAction && worldTime() - battleTime < 690)) return;
     send('battleAction', { id:battle.id, turn:battle.turn, action });
   }
 
@@ -442,7 +464,11 @@
         positions.set(entry.id, { x:entry.x, y:entry.y, tx:entry.x, ty:entry.y, facing:entry.facing, moving:false });
       }
     }
-    if (state.battle?.turn !== prior?.battle?.turn) battleTime = worldTime();
+    if (state.battle?.id !== prior?.battle?.id || state.battle?.turn !== prior?.battle?.turn) {
+      battleTime = worldTime();
+      clearTimeout(battleRefresh);
+      if (state.battle?.lastAction) battleRefresh = setTimeout(() => { if (state) renderBattle(); }, 710);
+    }
     refresh();
     if (state.world.cleared.shadow && !state.seenEnding && !cutscene && !state.battle && !state.endingPending) {
       openScene({ final:true, step:0, title:finalScenes[0][0], description:finalScenes[0][1] });
@@ -496,6 +522,9 @@
   });
 
   socket.on('state', acceptState);
+  socket.on('monsters', ({ zone, mobs }) => {
+    if (state?.zone === zone && !state.battle) state.mobs = mobs;
+  });
   socket.on('moved', packet => {
     if (!state || state.zone !== packet.zone || state.battle) return;
     const position = positions.get(packet.id);
@@ -580,7 +609,7 @@
     const player = control();
     const points = map.points.filter(p => Pixel.visiblePoint(p, map, state));
     const npcs = World.npcPositions(map.id, now, state.world);
-    const candidates = [...points, ...npcs].map(p => p.kind === 'enemy' ? World.patrol(p, now) : p)
+    const candidates = [...points, ...npcs].map(p => p.kind === 'enemy' ? { ...p, ...state.mobs?.[p.id] } : p)
       .filter(p => World.distance(player, p) <= (p.kind === 'npc' ? 77 : p.kind === 'portal' ? 62 : 56));
     candidates.sort((a,b) => World.distance(player,a) - World.distance(player,b));
     return { point:candidates[0], npc:npcs.find(p => World.distance(player, p) <= 55) };

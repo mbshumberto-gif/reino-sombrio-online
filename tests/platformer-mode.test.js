@@ -6,7 +6,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const World = require('../public/world-data');
 const { newCampaign, makeHero, makeMember, heroStats } = require('../adventure');
-const { startBattle, act } = require('../combat');
+const { startBattle, act, enemyTurn } = require('../combat');
 
 const html = fs.readFileSync(path.join(__dirname, '../public/index.html'), 'utf8');
 
@@ -15,7 +15,7 @@ test('a página usa o cliente top-down e oferece toque e continuação do herói
   assert.match(html, /pixel\.js\?v=/);
   assert.match(html, /game\.js\?v=/);
   assert.doesNotMatch(html, /rpg\.js|platformer\.js|newCharacterBtn|continuePreviousBtn/);
-  for (const control of ['virtualJoystick', 'mobileActionBtn', 'mobileAttackBtn', 'continueSaveBtn', 'continueCampaignBtn']) {
+  for (const control of ['virtualJoystick', 'mobileActionBtn', 'attackBtn', 'continueSaveBtn', 'continueCampaignBtn']) {
     assert.match(html, new RegExp('id="' + control + '"'));
   }
 });
@@ -109,10 +109,39 @@ test('o Ent exige três fases mesmo com um ataque muito forte', () => {
   assert.equal(act(battle, hero.id, 'attack', entries).outcome, null);
   assert.equal(battle.phase, 2);
   assert.equal(battle.totems, 2);
+  enemyTurn(battle, entries);
   assert.equal(act(battle, hero.id, 'totem', entries).outcome, null);
   assert.equal(battle.totems, 1);
+  enemyTurn(battle, entries);
   assert.equal(act(battle, hero.id, 'totem', entries).outcome, null);
+  enemyTurn(battle, entries);
   assert.equal(act(battle, hero.id, 'attack', entries).outcome, null);
   assert.equal(battle.phase, 3);
+  enemyTurn(battle, entries);
   assert.equal(act(battle, hero.id, 'attack', entries).outcome, 'won');
+});
+
+test('o monstro tem um turno próprio e defender mitiga o golpe e recupera mana', () => {
+  const hero = { id:'hero', data:makeHero('Guerreiro','warrior') };
+  const ally = { id:'ally', data:makeHero('Aliado','mage') };
+  const entries = [hero, ally];
+  const enemy = { name:'Lobo', hp:100, atk:24, gold:10, xp:20 };
+  const battle = startBattle('forest', { region:'forest', boss:false }, enemy, entries);
+  const hp = hero.data.hp;
+  hero.data.mana = 0;
+  act(battle, hero.id, 'defend', entries);
+  assert.equal(battle.active, ally.id);
+  assert.equal(hero.data.mana, 9);
+  act(battle, ally.id, 'attack', entries);
+  assert.equal(battle.active, null);
+  assert.equal(hero.data.hp, hp);
+  assert.equal(battle.lastAction.side, 'party');
+  enemyTurn(battle, entries);
+  const guarded = battle.lastAction.hits[0];
+  assert.equal(battle.lastAction.side, 'enemy');
+  assert.ok(guarded.guarded && guarded.damage > 0);
+  assert.equal(battle.active, hero.id);
+  const unguarded = startBattle('forest', { region:'forest', boss:false }, enemy, entries);
+  enemyTurn(unguarded, entries);
+  assert.ok(unguarded.lastAction.hits[0].damage > guarded.damage * 2);
 });

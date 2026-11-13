@@ -104,10 +104,10 @@ test('Ent tem três fases, Espaço ataca e o herói volta a andar após a vitór
   await page.waitForTimeout(150);
   await page.locator('#totemBtn').click();
   await page.locator('#totemBtn').waitFor({ state:'hidden' });
-  await page.waitForTimeout(150);
+  await page.waitForFunction(() => !document.querySelector('#attackBtn').disabled);
   await page.keyboard.press('Space');
   await page.getByText('FASE 3/3').waitFor();
-  await page.waitForTimeout(150);
+  await page.waitForFunction(() => !document.querySelector('#attackBtn').disabled);
   await page.keyboard.press('Space');
   await page.getByRole('dialog').getByText('Floresta Amaldiçoada conquistada').waitFor();
   await page.locator('#continueCampaignBtn').click();
