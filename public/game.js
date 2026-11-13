@@ -125,11 +125,11 @@ const REGION_STORY = {
  shadow:"Além do castelo existe um reino preso entre a vida e a morte. Malakar não deseja apenas conquistar Eldoria: ele pretende apagar todas as memórias do mundo e reescrevê-lo sob seu domínio."
 };
 const ENEMY_POINTS = {
- forest:[{x:220,y:250},{x:730,y:285},{x:470,y:405}],
- cave:[{x:220,y:220},{x:750,y:260},{x:470,y:405}],
- fire:[{x:210,y:260},{x:740,y:220},{x:490,y:405}],
- castle:[{x:220,y:250},{x:740,y:250},{x:480,y:405}],
- shadow:[{x:210,y:230},{x:750,y:245},{x:480,y:405}]
+ forest:[{x:220,y:250},{x:730,y:285},{x:470,y:405},{x:260,y:390},{x:760,y:420}],
+ cave:[{x:220,y:220},{x:750,y:260},{x:470,y:405},{x:260,y:390},{x:760,y:420}],
+ fire:[{x:210,y:260},{x:740,y:220},{x:490,y:405},{x:260,y:390},{x:760,y:420}],
+ castle:[{x:220,y:250},{x:740,y:250},{x:480,y:405},{x:260,y:390},{x:760,y:420}],
+ shadow:[{x:210,y:230},{x:750,y:245},{x:480,y:405},{x:260,y:390},{x:760,y:420}]
 };
 const BOSS_POINTS = {forest:{x:480,y:92},cave:{x:480,y:92},fire:{x:480,y:92},castle:{x:480,y:92},shadow:{x:480,y:92}};
 const NPC_POINTS = [{x:480,y:275,npc:"chronicler"},{x:340,y:360,npc:"healer"},{x:620,y:360,npc:"blacksmith"}];
@@ -622,9 +622,9 @@ socket.on("state",state=>{
    const activePlayer=state.players.find(p=>p.id===b.activePlayerId);
    $("attackBtn").disabled=!isMyTurn;$("potionBtn").disabled=!isMyTurn;$("fleeBtn").disabled=!isMyTurn||b.boss;$("defendBtn").disabled=!isMyTurn;$("skillBtn").disabled=!isMyTurn||!me||me.mana<((window.gameClasses?.[me.classKey]?.skill?.cost)||999);
    $("battleHint").textContent=isMyTurn
-     ? `Sua vez! Rodada ${b.turn}. Escolha sua ação.`
+     ? (b.boss && b.enraged ? `🔥 FASE 2 — ${b.enemy} está enfurecido! Rodada ${b.turn}: escolha sua ação com cuidado.` : `Sua vez! Rodada ${b.turn}. ${b.archetype==='caster'?'Cuidado com os feitiços do inimigo.':b.archetype==='brute'?'Prepare-se para golpes esmagadores.':b.archetype==='swift'?'O inimigo é rápido e pode atacar duas vezes.':'Escolha sua ação.'}`)
      : activePlayer
-       ? `Rodada ${b.turn}: vez de ${activePlayer.name}. Aguarde sua vez.`
+       ? `Rodada ${b.turn}: vez de ${activePlayer.name}. ${b.boss && b.enraged?'CHEFE NA FASE 2! ':''}Aguarde sua vez.`
        : "Aguardando o próximo turno.";
  } else {
    $("areaTitle").textContent=window.regionScenes?.[state.activeRegion]?.title || "Vila de Eldoria";
