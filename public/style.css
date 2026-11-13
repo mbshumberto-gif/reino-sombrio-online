@@ -214,3 +214,9 @@ body{background:#101a23;color:#fff0c2}
 .mobile-attack{border-color:#d87970;background:#743b40}
 @media(max-width:720px){.mobile-controls{display:flex}.mobile-pad{display:none!important}}
 @media(max-width:390px){.virtual-joystick{width:126px;height:126px}.joystick-ring{width:108px;height:108px}.joystick-knob{width:48px;height:48px}.mobile-action{width:88px;height:58px}}
+
+/* Arena de combate: equipe e criatura aparecem no mesmo campo de batalha */
+.battle-art{display:block;min-height:0}
+#battleSceneCanvas{display:block;width:100%;height:auto;max-height:300px;aspect-ratio:24/7;image-rendering:pixelated;border:2px solid #78684c;background:#182532;margin-bottom:12px}
+#enemyPortrait{display:none}
+@media(max-width:560px){#battleSceneCanvas{aspect-ratio:16/7;max-height:210px}.battle-art{min-height:0}}
