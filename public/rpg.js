@@ -298,17 +298,16 @@
 
       const region = window.gameRegions?.find(r => r.id === area);
       const enemies = region?.enemies || [], defeated = latestState.defeatedEnemies?.[area] || [];
-      if (!cleared) {
-        enemies.forEach((enemy, i) => {
-          if (defeated.includes(i) || !ENEMY_POINTS[area]?.[i]) return;
-          const p = ENEMY_POINTS[area][i];
-          pixelMonster(ctx, enemy.name, p.x, p.y, 2.2, false, now);
-          labels.push({ t: enemy.name, x: p.x, y: p.y + 38, c: "#fff0c2", bg: true });
-        });
-        if (region?.boss) {
-          pixelMonster(ctx, region.boss.name, BOSS_POINTS[area].x, BOSS_POINTS[area].y, 3.5, true, now);
-          labels.push({ t: "GUARDIÃO", x: 480, y: 135, c: "#f4cf72", bold: true });
-        }
+      // Inimigos comuns continuam no mapa após a vitória; o chefe é definitivo.
+      enemies.forEach((enemy, i) => {
+        if (defeated.includes(i) || !ENEMY_POINTS[area]?.[i]) return;
+        const p = ENEMY_POINTS[area][i];
+        pixelMonster(ctx, enemy.name, p.x, p.y, 2.2, false, now);
+        labels.push({ t: enemy.name, x: p.x, y: p.y + 38, c: "#fff0c2", bg: true });
+      });
+      if (!cleared && region?.boss) {
+        pixelMonster(ctx, region.boss.name, BOSS_POINTS[area].x, BOSS_POINTS[area].y, 3.5, true, now);
+        labels.push({ t: "GUARDIÃO", x: 480, y: 135, c: "#f4cf72", bold: true });
       }
     }
 
