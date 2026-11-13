@@ -29,6 +29,7 @@ $("createBtn").onclick=()=>socket.emit("createRoom",{name:$("playerName").value,
 $("continueSaveBtn").onclick=()=>socket.emit("continueSave",{name:$("playerName").value||"Aventureiro",characterId});
 $("saveGameBtn").onclick=()=>socket.emit("saveGame");
 $("dialogueNext").onclick=()=>$("dialoguePanel").classList.add("hidden");
+$("dialoguePanel").addEventListener("click",event=>{if(event.target.id!=="dialogueNext")$("dialoguePanel").classList.add("hidden");});
 $("joinBtn").onclick=()=>socket.emit("joinRoom",{name:$("playerName").value,roomCode:$("roomCode").value,heroClass:chosenHero(),characterId});
 $("copyBtn").onclick=async()=>{try{await navigator.clipboard.writeText(currentCode);toast("Código copiado! Envie para seus amigos.")}catch{toast("Código da sala: "+currentCode)}};
 $("readyBtn").onclick=()=>socket.emit("ready");
@@ -163,6 +164,8 @@ function makeTileMap(area){
    for(let y=2;y<16;y++)for(let x=2;x<28;x++)if((x*17+y*13)%17<3&&g[y][x]===0)g[y][x]=6;
    paint(4,4,2,2,5);paint(23,12,2,2,5);paint(18,4,2,2,6);
  }
+ // Praça de retorno: área livre para reposicionar a equipe após qualquer chefe.
+ paint(13,11,5,3,2);
  for(let x=13;x<=17;x++){g[0][x]=2;g[17][x]=2;}
  for(const point of [...(ENEMY_POINTS[area]||[]),...(BOSS_POINTS[area]?[BOSS_POINTS[area]]:[]),...(area==="village"?NPC_POINTS:[])]) {
    const tx=Math.floor(point.x/32),ty=Math.floor(point.y/32);
@@ -271,6 +274,14 @@ function pixelHero(ctx,p,time=0){
  if((p.level||1)>=10){rect(ctx,left+12,top+1,36,4,"#f4cf72");rect(ctx,left+7,top+5,4,8,"#f4cf72");rect(ctx,left+49,top+5,4,8,"#f4cf72");}
  if(p.facing==="left") { /* corpo mantém a silhueta legível; rosto e arma indicam direção */ rect(ctx,left+15,top+10,4,4,"#20232a"); }
  if(p.facing==="up"){rect(ctx,left+15,top+3,30,8,colors.hair);rect(ctx,left+18,top+13,24,6,colors.hair);}
+ // Nickname persistente acima da cabeça, com contraste para leitura no mapa.
+ const nick=String(p.name||"Aventureiro").slice(0,18);
+ ctx.save();ctx.font="bold 13px monospace";ctx.textAlign="center";ctx.textBaseline="bottom";
+ const tw=ctx.measureText(nick).width,tagY=top-7;
+ ctx.fillStyle=p.id===socket.id?"#263b2d":"#172330";
+ ctx.strokeStyle=p.id===socket.id?"#f4cf72":"#8da5ad";ctx.lineWidth=1.5;
+ ctx.beginPath();ctx.roundRect(x-tw/2-7,tagY-17,tw+14,19,5);ctx.fill();ctx.stroke();
+ ctx.fillStyle="#fff4cf";ctx.fillText(nick,x,tagY-2);ctx.restore();
 }
 function drawBattleScene(state){
  const canvas=$("battleSceneCanvas");if(!canvas||!state?.battle)return;
@@ -344,7 +355,14 @@ function drawWorld(){
  const area=latestState.activeRegion||"village";
  if(!worldCache.has(area))worldCache.set(area,drawMapBase(area));
  const ctx=canvas.getContext("2d"),base=worldCache.get(area);ctx.clearRect(0,0,960,576);ctx.drawImage(base.canvas,0,0);
- if(area==="village"){drawGate(ctx,480,550,"FLORESTA");NPC_POINTS.forEach((n,i)=>{const npcLook=[{classKey:"mage",level:8},{classKey:"cleric",level:6},{classKey:"warrior",level:9}][i];pixelHero(ctx,{...npcLook,x:n.x,y:n.y,facing:"down"},Date.now());ctx.fillStyle="#fff0c2";ctx.font="12px monospace";ctx.textAlign="center";ctx.fillText(["ADERIC","MIRA","ELDRIN"][i],n.x,n.y+35);});}
+ if(area==="village"){
+   drawGate(ctx,480,550,"FLORESTA");
+   NPC_POINTS.forEach((n,i)=>{
+     const npcLook=[{classKey:"mage",level:8},{classKey:"cleric",level:6},{classKey:"warrior",level:9}][i];
+     const t=Date.now()/1000, wanderX=Math.sin(t*.55+i*2.1)*5, wanderY=Math.cos(t*.7+i*1.7)*3;
+     pixelHero(ctx,{...npcLook,name:["ADERIC","MIRA","ELDRIN"][i],x:n.x+wanderX,y:n.y+wanderY,facing:["down","left","right"][Math.floor((t/4+i)%3)],moving:true},Date.now());
+   });
+ }
  else{
    const idx=["forest","cave","fire","castle","shadow"].indexOf(area),previous=idx===0?"VILA":(["forest","cave","fire","castle","shadow"][idx-1]||"VILA");
    drawGate(ctx,480,550,previous,false);
@@ -354,6 +372,22 @@ function drawWorld(){
    enemies.forEach((enemy,i)=>{if(!defeated.includes(i)){pixelMonster(ctx,enemy.name,ENEMY_POINTS[area][i].x,ENEMY_POINTS[area][i].y,2.2,false,Date.now());ctx.fillStyle="#fff0c2";ctx.font="12px monospace";ctx.textAlign="center";ctx.fillText(enemy.name,ENEMY_POINTS[area][i].x,ENEMY_POINTS[area][i].y+31);}});
    const region=window.gameRegions?.find(r=>r.id===area);
    if(region?.boss&&!latestState.world?.[area]){pixelMonster(ctx,region.boss.name,BOSS_POINTS[area].x,BOSS_POINTS[area].y,3.5,true,Date.now());ctx.fillStyle="#f4cf72";ctx.font="bold 13px monospace";ctx.textAlign="center";ctx.fillText("GUARDIÃO",480,135);}
+ }
+ // Cachoeira animada: água em camadas, espuma e névoa em movimento na Caverna dos Ecos.
+ if(area==="cave"){
+   const t=Date.now()/150;
+   ctx.save();
+   ctx.fillStyle="#1b3344";ctx.fillRect(730,118,54,210);
+   for(let i=0;i<7;i++){
+     const x=735+i*7,offset=(t*3+i*19)%42;
+     ctx.fillStyle=i%2?"#63c6d0":"#a2eef0";
+     ctx.fillRect(x,122+offset,3,72);
+     ctx.fillRect(x+((i%3)-1)*2,205+((t*2+i*11)%55),2,48);
+   }
+   ctx.fillStyle="#b5f4ed";ctx.globalAlpha=.38;
+   for(let i=0;i<12;i++){const x=720+((i*17+t*4)%75),y=315+Math.sin(t+i)*7;ctx.fillRect(x,y,5,2);}
+   ctx.globalAlpha=.18;ctx.fillStyle="#d5ffff";ctx.beginPath();ctx.ellipse(757,333,54,12+Math.sin(t)*3,0,0,Math.PI*2);ctx.fill();
+   ctx.restore();
  }
  const me=currentPlayer();
  if(me){latestState.players.filter(p=>p.id!==socket.id).forEach(p=>pixelHero(ctx,p,Date.now()));pixelHero(ctx,{...me,...(localPosition||{})},Date.now());}
@@ -476,7 +510,12 @@ $("musicVolume").addEventListener('input', () => {
 fetch("/game-data").then(response=>response.json()).then(data=>{window.gameClasses=data.classes;window.gameQuests=data.quests;window.gameRegions=data.regions;const select=$("heroClass");select.innerHTML="";Object.entries(data.classes).forEach(([key,hero])=>{const option=document.createElement("option");option.value=key;option.textContent=`${hero.name} — ${hero.role} | ${hero.skill.name}`;select.append(option);});if(latestState){renderCampaign(latestState);renderMap();}}).catch(()=>{});
 fetch('/campaign-data').then(r=>r.json()).then(data=>{window.regionScenes=data.scenes;window.dungeonData=data.dungeons;window.sideQuestData=data.sideQuests;if(latestState){renderCampaign(latestState);renderMap();}}).catch(()=>{});
 socket.on("joined",data=>{currentCode=data.code;localPosition=null;enterGame();if(!window.platformerMode){worldLoopActive=true;requestAnimationFrame(worldAnimation);}toast(data.restored?"Progresso recuperado!":"Você entrou na aventura! Explore Eldoria.");});
-socket.on("dialogue",data=>{if(!data)return;$("dialogueTitle").textContent=data.title||"Morador de Eldoria";$("dialogueText").textContent=(data.lines||[]).join(" ");$("dialoguePanel").classList.remove("hidden");if(data.npc==="blacksmith")$("merchant").classList.remove("hidden");});
+socket.on("dialogue",data=>{if(!data)return;
+ $("dialogueTitle").textContent=data.title||"Morador de Eldoria";
+ $("dialogueText").textContent=(data.lines||[]).join(" ");
+ $("dialoguePanel").classList.remove("hidden");
+ if(data.npc==="blacksmith")$("merchant").classList.remove("hidden");
+});
 socket.on("errorMessage",toast);
 socket.on("notice",msg=>{toast(msg);log(msg)});
 const remoteMoveTimers = new Map();

@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#18251e">
-<title>As Crônicas do Reino Sombrio</title><link rel="stylesheet" href="style.css?v=2">
+<title>As Crônicas do Reino Sombrio</title><link rel="stylesheet" href="style.css?v=3">
 </head>
 <body>
 <main class="shell">
@@ -33,7 +33,7 @@
       <div id="overworld" class="overworld pixel-world" role="application" aria-label="Mundo de Eldoria. Use WASD ou as setas para andar.">
         <canvas id="worldCanvas" width="960" height="540" aria-label="Mapa pixel art de Eldoria"></canvas>
         <div class="map-title" id="mapTitle">ELDORIA • VILA DOS AVENTUREIROS</div>
-        <div id="nearbyPrompt" class="nearby-prompt">WASD / SETAS PARA ANDAR • E PARA INTERAGIR</div>
+        <div id="nearbyPrompt" class="nearby-prompt">WASD / SETAS PARA ANDAR • E PARA INTERAGIR</div><section id="dialoguePanel" class="dialogue-pokemon hidden" aria-live="polite"><div class="dialogue-name"><strong id="dialogueTitle">Morador de Eldoria</strong></div><p id="dialogueText"></p><button id="dialogueNext" type="button" aria-label="Fechar conversa">▼</button></section>
       </div>
       <div class="mobile-controls" aria-label="Controles para celular">
         <div class="virtual-joystick" id="virtualJoystick" role="application" aria-label="Analógico virtual para movimentar o herói"><div class="joystick-ring"><div class="joystick-knob" id="joystickKnob"></div></div><span class="joystick-caption">MOVER</span></div>
@@ -59,10 +59,9 @@
     </div></details>
   </div>
   <section id="regionScene" class="region-scene hidden"><div class="scene-heading"><span>REGIÃO</span><h3 id="sceneTitle">Vila de Eldoria</h3><p id="sceneSubtitle">O último refúgio</p></div><div id="sceneLandmarks" class="scene-landmarks"></div><div id="enemyGallery" class="enemy-gallery"></div></section>
-  <section id="dialoguePanel" class="dialogue-toast hidden" aria-live="polite"><div><small>ELDORIA</small><strong id="dialogueTitle">Personagem</strong><p id="dialogueText"></p></div><button id="dialogueNext" type="button" aria-label="Fechar conversa">×</button></section>
   <section id="transitionScreen" class="transition-screen hidden"><div class="transition-card"><small>CAPÍTULO CONCLUÍDO</small><h2 id="transitionTitle">Região conquistada</h2><p id="transitionMessage"></p><button id="continueCampaignBtn" class="primary">Continuar campanha</button></div></section>
 </section>
 <div id="toast" role="status"></div>
 </main>
-<script src="/socket.io/socket.io.js"></script><script src="game.js?v=7"></script>
+<script src="/socket.io/socket.io.js"></script><script src="game.js?v=8"></script>
 </body></html>

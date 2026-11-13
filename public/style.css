@@ -226,3 +226,12 @@ body{background:#101a23;color:#fff0c2}
 @keyframes dialogue-pop{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
 #battleSceneCanvas{transform-origin:center;animation:battle-idle 2.4s ease-in-out infinite}
 @keyframes battle-idle{0%,100%{filter:brightness(1)}50%{filter:brightness(1.08)}}
+
+/* Caixa de diálogo clássica inspirada em RPGs portáteis, dentro do mundo. */
+.dialogue-pokemon{position:absolute;z-index:30;left:2.5%;right:2.5%;bottom:2.5%;min-height:112px;padding:20px 24px 18px;background:linear-gradient(180deg,#243d55f5,#142536f8);border:4px solid #e8d39a;outline:3px solid #14202b;border-radius:8px;box-shadow:0 0 0 2px #5f7890,inset 0 0 0 2px #8298a7;color:#fff4d6;display:block;cursor:pointer}
+.dialogue-pokemon.hidden{display:none!important}
+.dialogue-pokemon .dialogue-name{position:absolute;left:18px;top:-19px;padding:6px 14px;background:#263e32;border:3px solid #e8d39a;border-radius:5px;color:#ffe6a3;font: bold 13px monospace}
+.dialogue-pokemon p{margin:8px 28px 0 0;font:16px/1.55 monospace;letter-spacing:.2px}
+.dialogue-pokemon button{position:absolute;right:13px;bottom:10px;border:0;background:transparent;color:#ffe6a3;font-size:23px;animation:dialogue-caret .8s steps(2) infinite}
+@keyframes dialogue-caret{50%{transform:translateY(4px);opacity:.35}}
+#worldCanvas{position:relative}
