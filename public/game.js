@@ -282,6 +282,7 @@ function drawBattleScene(state){
  const party=state.players.filter(p=>p.hp>0);
  party.forEach((p,index)=>{const x=110+(index%4)*125,y=130+Math.floor(index/4)*76;pixelHero(ctx,{...p,x,y,facing:"right",moving:true},Date.now());ctx.fillStyle="#fff0c2";ctx.font="13px monospace";ctx.fillText(p.name.slice(0,13),x,y+43);if(p.id===state.battle.activePlayerId){ctx.strokeStyle="#f4cf72";ctx.lineWidth=3;ctx.beginPath();ctx.arc(x,y-5,34,0,Math.PI*2);ctx.stroke();}});
  pixelMonster(ctx,state.battle.enemy,755,145,5.5,!!state.battle.boss,Date.now());
+ const fx=window.battleFx;if(fx&&Date.now()-fx.at<520){const t=(Date.now()-fx.at)/520;ctx.save();ctx.globalAlpha=1-t;ctx.strokeStyle=fx.type==="enemy"?"#e77d70":"#fff0a8";ctx.lineWidth=8;ctx.beginPath();ctx.moveTo(665-t*25,88+t*62);ctx.lineTo(835-t*12,188-t*38);ctx.stroke();ctx.fillStyle=fx.type==="enemy"?"#e77d70":"#f4cf72";ctx.beginPath();ctx.arc(755,145,15+t*45,0,Math.PI*2);ctx.fill();ctx.restore();requestAnimationFrame(()=>drawBattleScene(state));}else if(fx)window.battleFx=null;
  ctx.fillStyle="#f4cf72";ctx.font="bold 13px monospace";ctx.fillText("INIMIGO",755,238);
 }
 function drawGate(ctx,x,y,label,locked=false){
