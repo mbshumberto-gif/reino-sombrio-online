@@ -1,67 +1,147 @@
 <!doctype html>
 <html lang="pt-BR">
 <head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#18251e">
-<title>As Crônicas do Reino Sombrio</title><link rel="stylesheet" href="style.css?v=6">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#182131">
+  <title>As Crônicas do Reino Sombrio</title>
+  <link rel="stylesheet" href="/style.css?v=14">
+  <script defer src="/socket.io/socket.io.js"></script>
+  <script defer src="/world-data.js?v=1"></script>
+  <script defer src="/pixel.js?v=1"></script>
+  <script defer src="/game.js?v=14"></script>
 </head>
 <body>
-<main class="shell">
-<section id="titleScreen" class="title-screen">
-  <div class="title-sky"><span class="moon"></span><span class="star s1">✦</span><span class="star s2">✧</span><span class="star s3">✦</span><div class="title-mountains"></div><div class="title-castle">♜</div><div class="title-forest"></div></div>
-  <div class="title-copy"><p class="eyebrow">UMA AVENTURA EM ELDORIA</p><h1>AS CRÔNICAS DO<br><span>REINO SOMBRIO</span></h1><p>Uma antiga escuridão desperta além das montanhas...</p><button id="startAdventureBtn" class="primary start-button">▶ COMEÇAR AVENTURA</button></div>
-  <div class="title-footer">WASD / SETAS PARA ANDAR　 •　 E PARA INTERAGIR</div>
-</section>
-<header id="gameHeader" class="game-header hidden">
-  <div><p class="eyebrow">AS CRÔNICAS DO REINO SOMBRIO</p><h1>ELDORIA</h1></div>
-  <div class="music-tools"><button id="musicToggle" class="music-button" type="button">♫ Música: desligada</button><input id="musicVolume" class="volume" type="range" min="0" max="100" value="35" aria-label="Volume da música"></div>
-</header>
-<section id="entry" class="panel entry-panel hidden">
-  <button id="backTitleBtn" class="back-button">← Voltar</button>
-  <h2>Prepare seu aventureiro</h2>
-  <label for="playerName">Nome do herói</label><input id="playerName" maxlength="18" placeholder="Nome do seu herói">
-  <label for="heroClass">Escolha sua classe</label><select id="heroClass"><option value="warrior">Guerreiro</option></select>
-  <button id="createBtn" class="primary">Criar nova aventura</button><button id="continueSaveBtn" class="secondary">Continuar de onde parei</button><p class="hint">Sua aventura é salva automaticamente. Continue de onde parou sempre que voltar.</p>
-  <div class="or">OU ENTRE NA AVENTURA DE UM AMIGO</div>
-  <label for="roomCode">Código da sala</label><input id="roomCode" maxlength="6" placeholder="ABC123" class="code">
-  <button id="joinBtn">Entrar na sala</button><p class="hint">Até 8 aventureiros podem jogar juntos.</p>
-</section>
-<section id="game" class="hidden">
-  <div class="game-topbar"><div class="room-chip">SALA <strong id="roomLabel">------</strong><button id="copyBtn" class="small">Copiar</button><button id="saveGameBtn" class="small">Salvar agora</button></div><div id="heroHud" class="hero-hud"><span id="character">Seu herói</span></div></div>
-  <div class="game-layout">
-    <section class="world-panel">
-      <div class="scene-caption"><span id="areaTitle">Vila de Eldoria</span><p id="storyText">As sombras avançam sobre o reino.</p></div>
-      <div id="overworld" class="overworld pixel-world" role="application" aria-label="Mundo de Eldoria. Use WASD ou as setas para andar.">
-        <canvas id="worldCanvas" width="960" height="540" aria-label="Mapa pixel art de Eldoria"></canvas>
-        <div class="map-title" id="mapTitle">ELDORIA • VILA DOS AVENTUREIROS</div>
-        <div id="nearbyPrompt" class="nearby-prompt">WASD / SETAS PARA ANDAR • E PARA INTERAGIR</div><section id="dialoguePanel" class="dialogue-pokemon hidden" aria-live="polite"><div class="dialogue-name"><strong id="dialogueTitle">Morador de Eldoria</strong></div><p id="dialogueText"></p><button id="dialogueNext" type="button" aria-label="Fechar conversa">▼</button></section>
+  <main class="shell">
+    <section id="titleScreen" class="title-screen">
+      <div class="title-copy">
+        <span class="subtitle">AS CRÔNICAS DE ELDORIA</span>
+        <h1>REINO<br><span>SOMBRIO</span></h1>
+        <p>As Sete Lanternas se apagaram. É hora de voltar para casa.</p>
+        <button id="startAdventureBtn" class="primary" type="button">Começar aventura</button>
       </div>
-      <div class="mobile-controls" aria-label="Controles para celular">
-        <div class="virtual-joystick" id="virtualJoystick" role="application" aria-label="Analógico virtual para movimentar o herói"><div class="joystick-ring"><div class="joystick-knob" id="joystickKnob"></div></div><span class="joystick-caption">MOVER</span></div>
-        <div class="mobile-actions"><button type="button" id="mobileActionBtn" class="mobile-action">AÇÃO <small>INTERAGIR</small></button><button type="button" id="mobileAttackBtn" class="mobile-action mobile-attack">⚔ ATACAR</button></div>
-      </div>
-      <div id="battle" class="battle-stage hidden">
-        <div class="battle-art"><canvas id="battleSceneCanvas" width="960" height="280" aria-label="Cena de batalha com os aventureiros e o inimigo"></canvas><canvas id="enemyPortrait" class="enemy-portrait" width="160" height="140" aria-label="Inimigo em pixel art"></canvas><div class="enemy-info"><small>INIMIGO</small><h3 id="enemyName">---</h3><div class="bar"><i id="enemyBar"></i></div><p id="enemyHp"></p></div></div>
-        <p id="battleHint">A batalha começou!</p><button id="attackBtn" class="primary attack-main">⚔ ATACAR <kbd>ESPAÇO</kbd></button>
-        <div class="battle-extras"><button id="potionBtn">🧪 Poção</button><button id="defendBtn">🛡 Defender</button><button id="skillBtn">✨ Habilidade</button><button id="fleeBtn" class="danger">Fugir</button></div>
-      </div>
-      <div id="log" class="story-log" aria-live="polite"></div>
-      <div id="actions" class="region-actions"><button data-area="forest" data-action="enter" class="primary">Seguir para a Floresta</button></div>
-      <div id="townActions" class="town-actions hidden"><button id="treasureForestBtn">Procurar tesouro</button><button id="treasureCaveBtn">Vasculhar escombros</button><button id="merchantBtn">Mercador</button><button data-boss-area="forest">Chefe da floresta</button><button data-boss-area="cave">Chefe da caverna</button><button data-boss-area="fire">Chefe das terras do fogo</button><button data-boss-area="castle">Chefe do castelo</button><button data-boss-area="shadow">Malakar</button></div>
-      <div id="merchant" class="merchant hidden"><h3>Mercador de Eldoria</h3><div class="actions"><button data-buy="potion">Poção — 10 ouros</button><button data-buy="steelSword">Espada — 90 ouros</button><button data-buy="oakStaff">Cajado — 70 ouros</button><button data-buy="leatherArmor">Armadura — 45 ouros</button><button data-buy="chainArmor">Cota — 110 ouros</button><button data-buy="shadowCloak">Manto — 220 ouros</button><button id="closeMerchant">Fechar</button></div></div>
     </section>
-    <details class="drawer game-menu"><summary>☰ Menu do aventureiro</summary><div class="side-rail">
-      <section class="party-panel"><h2>Companheiros</h2><div id="players"></div><button id="readyBtn">Estou pronto</button><button id="restBtn" class="secondary">Descansar (10 ouros)</button></section>
-      <details class="drawer"><summary>🗺 Mapa de viagem</summary><div id="world" class="world"></div></details>
-      <details class="drawer"><summary>🎒 Mochila e equipamentos</summary><div id="inventoryPanel">Entre na aventura para ver seus itens.</div><button id="skillUpgradeBtn" class="secondary">Aprimorar habilidade</button></details>
-      <details class="drawer"><summary>📜 Missões e histórias</summary><div id="questList">Carregando objetivos...</div><div id="sideQuestList">Nenhuma missão secundária.</div></details>
-      <details class="drawer"><summary>🏚 Dungeons e exploração</summary><p id="dungeonDescription">Descubra dungeons ao explorar o mundo.</p><div class="actions"><button id="dungeonStartBtn">Entrar na dungeon</button><button id="dungeonRoomBtn">Explorar sala</button><button id="dungeonAdvanceBtn">Avançar</button><button id="dungeonLeaveBtn">Sair</button></div><div id="dungeonStatus"></div></details>
-      <details class="drawer"><summary>💬 Conversar com moradores</summary><div class="actions"><button data-npc="chronicler">Cronista</button><button data-npc="healer">Curandeira</button><button data-npc="blacksmith">Ferreiro</button></div></details>
-    </div></details>
-  </div>
-  <section id="regionScene" class="region-scene hidden"><div class="scene-heading"><span>REGIÃO</span><h3 id="sceneTitle">Vila de Eldoria</h3><p id="sceneSubtitle">O último refúgio</p></div><div id="sceneLandmarks" class="scene-landmarks"></div><div id="enemyGallery" class="enemy-gallery"></div></section>
-  <section id="transitionScreen" class="transition-screen hidden"><div class="transition-card"><small id="transitionEyebrow">CAPÍTULO CONCLUÍDO</small><h2 id="transitionTitle">Região conquistada</h2><p id="transitionMessage"></p><div id="endingSequence" class="ending-sequence hidden"><div id="endingStage" class="ending-stage"><div class="ending-moon"></div><div class="ending-castle">♜</div><div class="ending-chains">⛓　⛓　⛓</div><div class="freed-people"><span>♟</span><span>♟</span><span>♟</span><span>♟</span><span>♟</span><span>♟</span><span>♟</span></div><div class="ending-sun"></div></div><p id="endingNarration" class="ending-narration"></p></div><button id="continueCampaignBtn" class="primary">Continuar campanha</button></div></section>
-</section>
-<div id="toast" role="status"></div>
-</main>
-<script src="/socket.io/socket.io.js"></script><script src="game.js?v=13"></script>
-</body></html>
+
+    <section id="entry" class="entry panel hidden">
+      <button id="backTitleBtn" type="button" class="subtle">← Voltar</button>
+      <div class="entry-title"><canvas id="heroPreview" width="80" height="80" aria-hidden="true"></canvas><h2>Seu herói</h2></div>
+      <form id="heroForm">
+        <label for="playerName">Nome do herói</label>
+        <input id="playerName" name="playerName" maxlength="18" placeholder="Aventureiro" autocomplete="nickname">
+        <label for="heroClass">Classe</label>
+        <select id="heroClass" name="heroClass"><option value="warrior">Guerreiro</option></select>
+        <p id="classRole" class="muted"></p>
+        <div class="button-row">
+          <button id="createBtn" class="primary" type="submit">Criar aventura</button>
+          <button id="continueSaveBtn" type="button">Continuar aventura</button>
+        </div>
+      </form>
+      <form id="joinForm" class="invite-form">
+        <label for="roomCode">Convite de um amigo</label>
+        <div class="button-row">
+          <input id="roomCode" maxlength="6" placeholder="ABC123" class="code" autocapitalize="characters" autocomplete="off">
+          <button id="joinBtn" type="submit">Entrar na sala</button>
+        </div>
+      </form>
+      <details class="recovery-entry">
+        <summary>Recuperar personagem</summary>
+        <form id="recoverForm" class="button-row">
+          <label class="sr-only" for="recoveryCode">Código de recuperação</label>
+          <input id="recoveryCode" maxlength="160" autocomplete="off" spellcheck="false" placeholder="Código de recuperação">
+          <button type="submit">Recuperar</button>
+        </form>
+      </details>
+      <p id="entryStatus" role="status" class="status">Conectando a Eldoria…</p>
+    </section>
+
+    <section id="game" class="hidden">
+      <header class="topbar">
+        <div class="brand"><span class="sigil" aria-hidden="true">✦</span><div><span>AS CRÔNICAS</span><strong>ELDORIA</strong></div></div>
+        <div class="room-tools">
+          <span class="room-code">Sala <strong id="roomLabel"></strong></span>
+          <button id="copyBtn" type="button">Copiar convite</button>
+          <button id="saveGameBtn" type="button">Salvar agora</button>
+          <button id="musicToggle" type="button" aria-pressed="false">♫ Música</button>
+          <label class="sr-only" for="musicVolume">Volume da música</label><input id="musicVolume" class="volume" type="range" min="0" max="100" value="35">
+          <button id="leaveAdventureBtn" type="button">Sair da sala</button>
+        </div>
+        <p id="connectionStatus" class="connection-status" role="status"></p>
+      </header>
+
+      <div class="layout">
+        <section class="play panel" aria-label="Mundo de Eldoria">
+          <header class="location"><div><span id="zoneTag" class="subtitle">ELDORIA</span><h1 id="areaTitle">Vila de Eldoria</h1></div><div id="miniClock" class="clock"></div></header>
+          <div id="overworld" class="overworld">
+            <canvas id="worldCanvas" width="960" height="576" aria-label="Mapa pixel art de Eldoria"></canvas>
+            <div id="nearbyPrompt" class="map-prompt">WASD ou setas para andar · E para interagir</div>
+          </div>
+          <section id="dialoguePanel" class="dialogue hidden" aria-label="Conversa">
+            <canvas id="dialoguePortrait" width="76" height="72" aria-hidden="true"></canvas>
+            <div class="dialogue-content"><h2 id="dialogueTitle"></h2><p id="dialogueText" aria-live="polite"></p>
+              <div id="dialogueOptions" class="button-row"></div>
+              <button id="dialogueNext" type="button">Continuar ▸</button>
+            </div>
+          </section>
+          <div id="mobileExplore" class="mobile-controls">
+            <div id="virtualJoystick" class="joystick" aria-label="Analógico virtual para mover o herói">
+              <div class="joystick-ring"><div id="joystickKnob" class="joystick-knob"></div></div>
+              <span>MOVER</span>
+            </div>
+            <button id="mobileActionBtn" class="primary mobile-action" type="button">AÇÃO</button>
+          </div>
+          <section id="battle" class="battle hidden" aria-label="Combate por turnos">
+            <div class="arena"><canvas id="battleSceneCanvas" width="760" height="296" aria-label="Equipe e criatura"></canvas>
+              <div class="enemy-hud"><span id="enemyPhase" class="subtitle"></span><h2 id="enemyName"></h2>
+                <div class="meter"><i id="enemyBar"></i></div><span id="enemyHp"></span>
+              </div>
+            </div>
+            <p id="battleHint" role="status"></p>
+            <p id="battleLog"></p>
+            <div id="battleActions" class="battle-actions">
+              <button id="attackBtn" data-action="attack" class="primary" type="button">Atacar <kbd>Espaço</kbd></button>
+              <button id="defendBtn" data-action="defend" type="button">Defender</button>
+              <button id="skillBtn" data-action="skill" type="button">Habilidade</button>
+              <button id="techniqueBtn" data-action="technique" type="button">Técnica</button>
+              <button id="potionBtn" data-action="potion" type="button">Poção</button>
+              <button id="appleBtn" data-action="apple" type="button">Maçã</button>
+              <button id="totemBtn" data-action="totem" type="button">Quebrar totem</button>
+              <button id="companionBtn" data-action="companion" type="button">Chamar Lia</button>
+              <button id="fleeBtn" data-action="flee" type="button">Fugir</button>
+            </div>
+            <button id="mobileAttackBtn" class="primary mobile-attack" data-action="attack" type="button">ATACAR</button>
+          </section>
+        </section>
+
+        <aside class="side" aria-label="Ficha da aventura">
+          <section class="panel hero-panel">
+            <canvas id="hudPortrait" width="74" height="66" aria-hidden="true"></canvas>
+            <div><h2 id="heroName">Aventureiro</h2><p id="heroClassName" class="muted"></p></div>
+            <div class="vitals"><span id="heroHp"></span><div class="meter"><i id="heroHpBar"></i></div>
+              <span id="heroMana"></span><div class="meter mana"><i id="heroManaBar"></i></div></div>
+            <p id="heroStats" class="stats"></p>
+          </section>
+          <details class="panel drawer" open><summary>Grupo</summary><ul id="players" class="list"></ul></details>
+          <details class="panel drawer"><summary>Missões e mapa</summary><div id="questList"></div><div id="routeList"></div></details>
+          <details class="panel drawer"><summary>Mochila e companheiros</summary><div id="inventoryPanel"></div></details>
+          <details class="panel drawer"><summary>Histórico</summary><div id="log" class="history" aria-live="polite"></div>
+            <button id="recoveryBtn" type="button">Gerar código de recuperação</button>
+          </details>
+        </aside>
+      </div>
+    </section>
+  </main>
+
+  <dialog id="worldDialog">
+    <form method="dialog"><button class="close-dialog" type="submit" aria-label="Fechar janela">×</button></form>
+    <h2 id="worldDialogTitle"></h2>
+    <div id="worldDialogBody"></div>
+  </dialog>
+  <dialog id="transitionScreen">
+    <div id="endingStage" class="ending-art"></div>
+    <h2 id="transitionTitle"></h2>
+    <p id="transitionMessage"></p>
+    <button id="continueCampaignBtn" class="primary" type="button">Continuar</button>
+  </dialog>
+  <div id="toast" class="toast hidden" role="status"></div>
+</body>
+</html>

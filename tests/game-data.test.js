@@ -1,7 +1,7 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { HERO_CLASSES, EQUIPMENT, REGIONS, QUESTS } = require('../game-data');
+const { HERO_CLASSES, EQUIPMENT, REGIONS, QUESTS, TECHNIQUES } = require('../game-data');
 
 test('the RPG exposes the nine requested playable classes', () => {
   assert.equal(Object.keys(HERO_CLASSES).length, 9);
@@ -9,6 +9,7 @@ test('the RPG exposes the nine requested playable classes', () => {
     assert.ok(HERO_CLASSES[key], `missing class ${key}`);
     assert.ok(HERO_CLASSES[key].skill?.id);
     assert.ok(HERO_CLASSES[key].skill?.cost > 0);
+    assert.ok(TECHNIQUES[key]?.cost > 0);
   }
 });
 
@@ -30,7 +31,7 @@ test('every campaign region has a quest and rewards', () => {
 
 test('equipment has valid slots and prices', () => {
   for (const item of Object.values(EQUIPMENT)) {
-    assert.ok(['weapon','armor'].includes(item.slot));
-    assert.ok(item.price > 0);
+    assert.ok(['weapon','armor','charm'].includes(item.slot));
+    assert.ok(item.price >= 0);
   }
 });

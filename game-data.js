@@ -4,10 +4,10 @@
 const HERO_CLASSES = {
   warrior:{name:'Guerreiro',role:'Tanque / dano físico',hp:145,attack:15,defense:9,mana:35,weapon:'Espada de ferro',skill:{id:'golpe_poderoso',name:'Golpe poderoso',description:'Causa 2x o ataque físico.',cost:10,power:2},passive:'Recebe 15% menos dano físico.'},
   mage:{name:'Mago',role:'Dano mágico',hp:90,attack:21,defense:3,mana:110,weapon:'Cajado arcano',skill:{id:'bola_fogo',name:'Bola de fogo',description:'Explosão arcana com dano mágico elevado.',cost:25,power:2.2},passive:'Poder mágico aumentado.'},
-  sorceress:{name:'Feiticeira',role:'Controle / dano mágico',hp:100,attack:18,defense:4,mana:100,weapon:'Orbe das brumas',skill:{id:'raio_arcano',name:'Raio arcano',description:'Dano mágico e chance de enfraquecer o alvo.',cost:22,power:1.9},passive:'Habilidades custam menos mana.'},
+  sorceress:{name:'Feiticeira',role:'Controle / dano mágico',hp:100,attack:18,defense:4,mana:100,weapon:'Orbe das brumas',skill:{id:'raio_arcano',name:'Raio arcano',description:'Dano mágico que enfraquece o próximo ataque inimigo.',cost:22,power:1.9},passive:'Habilidades custam menos mana.'},
   cleric:{name:'Clérigo',role:'Cura / suporte',hp:120,attack:12,defense:7,mana:100,weapon:'Maça sagrada',skill:{id:'cura_sagrada',name:'Cura sagrada',description:'Recupera vida de todo o grupo.',cost:28,power:34},passive:'Poções e curas restauram mais vida.'},
   rogue:{name:'Ladino',role:'Crítico / velocidade',hp:105,attack:18,defense:4,mana:55,weapon:'Adagas duplas',skill:{id:'golpe_sombrio',name:'Golpe sombrio',description:'Ataque forte com chance de crítico.',cost:16,power:2.1},passive:'Chance adicional de acerto crítico.'},
-  bard:{name:'Bardo',role:'Suporte / inspiração',hp:110,attack:13,defense:5,mana:95,weapon:'Alaúde antigo',skill:{id:'cancao_guerreira',name:'Canção guerreira',description:'Fortalece ataque e defesa do grupo nesta rodada.',cost:24,power:1.25},passive:'Concede bônus de ouro ao grupo.'},
+  bard:{name:'Bardo',role:'Suporte / inspiração',hp:110,attack:13,defense:5,mana:95,weapon:'Alaúde antigo',skill:{id:'cancao_guerreira',name:'Canção guerreira',description:'Fortalece ataque e defesa do grupo nesta rodada.',cost:24,power:1.25},passive:'A equipe recebe mais ouro quando vence.'},
   paladin:{name:'Paladino',role:'Defesa / cura',hp:150,attack:14,defense:10,mana:75,weapon:'Martelo da aurora',skill:{id:'escudo_luz',name:'Escudo de luz',description:'Reduz o próximo dano recebido por todos.',cost:22,power:0.5},passive:'Resistência elevada contra chefes.'},
   ranger:{name:'Ranger',role:'Dano à distância',hp:115,attack:18,defense:5,mana:65,weapon:'Arco élfico',skill:{id:'chuva_flechas',name:'Chuva de flechas',description:'Dispara uma sequência de flechas.',cost:18,power:1.8},passive:'Dano aumentado contra criaturas.'},
   monk:{name:'Monge',role:'Combate / equilíbrio',hp:125,attack:16,defense:7,mana:70,weapon:'Manoplas de jade',skill:{id:'punhos_ki',name:'Punhos de Ki',description:'Golpe concentrado que ignora parte da defesa.',cost:18,power:1.9},passive:'Recupera pequena quantidade de vida ao atacar.'}
@@ -19,7 +19,11 @@ const EQUIPMENT = {
   oakStaff:{name:'Cajado de carvalho',slot:'weapon',attack:5,defense:1,price:70,look:'staff'},
   leatherArmor:{name:'Armadura de couro',slot:'armor',attack:0,defense:3,price:45,look:'leather'},
   chainArmor:{name:'Cota de malha',slot:'armor',attack:0,defense:6,price:110,look:'chain'},
-  shadowCloak:{name:'Manto sombrio',slot:'armor',attack:2,defense:8,price:220,look:'shadow'}
+  shadowCloak:{name:'Manto sombrio',slot:'armor',attack:2,defense:8,price:220,look:'shadow'},
+  amberCharm:{name:'Amuleto do pomar',slot:'charm',attack:2,defense:2,price:0,look:'amber'},
+  echoRing:{name:'Anel dos ecos',slot:'charm',attack:4,defense:2,price:140,look:'echo'},
+  rootGuard:{name:'Peitoral de raiz',slot:'armor',attack:1,defense:7,price:0,look:'root'},
+  eclipseEdge:{name:'Lâmina do eclipse',slot:'weapon',attack:15,defense:2,price:0,look:'eclipse'}
 };
 
 const REGIONS = [
@@ -43,4 +47,16 @@ for (const region of REGIONS) {
   for (const enemy of region.enemies) { enemy.hp = Math.ceil(enemy.hp * 1.42); enemy.atk = Math.ceil(enemy.atk * 1.28); }
   region.boss.hp = Math.ceil(region.boss.hp * 1.42); region.boss.atk = Math.ceil(region.boss.atk * 1.30);
 }
-module.exports = {HERO_CLASSES,EQUIPMENT,REGIONS,QUESTS};
+const TECHNIQUES = {
+  warrior: { name: 'Guarda de ferro', cost: 10, description: 'Protege o alvo marcado e contra-ataca.' },
+  mage: { name: 'Pulso estelar', cost: 15, description: 'Interrompe golpes anunciados e causa dano.' },
+  sorceress: { name: 'Névoa do silêncio', cost: 14, description: 'Interrompe e enfraquece o inimigo.' },
+  cleric: { name: 'Bênção da aurora', cost: 24, description: 'Reanima um aliado caído. Em pé, protege a equipe e causa dano.' },
+  rogue: { name: 'Passo da sombra', cost: 11, description: 'Ataca, evita o próximo golpe e quebra um totem.' },
+  bard: { name: 'Acorde da vigília', cost: 14, description: 'Causa dano, restaura mana e protege o próximo alvo.' },
+  paladin: { name: 'Juramento da luz', cost: 17, description: 'Golpeia o inimigo, atrai sua atenção e protege aliados.' },
+  ranger: { name: 'Flecha de precisão', cost: 14, description: 'Marca a criatura e destrói um totem.' },
+  monk: { name: 'Ruptura de Ki', cost: 14, description: 'Interrompe a investida e recupera vida.' }
+};
+
+module.exports = {HERO_CLASSES,EQUIPMENT,REGIONS,QUESTS,TECHNIQUES};

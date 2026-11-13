@@ -1,113 +1,118 @@
 'use strict';
-const test = require('node:test');
+
+const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const World = require('../public/world-data');
+const { newCampaign, makeHero, makeMember, heroStats } = require('../adventure');
+const { startBattle, act } = require('../combat');
 
-const read = file => fs.readFileSync(path.join(__dirname, '..', file), 'utf8');
+const html = fs.readFileSync(path.join(__dirname, '../public/index.html'), 'utf8');
 
-test('a página carrega somente o cliente principal do RPG top-down', () => {
-  const html = read('public/index.html');
-  assert.match(html, /game\.js\?v=\d+/);
-  assert.doesNotMatch(html, /rpg\.js/);
-  assert.doesNotMatch(html, /platformer\.js/);
-  assert.match(html, /id="virtualJoystick"/);
-  assert.match(html, /id="mobileActionBtn"/);
-});
-
-test('a tela inicial oferece apenas criar aventura e continuar o mesmo personagem', () => {
-  const html = read('public/index.html');
-  const game = read('public/game.js');
-  assert.match(html, /id="createBtn"/);
-  assert.match(html, /id="continueSaveBtn"/);
-  assert.doesNotMatch(html, /newCharacterBtn|continuePreviousBtn/);
-  assert.doesNotMatch(game, /newCharacterBtn|continuePreviousBtn/);
-  assert.match(game, /localStorage\.removeItem\('eldoriaPreviousCharacterId'\)/);
-});
-test('o cliente principal contém desenho, movimentação e interação do herói', () => {
-  const game = read('public/game.js');
-  assert.match(game, /function drawWorld\(/);
-  assert.match(game, /function movementLoop\(/);
-  assert.match(game, /function pixelHero\(/);
-  assert.match(game, /function interactWorld\(/);
-  assert.match(game, /requestAnimationFrame\(worldAnimation\)/);
+test('a página usa o cliente top-down e oferece toque e continuação do herói', () => {
+  assert.match(html, /world-data\.js\?v=/);
+  assert.match(html, /pixel\.js\?v=/);
+  assert.match(html, /game\.js\?v=/);
+  assert.doesNotMatch(html, /rpg\.js|platformer\.js|newCharacterBtn|continuePreviousBtn/);
+  for (const control of ['virtualJoystick', 'mobileActionBtn', 'mobileAttackBtn', 'continueSaveBtn', 'continueCampaignBtn']) {
+    assert.match(html, new RegExp('id="' + control + '"'));
+  }
 });
 
-test('o servidor mantém posições compatíveis com mapas locais de 960x576', () => {
-  const server = read('server.js');
-  assert.match(server, /player\.x = clamp\(requestedX, 20, 940\)/);
-  assert.match(server, /player\.y = clamp\(requestedY, 30, 520\)/);
-  assert.doesNotMatch(server, /OPEN_WORLD_REGION_WIDTH/);
+function reachable(map) {
+  const step = 16;
+  const first = map.spawn.map(value => Math.round(value / step) * step);
+  const todo = [first];
+  const seen = new Set();
+  for (let i = 0; i < todo.length; i++) {
+    const [x, y] = todo[i];
+    const key = x + ',' + y;
+    if (seen.has(key) || !World.canStand(map.id, x, y)) continue;
+    seen.add(key);
+    todo.push([x + step, y], [x - step, y], [x, y + step], [x, y - step]);
+  }
+  return point => {
+    for (let dx = -16; dx <= 16; dx += 16) for (let dy = -16; dy <= 16; dy += 16) {
+      const x = Math.round(point.x / step) * step + dx;
+      const y = Math.round(point.y / step) * step + dy;
+      if (seen.has(x + ',' + y)) return true;
+    }
+    return false;
+  };
+}
+
+test('todas as 31 áreas têm interações alcançáveis e portais com destino válido', () => {
+  assert.equal(Object.keys(World.zones).length, 31);
+  for (const map of Object.values(World.zones)) {
+    const canReach = reachable(map);
+    for (const point of map.points) {
+      assert.ok(canReach(point), map.id + ':' + point.id);
+      if (point.kind === 'portal') {
+        assert.ok(Object.hasOwn(World.zones, point.to));
+        assert.ok(World.canStand(point.to, ...point.spawn));
+      }
+    }
+  }
 });
 
-test('chefes derrotados desaparecem e inimigos comuns derrotados não reaparecem', () => {
-  const game = read('public/game.js');
-  assert.match(game, /if\(region\?\.boss&&!latestState\.world\?\.\[area\]\)/);
-  assert.match(game, /if\(!defeated\.includes\(i\)\)/);
-  const server = read('server.js');
-  assert.match(server, /room\.world\[defeated\.area\] = true/);
-  assert.match(server, /if \(region\.boss && room\.world\[area\]\) return socket\.emit/);
+test('o movimento respeita parede e o mesmo limite na diagonal', () => {
+  const start = { x:480, y:430 };
+  const straight = World.walk('village', start, 1, 0, 0.05);
+  const diagonal = World.walk('village', start, 1, 1, 0.05);
+  assert.ok(Math.abs(World.distance(start, straight) - World.distance(start, diagonal)) < 0.001);
+  let position = { x:75, y:300 };
+  for (let i = 0; i < 40; i++) position = World.walk('village', position, -1, 0, 0.05);
+  assert.ok(position.x >= 41);
+  assert.ok(World.canStand('village', position.x, position.y));
 });
 
-test('a troca de região acontece pelos portais e respeita o desbloqueio', () => {
-  const server = read('server.js');
-  assert.match(server, /socket\.on\('travelRegion'/);
-  assert.match(server, /Derrote o guardião da região anterior para abrir esta passagem/);
+test('as rotinas usam posições transitáveis durante todo o ciclo', () => {
+  for (const zone of ['village','orchard']) {
+    for (let time = 0; time < 88000; time += 200) {
+      for (const npc of World.npcPositions(zone, 100000 + time, { epoch:100000 })) {
+        assert.ok(World.canStand(zone, npc.x, npc.y), npc.name + ' em ' + time);
+      }
+    }
+  }
 });
 
-test('o mundo possui tesouros persistentes, patrulhas e dificuldade progressiva', () => {
-  const game = read('public/game.js');
-  const server = read('server.js');
-  const data = read('game-data.js');
-  assert.match(game, /function movingEnemyPoint\(/);
-  assert.match(game, /CHEST_SPOTS/);
-  assert.match(game, /openChest/);
-  assert.match(server, /socket\.on\('openChest'/);
-  assert.match(server, /openedChests/);
-  assert.match(data, /enemy\.hp = Math\.ceil\(enemy\.hp \* 1\.42\)/);
-  assert.match(data, /name:'Corvo carniceiro'/);
-  assert.match(data, /name:'Cavaleiro do eclipse'/);
-  assert.match(data, /enemies:\[.*?name:'Javali das raízes'/);
+test('uma campanha anterior mantém chefes, tesouros e dados do herói', () => {
+  const saved = {
+    name:'Beto', classKey:'ranger', level:9, gold:170, potions:7, hp:70, maxHp:180,
+    weapon:'Arco élfico', equipment:{ armor:'shadowCloak' }, x:460, y:410,
+    campaign:{ activeRegion:'cave', world:{ forest:true }, defeatedEnemies:{ cave:[0,2] },
+      openedChests:['forest-2'], sideQuests:{ lost_relic:{ accepted:true, completed:true } } }
+  };
+  const room = newCampaign('A1234F', 'hero', saved.campaign);
+  const hero = makeHero('Outro', 'mage', saved);
+  const member = makeMember(room, 'hero', saved);
+  assert.equal(hero.name, 'Beto');
+  assert.equal(hero.classKey, 'ranger');
+  assert.equal(hero.level, 9);
+  assert.equal(hero.gold, 170);
+  assert.equal(hero.potions, 7);
+  assert.equal(heroStats(hero).attack, hero.baseAttack + 2);
+  assert.deepEqual(room.data.defeated.forest, [0,1,2,3,4]);
+  assert.deepEqual(room.data.defeated.cave, [0,2]);
+  assert.ok(room.data.opened.includes('chest-forest-2'));
+  assert.ok(member.data.quests.lost_relic.completed);
+  assert.equal(member.data.zone, 'cave');
 });
 
-test('cada região exige cinco encontros antes do guardião e os inimigos têm arquétipos', () => {
-  const data = read('game-data.js');
-  const server = read('server.js');
-  const game = read('public/game.js');
-  assert.equal((data.match(/enemies:\[/g)||[]).length, 5);
-  assert.match(data, /enemy\.atk = Math\.ceil\(enemy\.atk \* 1\.28\)/);
-  assert.match(server, /function enemyArchetype\(/);
-  assert.match(server, /const specialChance = battle\.boss \? 0\.46/);
-  assert.match(server, /battle\.atk = Math\.ceil\(battle\.atk \* 1\.4\)/);
-  assert.match(server, /battle\.enraged = true/);
-  assert.match(game, /Fase 2|FASE 2/);
-  assert.match(game, /\{x:760,y:420\}/);
-});
-test('o jogo apresenta a libertação do povo após derrotar Malakar', () => {
-  const html = read('public/index.html'), game = read('public/game.js'), server = read('server.js');
-  assert.match(html, /id="endingSequence"/);
-  assert.match(game, /AS CORRENTES SE PARTEM/);
-  assert.match(game, /ELDORIA LIVRE/);
-  assert.match(server, /os prisioneiros despertaram e o povo de Eldoria está livre/);
-});
-test('retorno da Terra do Fogo leva ao portal inferior da região anterior e permite voltar à vila', () => {
-  const server = read('server.js');
-  const game = read('public/game.js');
-  assert.match(server, /const enteredFromNorthExit = !returningToVillage && targetIndex > currentIndex/);
-  assert.match(server, /const returningToVillage = target === 'village'/);
-  assert.match(game, /socket\.emit\("travelRegion",\{area:"village"\}\)/);
-});
-test('o guardião só aparece depois que todos os monstros comuns forem derrotados', () => {
-  const server = read('server.js');
-  const game = read('public/game.js');
-  assert.match(server, /defeatedList\.length < regionData\.enemies\.length/);
-  assert.match(game, /length>=region\.enemies\.length/);
-});
-test('enigmas possuem respostas alternativas e dicas claras', () => {
-  const server = read('server.js');
-  const campaign = read('campaign-expansion.js');
-  const game = read('public/game.js');
-  assert.match(server, /normalizeAnswer/);
-  assert.match(campaign, /hint:'Pense na parte da árvore/);
-  assert.match(game, /r\.hint\|\|/);
+test('o Ent exige três fases mesmo com um ataque muito forte', () => {
+  const hero = { id:'guerreiro', data:makeHero('Guerreiro','warrior',{ attack:2000, defense:2000 }) };
+  const entries = [hero];
+  const battle = startBattle('forest', { region:'forest', boss:true },
+    { name:'Ent Corrompido', hp:260, atk:22, gold:50, xp:40 }, entries);
+  assert.equal(battle.move.type, 'charge');
+  assert.equal(act(battle, hero.id, 'attack', entries).outcome, null);
+  assert.equal(battle.phase, 2);
+  assert.equal(battle.totems, 2);
+  assert.equal(act(battle, hero.id, 'totem', entries).outcome, null);
+  assert.equal(battle.totems, 1);
+  assert.equal(act(battle, hero.id, 'totem', entries).outcome, null);
+  assert.equal(act(battle, hero.id, 'attack', entries).outcome, null);
+  assert.equal(battle.phase, 3);
+  assert.equal(act(battle, hero.id, 'attack', entries).outcome, 'won');
 });

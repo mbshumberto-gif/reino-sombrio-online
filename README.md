@@ -1,35 +1,40 @@
 # As Crônicas do Reino Sombrio
 
-RPG cooperativo online para até 8 aventureiros, desenvolvido em Node.js, Express e Socket.IO.
+RPG top-down cooperativo para até oito aventureiros por campanha. Explore Eldoria, encontre Lume no Pomar dos Sussurros e enfrente Malakar para trazer o povo de volta à Vila.
 
-## Executar localmente
+## Jogar localmente
 
-```bash
-npm install
+Use Node.js 20 ou superior.
+
+```sh
+npm ci
 npm start
-``
+```
 
-Acesse `http://localhost:3000`.
+Abra [http://localhost:3000](http://localhost:3000). Uma pessoa cria a aventura e envia o código de seis caracteres ao grupo. Na mesma rede, os amigos abrem o endereço do computador que executa o servidor. O jogo funciona em desktop e por toque. WASD ou setas movem o herói. E interage, e Espaço ataca durante o combate.
 
-## Persistência de personagens
+Para encontrar Lume, balance a macieira da Vila, colha a maçã após a queda e procure a luz no aqueduto do Pomar. A entrada do Pomar fica no lado leste da Floresta. Converse com Lia depois de libertar Lume. Aderic explica como procurar a relíquia, e a porta da masmorra fica no lado oeste da Floresta. As fogueiras restauram vida e mana e servem como ponto de retorno.
 
-O jogo usa PostgreSQL quando a variável de ambiente `DATABASE_URL` está configurada. Na inicialização, o servidor cria a tabela `game_characters`; os atributos, nível, experiência, ouro, poções e equipamentos são salvos automaticamente por um identificador de personagem guardado no navegador.
+## Progresso persistente
 
-Para habilitar em produção, crie um banco PostgreSQL (por exemplo, no Render) e configure a variável `DATABASE_URL` no serviço web. O endpoint `/health` informa se a conexão de banco foi configurada. Sem essa variável, o jogo ainda inicia, mas os personagens não terão persistência após reiniciar o servidor.
+Configure `DATABASE_URL` com um PostgreSQL local ou já disponível. Para conexão local de desenvolvimento sem TLS, use `PGSSLMODE=disable`. Para acesso remoto ao jogo, sirva a aplicação por HTTPS e mantenha o PostgreSQL acessível apenas ao servidor. A aplicação verifica certificados em conexões TLS do banco. Instale a CA do servidor quando necessário.
 
-## Conteúdo da campanha
+O jogo cria as tabelas `eldoria_heroes`, `eldoria_campaigns` e `eldoria_participations`. A primeira entrada do herói pela identidade anterior importa a campanha e os atributos de `game_characters`. A tabela antiga fica disponível para conferência. Faça um backup recuperável antes de migrar o banco de uma partida em uso. Use o mesmo navegador e endereço para a primeira entrada após a atualização. Depois, o menu **Histórico** oferece um código de recuperação de uso único para outro aparelho.
 
-- Cinco regiões com identidade visual e pontos de interesse próprios.
-- Inimigos de cada região apresentados na tela da área.
-- Dungeons de quatro salas por região, com encontros, enigmas e guardiões.
-- Missões secundárias com objetivos e recompensas.
-- Diálogos narrativos em etapas para NPCs.
-- Tela de capítulo após a derrota de cada chefe principal.
+A opção **Continuar aventura** reabre a campanha original do herói. Para voltar a outra campanha, use o convite dela. **Sair da sala** libera o personagem para trocar de grupo. Na mesma sala, uma interrupção de até 45 segundos reserva o lugar do jogador e permite voltar à batalha. Depois de reiniciar o processo, a campanha reabre no último estado persistido fora do combate. Ouro, XP e vitória são gravados em uma transação.
 
-## Validação
+O jogo abre em modo temporário quando `DATABASE_URL` está ausente. O servidor avisa desse modo na interface. `/live` informa se o HTTP responde, e `/health` indica o modo e a disponibilidade do banco. Em um computador disponível, Node.js e PostgreSQL podem rodar sem mensalidade ou APIs externas. O computador precisa ficar ligado durante as sessões.
 
-```bash
+## Testes
+
+```sh
 npm test
-node --check server.js
-node --check public/game.js
-``
+npx playwright install chromium
+npm run test:browser
+```
+
+Para incluir migração e reinício reais, defina `ELDORIA_TEST_DATABASE_URL` para um banco PostgreSQL descartável de teste. A suíte cria e remove esquemas próprios. Em CI, há testes de mapas, salas, turno, migração e navegador em tamanhos de tela móveis.
+
+## Arte e fontes
+
+A ilustração do título é original, criada para Eldoria com o gerador de imagens do ChatGPT. O cenário jogável, os sprites e os efeitos são desenhados localmente em Canvas. As licenças das fontes Press Start 2P e VT323 acompanham os arquivos em `public/assets/fonts/`.
