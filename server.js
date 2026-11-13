@@ -166,7 +166,7 @@ io.on('connection', (socket) => {
     if(!saved?.campaign)return socket.emit('errorMessage','Nenhum progresso salvo foi encontrado para este personagem.');
     const name=cleanName(payload.name)||'Aventureiro';let code;do{code=createRoomCode();}while(rooms.has(code));
     const c=saved.campaign;const room={code,hostId:socket.id,players:new Map(),world:c.world||{forest:false,cave:false,fire:false,castle:false,shadow:false},defeatedEnemies:c.defeatedEnemies||{forest:[],cave:[],fire:[],castle:[],shadow:[]},quests:c.quests||Object.fromEntries(QUESTS.map(q=>[q.id,{progress:0,completed:false}])),battle:null,activeRegion:c.activeRegion||'village',levelIndex:c.levelIndex||0,dungeon:c.dungeon||null,transition:null,sideQuests:c.sideQuests||Object.fromEntries(SIDE_QUESTS.map(q=>[q.id,{accepted:false,progress:0,completed:false}]))};
-    const player=makePlayer(socket.id,name,saved.classKey,nextSpawn(room),characterId,saved);player.x=480;player.y=room.activeRegion==='cave'?180:430;room.players.set(socket.id,player);rooms.set(code,room);socket.join(code);socket.emit('joined',{code,restored:true});emitRoom(room);
+    const player=makePlayer(socket.id,name,saved.classKey,nextSpawn(room),characterId,saved);player.x=Number.isFinite(saved.x)?saved.x:480;player.y=Number.isFinite(saved.y)?saved.y:(room.activeRegion==='cave'?180:430);player.facing=saved.facing||'down';room.players.set(socket.id,player);rooms.set(code,room);socket.join(code);socket.emit('joined',{code,restored:true});emitRoom(room);
   });
   socket.on('saveGame',async()=>{const room=findRoomByPlayerId(socket.id);if(!room)return;for(const player of room.players.values())await persistence.saveCharacter(player,campaignSnapshot(room));socket.emit('notice','💾 Aventura salva! Você pode continuar daqui quando voltar.');});
   socket.on('createRoom', async (payload = {}) => {
@@ -607,9 +607,7 @@ io.on('connection', (socket) => {
     if (room.battle) return socket.emit('errorMessage', 'Não é possível conversar durante o combate.');
     const player = room.players.get(socket.id);
     if (payload.npc === 'healer') {
-      if (player.gold < 15) return socket.emit('errorMessage', 'A curandeira cobra 15 ouros pelo tratamento.');
-      player.gold -= 15; player.hp = player.maxHp; player.mana = player.maxMana;
-      socket.emit('dialogue',{title:'Mira, a Curandeira',npc:'healer',lines:DIALOGUES.healer.map(line=>line.text).concat('Pronto. Suas forças foram restauradas.')});
+      socket.emit('dialogue',{title:'Mira, a Curandeira',npc:'healer',lines:DIALOGUES.healer.map(line=>line.text).concat('Posso cuidar de suas feridas por 15 ouros. Use o descanso do acampamento para recuperar suas forças.')});
     } else if (payload.npc === 'blacksmith') {
       socket.emit('dialogue', { title:'Eldrin, o Ferreiro',npc:'blacksmith', lines:DIALOGUES.blacksmith.map(line=>line.text).concat('Abra o mercador para conferir armas e armaduras disponíveis.') });
     } else if (payload.npc === 'chronicler') {
