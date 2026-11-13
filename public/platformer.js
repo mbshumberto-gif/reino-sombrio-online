@@ -235,7 +235,7 @@
     if(!button)return;
     e.preventDefault();e.stopImmediatePropagation();
     if(button.dataset.jump){if(grounded){vy=JUMP;grounded=false;}return;}
-    if(button.dataset.interact){keys.add("interact");button.setPointerCapture?.(e.pointerId);return;}
+    if(button.dataset.interact){const bossX=regionBase(region)+1630;if(region!=="village"&&!latestState?.world?.[region]&&Math.abs(px-bossX)<110&&Date.now()>enemyCooldown){enemyCooldown=Date.now()+2200;socket.emit("explore",{area:region,action:"enter",boss:true});}else toast("Aproxime-se de um ponto de interação.");button.setPointerCapture?.(e.pointerId);return;}
     const direction=button.dataset.move;
     if(direction==="left")keys.add("left");if(direction==="right")keys.add("right");
     button.setPointerCapture?.(e.pointerId);
@@ -246,7 +246,7 @@
   window.platformerMode=true;
   window.renderMap=paint;
   window.worldAnimation=()=>{};
-  socket.on("playerMoved",data=>{if(data.id===socket.id&&Math.abs(data.x-px)>18){px=data.x;py=data.y;vy=0;grounded=true;lastSafeX=px;paint();}});
+  socket.on("playerMoved",data=>{if(data.id===socket.id&&Math.abs(data.x-px)>5){px=data.x;py=data.y;vy=0;grounded=true;lastSafeX=px;paint();}});
   socket.on("state",state=>{
     const current=state.players?.find(p=>p.id===socket.id);
     const changed=region!==(state.activeRegion||"village");
