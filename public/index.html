@@ -35,7 +35,10 @@
         <div class="map-title" id="mapTitle">ELDORIA • VILA DOS AVENTUREIROS</div>
         <div id="nearbyPrompt" class="nearby-prompt">WASD / SETAS PARA ANDAR • E PARA INTERAGIR</div>
       </div>
-      <div class="mobile-pad" aria-label="Controles de movimento"><div><button type="button" data-move="up" aria-label="Andar para cima">▲</button><button type="button" data-move="left" aria-label="Andar para esquerda">◀</button><button type="button" data-move="down" aria-label="Andar para baixo">▼</button><button type="button" data-move="right" aria-label="Andar para direita">▶</button></div></div>
+      <div class="mobile-controls" aria-label="Controles para celular">
+        <div class="virtual-joystick" id="virtualJoystick" role="application" aria-label="Analógico virtual para movimentar o herói"><div class="joystick-ring"><div class="joystick-knob" id="joystickKnob"></div></div><span class="joystick-caption">MOVER</span></div>
+        <div class="mobile-actions"><button type="button" id="mobileActionBtn" class="mobile-action">AÇÃO <small>INTERAGIR</small></button><button type="button" id="mobileAttackBtn" class="mobile-action mobile-attack">⚔ ATACAR</button></div>
+      </div>
       <div id="battle" class="battle-stage hidden">
         <div class="battle-art"><canvas id="enemyPortrait" class="enemy-portrait" width="160" height="140" aria-label="Inimigo em pixel art"></canvas><div class="enemy-info"><small>INIMIGO</small><h3 id="enemyName">---</h3><div class="bar"><i id="enemyBar"></i></div><p id="enemyHp"></p></div></div>
         <p id="battleHint">A batalha começou!</p><button id="attackBtn" class="primary attack-main">⚔ ATACAR <kbd>ESPAÇO</kbd></button>
@@ -61,5 +64,5 @@
 </section>
 <div id="toast" role="status"></div>
 </main>
-<script src="/socket.io/socket.io.js"></script><script src="game.js?v=4"></script>
+<script src="/socket.io/socket.io.js"></script><script src="game.js?v=5"></script>
 </body></html>
