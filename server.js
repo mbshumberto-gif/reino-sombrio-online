@@ -86,12 +86,12 @@ function publicRoom(room) {
     })),
     world: room.world, activeRegion: room.activeRegion, levelIndex: room.levelIndex || 0, defeatedEnemies: room.defeatedEnemies || {}, dungeon: room.dungeon, sideQuests: room.sideQuests, transition: room.transition,
     quests: room.quests,
-    battle: room.battle
+    battle: room.battle, openedChests: room.openedChests || []
   };
 }
 
 // Salva os personagens e envia o estado. Um erro ao salvar nunca impede o envio do estado.
-function campaignSnapshot(room) { return { world:room.world, defeatedEnemies:room.defeatedEnemies, quests:room.quests, activeRegion:room.activeRegion, levelIndex:room.levelIndex, dungeon:room.dungeon, sideQuests:room.sideQuests }; }
+function campaignSnapshot(room) { return { world:room.world, defeatedEnemies:room.defeatedEnemies, quests:room.quests, activeRegion:room.activeRegion, levelIndex:room.levelIndex, dungeon:room.dungeon, sideQuests:room.sideQuests, openedChests:room.openedChests||[] }; }
 function emitRoom(room) {
   for (const player of room.players.values()) {
     try { Promise.resolve(persistence.saveCharacter(player,campaignSnapshot(room))).catch(e => console.error('Falha ao salvar:', e)); }
@@ -165,7 +165,7 @@ io.on('connection', (socket) => {
     const characterId=String(payload.characterId||'').slice(0,80);const saved=await persistence.loadCharacter(characterId);
     if(!saved?.campaign)return socket.emit('errorMessage','Nenhum progresso salvo foi encontrado para este personagem.');
     const name=cleanName(payload.name)||'Aventureiro';let code;do{code=createRoomCode();}while(rooms.has(code));
-    const c=saved.campaign;const room={code,hostId:socket.id,players:new Map(),world:c.world||{forest:false,cave:false,fire:false,castle:false,shadow:false},defeatedEnemies:c.defeatedEnemies||{forest:[],cave:[],fire:[],castle:[],shadow:[]},quests:c.quests||Object.fromEntries(QUESTS.map(q=>[q.id,{progress:0,completed:false}])),battle:null,activeRegion:c.activeRegion||'village',levelIndex:c.levelIndex||0,dungeon:c.dungeon||null,transition:null,sideQuests:c.sideQuests||Object.fromEntries(SIDE_QUESTS.map(q=>[q.id,{accepted:false,progress:0,completed:false}]))};
+    const c=saved.campaign;const room={code,hostId:socket.id,players:new Map(),world:c.world||{forest:false,cave:false,fire:false,castle:false,shadow:false},defeatedEnemies:c.defeatedEnemies||{forest:[],cave:[],fire:[],castle:[],shadow:[]},quests:c.quests||Object.fromEntries(QUESTS.map(q=>[q.id,{progress:0,completed:false}])),battle:null,activeRegion:c.activeRegion||'village',levelIndex:c.levelIndex||0,dungeon:c.dungeon||null,transition:null,sideQuests:c.sideQuests||Object.fromEntries(SIDE_QUESTS.map(q=>[q.id,{accepted:false,progress:0,completed:false}])),openedChests:c.openedChests||[]};
     const player=makePlayer(socket.id,name,saved.classKey,nextSpawn(room),characterId,saved);player.x=Number.isFinite(saved.x)?saved.x:480;player.y=Number.isFinite(saved.y)?saved.y:(room.activeRegion==='cave'?180:430);player.facing=saved.facing||'down';room.players.set(socket.id,player);rooms.set(code,room);socket.join(code);socket.emit('joined',{code,restored:true});emitRoom(room);
   });
   socket.on('saveGame',async()=>{const room=findRoomByPlayerId(socket.id);if(!room)return;for(const player of room.players.values())await persistence.saveCharacter(player,campaignSnapshot(room));socket.emit('notice','💾 Aventura salva! Você pode continuar daqui quando voltar.');});
@@ -185,7 +185,8 @@ io.on('connection', (socket) => {
       defeatedEnemies: { forest: [], cave: [], fire: [], castle: [], shadow: [] },
       quests: Object.fromEntries(QUESTS.map((quest) => [quest.id, { progress: 0, completed: false }])),
       battle: null, activeRegion: 'village', levelIndex: 0, dungeon: null, transition: null,
-      sideQuests: Object.fromEntries(SIDE_QUESTS.map(q => [q.id,{accepted:false,progress:0,completed:false}]))
+      sideQuests: Object.fromEntries(SIDE_QUESTS.map(q => [q.id,{accepted:false,progress:0,completed:false}])),
+      openedChests: []
     };
 
     room.players.set(socket.id, makePlayer(socket.id, name, saved?.classKey || heroClass, nextSpawn(room), characterId, saved || {}));
@@ -300,6 +301,22 @@ io.on('connection', (socket) => {
     if (!room) return;
     const player = room.players.get(socket.id);
     player.ready = !player.ready;
+    emitRoom(room);
+  });
+
+  socket.on('openChest', (payload = {}) => {
+    const room=findRoomByPlayerId(socket.id);if(!room||room.battle)return;
+    const player=room.players.get(socket.id),area=room.activeRegion||'village';
+    const chestId=String(payload.id||'').slice(0,40);
+    if(!/^(forest|cave|fire|castle|shadow)-[12]$/.test(chestId)||!chestId.startsWith(area+'-'))return;
+    if((room.openedChests||[]).includes(chestId))return socket.emit('notice','Este pote já foi vasculhado.');
+    const spots={'forest-1':{x:480,y:400},'forest-2':{x:288,y:288},'cave-1':{x:480,y:400},'cave-2':{x:768,y:256},'fire-1':{x:480,y:400},'fire-2':{x:256,y:288},'castle-1':{x:480,y:400},'castle-2':{x:736,y:288},'shadow-1':{x:480,y:400},'shadow-2':{x:256,y:288}};
+    if(Math.hypot(player.x-spots[chestId].x,player.y-spots[chestId].y)>58)return socket.emit('errorMessage','Chegue mais perto do pote para vasculhá-lo.');
+    room.openedChests=room.openedChests||[];room.openedChests.push(chestId);
+    const roll=Math.random();
+    if(roll<.48){const gold=area==='forest'?22:area==='cave'?32:area==='fire'?45:area==='castle'?58:75;player.gold+=gold;sendPlayerMessage(player,'🪙 Você encontrou '+gold+' ouros escondidos no pote!');}
+    else if(roll<.82){player.potions+=1;sendPlayerMessage(player,'🧪 Você encontrou uma poção entre os tesouros!');}
+    else {player.gold+=12;player.potions+=1;sendPlayerMessage(player,'✨ Tesouro raro: 12 ouros e uma poção!');}
     emitRoom(room);
   });
 
