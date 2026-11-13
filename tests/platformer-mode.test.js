@@ -15,6 +15,14 @@ test('a página carrega somente o cliente principal do RPG top-down', () => {
   assert.match(html, /id="mobileActionBtn"/);
 });
 
+test('o jogador pode iniciar um herói do zero sem perder o personagem anterior', () => {
+  const html = read('public/index.html');
+  const game = read('public/game.js');
+  assert.match(html, /id="newCharacterBtn"/);
+  assert.match(html, /id="continuePreviousBtn"/);
+  assert.match(game, /eldoriaPreviousCharacterId/);
+  assert.match(game, /characterId=crypto\.randomUUID/);
+});
 test('o cliente principal contém desenho, movimentação e interação do herói', () => {
   const game = read('public/game.js');
   assert.match(game, /function drawWorld\(/);

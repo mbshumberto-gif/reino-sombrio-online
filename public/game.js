@@ -1,9 +1,9 @@
 const socket = io();
 const $ = id => document.getElementById(id);
-$("startAdventureBtn")?.addEventListener("click",()=>{$("titleScreen").classList.add("hidden");$("gameHeader").classList.remove("hidden");$("entry").classList.remove("hidden");});
+$("startAdventureBtn")?.addEventListener("click",()=>{$("titleScreen").classList.add("hidden");$("gameHeader").classList.remove("hidden");$("entry").classList.remove("hidden");if(localStorage.getItem('eldoriaPreviousCharacterId'))$("continuePreviousBtn").classList.remove("hidden");});
 $("backTitleBtn")?.addEventListener("click",()=>{$("entry").classList.add("hidden");$("gameHeader").classList.add("hidden");$("titleScreen").classList.remove("hidden");});
 let currentCode = null, latestState = null, toastTimer;
-const characterId=localStorage.getItem('eldoriaCharacterId')||(crypto.randomUUID?crypto.randomUUID():'hero-'+Math.random().toString(36).slice(2));localStorage.setItem('eldoriaCharacterId',characterId);
+let characterId=localStorage.getItem('eldoriaCharacterId')||(crypto.randomUUID?crypto.randomUUID():'hero-'+Math.random().toString(36).slice(2));localStorage.setItem('eldoriaCharacterId',characterId);
 let localPosition = null;
 const heldKeys = new Set();
 let moveFrame = null, lastMoveSent = 0;
@@ -27,6 +27,17 @@ function chosenHero(){ return $("heroClass").value || 'warrior'; }
 
 $("createBtn").onclick=()=>socket.emit("createRoom",{name:$("playerName").value,heroClass:chosenHero(),characterId});
 $("continueSaveBtn").onclick=()=>socket.emit("continueSave",{name:$("playerName").value||"Aventureiro",characterId});
+$("newCharacterBtn").onclick=()=>{
+ localStorage.setItem('eldoriaPreviousCharacterId',characterId);
+ characterId=crypto.randomUUID?crypto.randomUUID():'hero-'+Math.random().toString(36).slice(2);
+ localStorage.setItem('eldoriaCharacterId',characterId);
+ $("continuePreviousBtn").classList.remove("hidden");
+ socket.emit("createRoom",{name:$("playerName").value,heroClass:chosenHero(),characterId});
+};
+$("continuePreviousBtn").onclick=()=>{
+ const previous=localStorage.getItem('eldoriaPreviousCharacterId');
+ if(previous)socket.emit("continueSave",{name:$("playerName").value||"Aventureiro",characterId:previous});
+};
 $("saveGameBtn").onclick=()=>socket.emit("saveGame");
 $("dialogueNext").onclick=()=>$("dialoguePanel").classList.add("hidden");
 $("dialoguePanel").addEventListener("click",event=>{if(event.target.id!=="dialogueNext")$("dialoguePanel").classList.add("hidden");});
