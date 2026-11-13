@@ -61,7 +61,7 @@ test('o mundo possui tesouros persistentes, patrulhas e dificuldade progressiva'
 test('retorno da Terra do Fogo leva ao portal inferior da região anterior e permite voltar à vila', () => {
   const server = read('server.js');
   const game = read('public/game.js');
-  assert.match(server, /const enteringFromNorth = !returningToVillage && targetIndex > currentIndex/);
+  assert.match(server, /const enteredFromNorthExit = !returningToVillage && targetIndex > currentIndex/);
   assert.match(server, /const returningToVillage = target === 'village'/);
   assert.match(game, /socket\.emit\("travelRegion",\{area:"village"\}\)/);
 });
