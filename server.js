@@ -404,7 +404,7 @@ io.on('connection', (socket) => {
     }
     const roomData=roomsData[index];if(!roomData||dungeon.cleared[index])return socket.emit('errorMessage','Esta sala já foi concluída.');
     if(roomData.kind==='puzzle'){
-      const normalizeAnswer=value=>String(value||'').normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').trim().toLowerCase();
+      const normalizeAnswer=value=>String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLowerCase();
       const accepted=[roomData.answer,...(roomData.accept||[])].filter(Boolean).map(normalizeAnswer);
       if(!accepted.includes(normalizeAnswer(payload.answer)))return socket.emit('errorMessage',`Ainda não! Dica: ${roomData.hint||'Observe os detalhes da sala e tente novamente.'}`);
       dungeon.cleared[index]=true;addExperience(player,35);player.gold+=20;sendRoomMessage(room,'🔓 Enigma resolvido! A passagem secreta se abriu.');emitRoom(room);return;
