@@ -200,8 +200,10 @@ io.on('connection', (socket) => {
       return socket.emit('errorMessage', 'Esse nome já está sendo usado nesta sala.');
     }
 
+    const leader = [...room.players.values()][0];
     room.players.set(socket.id, makePlayer(socket.id, name, saved?.classKey || heroClass, nextSpawn(room), characterId, saved || {}));
-    room.players.get(socket.id).x = 90 + room.players.size * 34; room.players.get(socket.id).y = 430;
+    room.players.get(socket.id).x = leader ? Math.min(leader.x + 44, 10750) : 90;
+    room.players.get(socket.id).y = 430;
     if (room.battle) room.battle.turnOrder.push(socket.id);
     socket.join(roomCode);
     socket.emit('joined', { code: roomCode });
@@ -211,6 +213,9 @@ io.on('connection', (socket) => {
 
   // Movimento compartilhado no mapa da vila. O servidor limita a velocidade
   // e mantém as posições oficiais de todos os personagens.
+  // Mundo aberto contínuo: cada bioma ocupa um trecho do mesmo mapa horizontal.
+  const OPEN_WORLD_REGION_ORDER = ['village', ...REGIONS.map(region => region.id)];
+  const OPEN_WORLD_REGION_WIDTH = 1800;
   socket.on('movePlayer', (payload = {}) => {
     const room = findRoomByPlayerId(socket.id);
     if (!room || room.battle) return;
@@ -218,22 +223,46 @@ io.on('connection', (socket) => {
     const now = Date.now();
     if (now - player.lastMoveAt < 45) return;
 
-    const requestedX = Number(payload.x);
-    const requestedY = Number(payload.y);
+    const requestedX = Number(payload.x), requestedY = Number(payload.y);
     const allowedFacing = ['up', 'down', 'left', 'right'];
     if (!Number.isFinite(requestedX) || !Number.isFinite(requestedY)) return;
 
     const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
     const deltaX = clamp(requestedX - player.x, -18, 18);
     const deltaY = clamp(requestedY - player.y, -18, 18);
-    player.x = clamp(player.x + deltaX, 24, 1780);
+    player.x = clamp(player.x + deltaX, 24, OPEN_WORLD_REGION_WIDTH * OPEN_WORLD_REGION_ORDER.length - 30);
     player.y = clamp(player.y + deltaY, 30, 520);
+
+    let targetIndex = Math.max(0, Math.min(OPEN_WORLD_REGION_ORDER.length - 1, Math.floor(player.x / OPEN_WORLD_REGION_WIDTH)));
+    const currentIndex = Math.max(0, OPEN_WORLD_REGION_ORDER.indexOf(room.activeRegion || 'village'));
+    let blockedByGate = false;
+    if (targetIndex > currentIndex) {
+      const targetRegion = REGIONS[targetIndex - 1];
+      if (targetRegion?.unlock && !room.world[targetRegion.unlock]) {
+        player.x = (currentIndex + 1) * OPEN_WORLD_REGION_WIDTH - 25;
+        targetIndex = currentIndex; blockedByGate = true;
+        if (player.lastBlockedRegion !== targetRegion.id) {
+          player.lastBlockedRegion = targetRegion.id;
+          sendPlayerMessage(player, 'A passagem está selada. Derrote o guardião desta região para avançar.');
+        }
+      } else {
+        player.lastBlockedRegion = null;
+      }
+    }
+
+    const nextRegion = OPEN_WORLD_REGION_ORDER[targetIndex];
+    const regionChanged = nextRegion !== room.activeRegion && (targetIndex > currentIndex || socket.id === room.hostId);
+    if (regionChanged) {
+      room.activeRegion = nextRegion;
+      room.levelIndex = 0;
+      sendRoomMessage(room, nextRegion === 'village' ? 'Vocês retornaram à Vila de Eldoria.' : 'Nova região descoberta: ' + (REGIONS.find(entry => entry.id === nextRegion)?.name || nextRegion) + '!');
+    }
+
     player.facing = allowedFacing.includes(payload.facing) ? payload.facing : player.facing;
     player.lastMoveAt = now;
-
-    socket.to(room.code).emit('playerMoved', {
-      id: player.id, x: player.x, y: player.y, facing: player.facing
-    });
+    socket.to(room.code).emit('playerMoved', { id: player.id, x: player.x, y: player.y, facing: player.facing });
+    if (blockedByGate) socket.emit('playerMoved', { id: player.id, x: player.x, y: player.y, facing: player.facing });
+    if (regionChanged) emitRoom(room);
   });
 
   socket.on('travelRegion', (payload = {}) => {

@@ -4,11 +4,11 @@
   if (!canvas) return;
   const ctx = canvas.getContext("2d");
   canvas.width = 960; canvas.height = 540;
-  const W = 1800, FLOOR = 455, SPEED = 255, GRAVITY = 1180, JUMP = -470;
+  const REGION_WIDTH = 1800, REGION_ORDER = ["village","forest","cave","fire","castle","shadow"], W = REGION_WIDTH * REGION_ORDER.length, FLOOR = 455, SPEED = 255, GRAVITY = 1180, JUMP = -470;
   const keys = new Set();
   let px = 60, py = FLOOR, vy = 0, camera = 0, last = 0, lastSent = 0;
-  let grounded = true, facing = "right", stageKey = "", finishSent = false, enemyCooldown = 0;
-  let stage = 0, region = "village", lastBattle = false, bossCleared = false;
+  let grounded = true, facing = "right", enemyCooldown = 0, lastSafeX = 60;
+  let region = "village", lastBattle = false;
   const palette = {
     village:["#80b6c5","#d9e9d0","#477b4d","#7a583c","#d4b66c"],
     forest:["#182d29","#385c3d","#274d35","#7a6345","#9bc16b"],
@@ -50,13 +50,22 @@
       {floors:[[0,300],[400,650],[750,1000],[1100,1350],[1450,1800]],platforms:[[140,335,120],[450,245,130],[800,300,130],[1150,235,130],[1500,290,160]],hazards:[[300,400],[650,750],[1000,1100],[1350,1450]]}
     ]
   };
+  const regionBase = id => Math.max(0, REGION_ORDER.indexOf(id)) * REGION_WIDTH;
+  const regionForX = x => REGION_ORDER[Math.max(0,Math.min(REGION_ORDER.length-1,Math.floor(x/REGION_WIDTH)))];
+  const worldTerrain = {floors:[],platforms:[],hazards:[]};
+  REGION_ORDER.forEach((id,index)=>{
+    const offset=index*REGION_WIDTH, map=(stages[id]||stages.village)[0];
+    map.floors.forEach(([a,b])=>worldTerrain.floors.push([a+offset,b+offset]));
+    map.platforms.forEach(([x,y,w])=>worldTerrain.platforms.push([x+offset,y,w]));
+    map.hazards.forEach(([a,b])=>worldTerrain.hazards.push([a+offset,b+offset]));
+  });
   const mobsByRegion = {village:[],forest:[470,930,1390],cave:[250,650,1450],fire:[500,850,1550],castle:[250,620,1390],shadow:[200,500,1550]};
-  const mobs = () => mobsByRegion[region] || [];
-  const levelData = () => (stages[region] || stages.village)[Math.min(stage,2)];
+  const mobs = () => (mobsByRegion[region] || []).map(x=>x+regionBase(region));
+  const levelData = () => worldTerrain;
   const me = () => latestState?.players?.find(p => p.id === socket.id);
   const areaName = () => window.regionScenes?.[region]?.title || (region === "village" ? "Vila de Eldoria" : region);
   function rect(x,y,w,h,color){ctx.fillStyle=color;ctx.fillRect(Math.round(x),Math.round(y),Math.round(w),Math.round(h));}
-  function drawBackground(c){
+  function drawBiomeBackground(c){
     const pal=palette[region]||palette.village, time=performance.now()/1000;
     const grad=ctx.createLinearGradient(0,0,0,540);
     grad.addColorStop(0,pal[0]);grad.addColorStop(.68,pal[1]);grad.addColorStop(1,pal[2]);
@@ -106,6 +115,11 @@
     ctx.globalAlpha=.22;ctx.fillStyle=glow;ctx.beginPath();ctx.arc(790,100,38+Math.sin(time*1.4)*3,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1;
     rect(0,440,960,100,region==="cave"?"#111923":region==="fire"?"#281b20":region==="shadow"?"#0c0a17":"#17251f");
   }
+  function drawBackground(c){
+    const first=Math.max(0,Math.floor(c/REGION_WIDTH)),last=Math.min(REGION_ORDER.length-1,Math.floor((c+959)/REGION_WIDTH));
+    for(let i=first;i<=last;i++){const left=i*REGION_WIDTH-c,right=left+REGION_WIDTH,clipLeft=Math.max(0,left),clipRight=Math.min(960,right);if(clipRight<=clipLeft)continue;
+      ctx.save();ctx.beginPath();ctx.rect(clipLeft,0,clipRight-clipLeft,540);ctx.clip();const previous=region;region=REGION_ORDER[i];drawBiomeBackground(c);region=previous;ctx.restore();}
+  }
   function drawPlatform(x,y,w,pal){
     rect(x,y,w,18,pal[3]);rect(x,y+18,w,9,pal[2]);rect(x,y,w,5,pal[4]);
     for(let i=8;i<w;i+=24)rect(x+i,y+23,8,4,pal[3]);
@@ -130,23 +144,22 @@
     camera=Math.max(0,Math.min(W-960,px-360));
     drawBackground(camera);
     for(const [a,b] of data.floors){
+      if(b<camera-100||a>camera+1060)continue;
       rect(a-camera,FLOOR,b-a,85,pal[2]);rect(a-camera,FLOOR,b-a,8,pal[4]);
       for(let x=a+12;x<b;x+=34)rect(x-camera,FLOOR+22,15,5,pal[3]);
     }
-    for(const [x,y,w] of data.platforms)drawPlatform(x-camera,y,w,pal);
+    for(const [x,y,w] of data.platforms){if(x+w<camera-100||x>camera+1060)continue;drawPlatform(x-camera,y,w,pal);}
     for(const [a,b] of data.hazards){
+      if(b<camera-100||a>camera+1060)continue;
       for(let x=a;x<b;x+=24){ctx.fillStyle="#d85d4d";ctx.beginPath();ctx.moveTo(x-camera,FLOOR);ctx.lineTo(x+12-camera,FLOOR-24);ctx.lineTo(x+24-camera,FLOOR);ctx.fill();}
     }
     if(region!=="village"){
       const defeated=latestState.defeatedEnemies?.[region]||[];
-      mobs().forEach((x,i)=>{if(!defeated.includes(i)&&stage===0)drawMob(x,i,pal);});
+      mobs().forEach((x,i)=>{if(!defeated.includes(i))drawMob(x,i,pal);});
     }
-    // Portal de fim de fase e identificação da campanha.
-    const gateX=1715-camera;
-    rect(gateX-23,330,46,125,latestState.world?.[region]?"#d9bd72":"#735b43");
-    rect(gateX-15,342,30,108,"#19232d");rect(gateX-8,350,16,92,pal[4]);
-    ctx.fillStyle="#fff0c2";ctx.font="bold 14px monospace";ctx.textAlign="center";
-    ctx.fillText("PORTAL",gateX,315);
+    const zoneEnd=regionBase(region)+REGION_WIDTH,gateX=zoneEnd-camera;
+    if(gateX>-80&&gateX<1040){rect(gateX-28,330,56,125,"#735b43");rect(gateX-19,342,38,108,"#19232d");rect(gateX-9,350,18,92,pal[4]);ctx.fillStyle="#fff0c2";ctx.font="bold 12px monospace";ctx.textAlign="center";ctx.fillText(region==="shadow"?"FIM DO REINO":"PASSAGEM",gateX,315);}
+    if(region!=="village"&&!latestState.world?.[region]){const boss=window.gameRegions?.find(r=>r.id===region)?.boss;if(boss){const bossX=regionBase(region)+1630;pixelMonster(ctx,boss.name,bossX-camera,FLOOR-35,3.8,true,performance.now());ctx.fillStyle="#f4cf72";ctx.font="bold 12px monospace";ctx.textAlign="center";ctx.fillText("GUARDIÃO",bossX-camera,FLOOR-83);}}
     const players=latestState.players||[];
     players.forEach(p=>{
       const x=(p.id===socket.id?px:p.x)-camera, y=p.id===socket.id?py:p.y;
@@ -155,11 +168,10 @@
     // HUD dentro da própria fase, sem cobrir a ação.
     rect(12,12,330,55,"#101a23d9");ctx.fillStyle="#f4cf72";ctx.font="12px monospace";ctx.textAlign="left";
     ctx.fillText(areaName().toUpperCase(),24,34);ctx.fillStyle="#fff0c2";
-    ctx.fillText(region==="village"?"PRÓLOGO • ELDORIA":("FASE "+(stage+1)+" DE 3 • "+(latestState.world?.[region]?"GUARDIÃO DERROTADO":"CAMINHO DO GUARDIÃO")),24,54);
-    rect(760,14,188,10,"#101a23");rect(760,14,188*(Math.min(W,px)/W),10,pal[4]);
-    ctx.fillStyle="#fff0c2";ctx.textAlign="right";ctx.fillText("AVANÇO",945,39);
-    $("mapTitle").textContent=areaName().toUpperCase()+" • FASE "+(stage+1);
-    $("nearbyPrompt").textContent=px>1580?(latestState.world?.[region]?"E — PRÓXIMA REGIÃO":"E — AVANÇAR / ENFRENTAR CHEFE"):"A/D OU ← → ANDAR • ESPAÇO PULAR • E NO PORTAL";
+    ctx.fillText(region==="village"?"PRÓLOGO • MUNDO ABERTO":(latestState.world?.[region]?"GUARDIÃO DERROTADO":"EXPLORE • ENCONTRE O GUARDIÃO"),24,54);
+    rect(760,14,188,10,"#101a23");rect(760,14,188*(Math.max(0,Math.min(1,(px-regionBase(region))/REGION_WIDTH))),10,pal[4]);ctx.fillStyle="#fff0c2";ctx.textAlign="right";ctx.fillText("REGIÃO",945,39);
+    $("mapTitle").textContent=areaName().toUpperCase()+" • MUNDO ABERTO";const bossX=regionBase(region)+1630;
+    $("nearbyPrompt").textContent=region!=="village"&&!latestState.world?.[region]&&Math.abs(px-bossX)<100?"E — ENFRENTAR O GUARDIÃO":"A/D OU ← → ANDAR • ESPAÇO PULAR • EXPLORE LIVREMENTE";
   }
   function solidAt(x,y){
     const data=levelData();
@@ -170,12 +182,6 @@
     const data=levelData();
     return data.floors.some(([a,b])=>px+12>a&&px-12<b&&py>=FLOOR-2) ||
       data.platforms.some(([a,top,w])=>px+10>a&&px-10<a+w&&py>=top-2&&py<=top+10&&vy>=0);
-  }
-  function advance(){
-    if(px<1580)return toast("Continue avançando até o portal no fim da fase.");
-    if(finishSent)return;
-    finishSent=true;socket.emit("platformerAdvance");
-    setTimeout(()=>{finishSent=false;},1800);
   }
   function update(dt){
     if(!latestState||latestState.battle)return;
@@ -191,9 +197,9 @@
     if(wasAbovePlatform){py=wasAbovePlatform[1];vy=0;grounded=true;}
     else if(data.floors.some(([a,b])=>px+10>a&&px-10<b&&py>=FLOOR)){py=FLOOR;vy=0;grounded=true;}
     else grounded=false;
-    const inPit=data.hazards.some(([a,b])=>px>a-4&&px<b+4);
-    if(py>540||inPit&&py>FLOOR-18){px=Math.max(60,Math.floor(px/360)*360-180);py=FLOOR;vy=0;grounded=true;toast("Você caiu! Voltou ao último trecho seguro.");}
-    if(region!=="village"&&stage===0&&Date.now()>enemyCooldown){
+    const inPit=data.hazards.some(([a,b])=>px>a-4&&px<b+4);if(grounded&&!inPit)lastSafeX=px;
+    if(py>540||inPit&&py>FLOOR-18){px=Math.max(60,lastSafeX-35);py=FLOOR;vy=0;grounded=true;toast("Você caiu! Voltou ao último ponto seguro.");}
+    if(region!=="village"&&Date.now()>enemyCooldown){
       const defeated=latestState.defeatedEnemies?.[region]||[];
       for(let i=0;i<mobs().length;i++)if(!defeated.includes(i)&&Math.abs(px-mobs()[i])<35&&Math.abs(py-FLOOR)<55){
         enemyCooldown=Date.now()+2200;socket.emit("explore",{area:region,action:"enter",enemyIndex:i});break;
@@ -202,7 +208,7 @@
     if(Date.now()-lastSent>45){
       socket.emit("movePlayer",{x:px,y:py,facing});lastSent=Date.now();
     }
-    if(px>1580&&keys.has("interact"))advance();
+    const bossX=regionBase(region)+1630;if(region!=="village"&&!latestState.world?.[region]&&Math.abs(px-bossX)<48&&Date.now()>enemyCooldown){enemyCooldown=Date.now()+2200;socket.emit("explore",{area:region,action:"enter",boss:true});}
   }
   function loop(t){
     const dt=last?Math.min(.035,(t-last)/1000):.016;last=t;
@@ -215,7 +221,7 @@
       if(latestState?.battle)return false;
       if(grounded){vy=JUMP;grounded=false;}return true;
     }
-    if(code==="KeyE"&&down){if(px>1580)advance();return true;}
+    if(code==="KeyE"&&down){const bossX=regionBase(region)+1630;if(region!=="village"&&!latestState?.world?.[region]&&Math.abs(px-bossX)<100&&Date.now()>enemyCooldown){enemyCooldown=Date.now()+2200;socket.emit("explore",{area:region,action:"enter",boss:true});}else if(region!=="village"&&!latestState?.world?.[region])toast("Explore a região e encontre o guardião.");return true;}
     return false;
   }
   window.addEventListener("keydown",e=>{
@@ -229,7 +235,7 @@
     if(!button)return;
     e.preventDefault();e.stopImmediatePropagation();
     if(button.dataset.jump){if(grounded){vy=JUMP;grounded=false;}return;}
-    if(button.dataset.interact){keys.add("interact");button.setPointerCapture?.(e.pointerId);return;}
+    if(button.dataset.interact){const bossX=regionBase(region)+1630;if(region!=="village"&&!latestState?.world?.[region]&&Math.abs(px-bossX)<110&&Date.now()>enemyCooldown){enemyCooldown=Date.now()+2200;socket.emit("explore",{area:region,action:"enter",boss:true});}else toast("Aproxime-se de um ponto de interação.");button.setPointerCapture?.(e.pointerId);return;}
     const direction=button.dataset.move;
     if(direction==="left")keys.add("left");if(direction==="right")keys.add("right");
     button.setPointerCapture?.(e.pointerId);
@@ -237,23 +243,23 @@
   ["pointerup","pointercancel","lostpointercapture"].forEach(type=>document.addEventListener(type,e=>{
     const button=e.target.closest?.("[data-move],[data-interact]");if(button){if(button.dataset.interact)keys.delete("interact");else keys.delete(button.dataset.move);e.stopImmediatePropagation();}
   },true));
+  window.platformerMode=true;
   window.renderMap=paint;
   window.worldAnimation=()=>{};
+  socket.on("playerMoved",data=>{if(data.id===socket.id&&Math.abs(data.x-px)>5){px=data.x;py=data.y;vy=0;grounded=true;lastSafeX=px;paint();}});
   socket.on("state",state=>{
     const current=state.players?.find(p=>p.id===socket.id);
-    const changed=region!==state.activeRegion||stage!==Number(state.levelIndex||0);
+    const changed=region!==(state.activeRegion||"village");
     if(changed){
-      region=state.activeRegion||"village";stage=Number(state.levelIndex||0);
-      px=current?.x??60;py=current?.y??FLOOR;vy=0;grounded=true;camera=0;finishSent=false;
+      region=state.activeRegion||"village";px=current?.x??60;py=current?.y??FLOOR;vy=0;grounded=true;camera=0;lastSafeX=px;
     } else if(current&&Math.abs(current.x-px)>95){px=current.x;py=current.y;}
-    if(lastBattle&&!state.battle&&state.world?.[region])bossCleared=true;
     lastBattle=!!state.battle;
     if(state.battle){keys.clear();$("overworld").classList.add("hidden");}
     else $("overworld").classList.remove("hidden");
     paint();
   });
-  socket.on("joined",()=>{region=latestState?.activeRegion||"village";stage=Number(latestState?.levelIndex||0);px=60;py=FLOOR;vy=0;finishSent=false;});
+  socket.on("joined",()=>{region=latestState?.activeRegion||"village";px=latestState?.players?.find(p=>p.id===socket.id)?.x??60;py=FLOOR;vy=0;lastSafeX=px;});
   // O canvas da fase fica em foco; os menus e a batalha continuam usando a estrutura existente.
-  $("overworld").setAttribute("aria-label","Plataforma 2D cooperativa. A/D ou setas para andar, espaço para pular e E no portal.");
+  $("overworld").setAttribute("aria-label","Mundo aberto 2D cooperativo. A/D ou setas para andar, espaço para pular e E para interagir com guardiões.");
   requestAnimationFrame(loop);
 })();
