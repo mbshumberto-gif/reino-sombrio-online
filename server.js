@@ -235,11 +235,12 @@ io.on('connection', (socket) => {
 
     let targetIndex = Math.max(0, Math.min(OPEN_WORLD_REGION_ORDER.length - 1, Math.floor(player.x / OPEN_WORLD_REGION_WIDTH)));
     const currentIndex = Math.max(0, OPEN_WORLD_REGION_ORDER.indexOf(room.activeRegion || 'village'));
+    let blockedByGate = false;
     if (targetIndex > currentIndex) {
       const targetRegion = REGIONS[targetIndex - 1];
       if (targetRegion?.unlock && !room.world[targetRegion.unlock]) {
         player.x = (currentIndex + 1) * OPEN_WORLD_REGION_WIDTH - 25;
-        targetIndex = currentIndex;
+        targetIndex = currentIndex; blockedByGate = true;
         if (player.lastBlockedRegion !== targetRegion.id) {
           player.lastBlockedRegion = targetRegion.id;
           sendPlayerMessage(player, 'A passagem está selada. Derrote o guardião desta região para avançar.');
@@ -250,7 +251,7 @@ io.on('connection', (socket) => {
     }
 
     const nextRegion = OPEN_WORLD_REGION_ORDER[targetIndex];
-    const regionChanged = nextRegion !== room.activeRegion;
+    const regionChanged = nextRegion !== room.activeRegion && (targetIndex > currentIndex || socket.id === room.hostId);
     if (regionChanged) {
       room.activeRegion = nextRegion;
       room.levelIndex = 0;
@@ -260,6 +261,7 @@ io.on('connection', (socket) => {
     player.facing = allowedFacing.includes(payload.facing) ? payload.facing : player.facing;
     player.lastMoveAt = now;
     socket.to(room.code).emit('playerMoved', { id: player.id, x: player.x, y: player.y, facing: player.facing });
+    if (blockedByGate) socket.emit('playerMoved', { id: player.id, x: player.x, y: player.y, facing: player.facing });
     if (regionChanged) emitRoom(room);
   });
 
