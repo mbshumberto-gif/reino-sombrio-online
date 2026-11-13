@@ -365,7 +365,7 @@ function checkEncounters(){
  if(Date.now()<(window.encounterCooldown||0))return;
  const area=latestState.activeRegion||"village",region=window.gameRegions?.find(r=>r.id===area);if(!region)return;
  const points=ENEMY_POINTS[area]||[],defeated=latestState.defeatedEnemies?.[area]||[];
- for(let i=0;i<points.length;i++){if(!defeated.includes(i)&&nearest(me,movingEnemyPoint(area,i))<48){window.encounterCooldown=Date.now()+1800;socket.emit("explore",{area,action:"enter",enemyIndex:i});return;}}
+ for(let i=0;i<points.length;i++){if(!defeated.includes(i)&&nearest(me,movingEnemyPoint(area,i))<35){window.encounterCooldown=Date.now()+1800;socket.emit("explore",{area,action:"enter",enemyIndex:i});return;}}
  if(region.boss&&!latestState.world?.[area]&&nearest(me,BOSS_POINTS[area])<45){window.encounterCooldown=Date.now()+1800;socket.emit("explore",{area,action:"enter",boss:true});}
 }
 function drawWorld(){
