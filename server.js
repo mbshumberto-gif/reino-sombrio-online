@@ -514,10 +514,12 @@ io.on('connection', (socket) => {
         const nextRegion = REGIONS[regionIndex + 1]?.id || null;
         room.activeRegion = defeated.area;
         room.levelIndex = 3;
+        room.battle = null;
         // Depois do chefão, todos voltam para dentro do mapa, perto da passagem aberta.
         [...room.players.values()].forEach((member, index) => {
           member.x = 480 + ((index % 3) - 1) * 34;
-          member.y = defeated.area === 'cave' ? 180 + Math.floor(index / 3) * 28 : 190 + Math.floor(index / 3) * 28;
+          // Retorno garantido ao caminho central: tile 15,12 é livre em todas as regiões.
+          member.y = 400 + Math.floor(index / 3) * 24;
           member.facing = 'down';
         });
         room.transition = { region: defeated.area, nextRegion, title: REGION_SCENES[defeated.area]?.title || defeated.area, message: nextRegion ? 'A passagem para a próxima região foi aberta.' : 'Malakar caiu. Eldoria está livre!', at: Date.now() };
