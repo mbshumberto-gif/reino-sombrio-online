@@ -6,7 +6,7 @@ const path = require('node:path');
 
 test('a página carrega o RPG de visão superior e não o modo plataforma', () => {
   const html = fs.readFileSync(path.join(__dirname, '../public/index.html'), 'utf8');
-  assert.match(html, /game\.js"><\/script><script src="rpg\.js\?v=1"/);
+  assert.match(html, /game\.js\?v=\d+"><\/script><script src="rpg\.js\?v=\d+"/);
   assert.doesNotMatch(html, /platformer\.js/);
   for (const direction of ['up', 'down', 'left', 'right']) {
     assert.match(html, new RegExp('data-move="' + direction + '"'));
