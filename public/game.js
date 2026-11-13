@@ -125,11 +125,11 @@ const REGION_STORY = {
  shadow:"Além do castelo existe um reino preso entre a vida e a morte. Malakar não deseja apenas conquistar Eldoria: ele pretende apagar todas as memórias do mundo e reescrevê-lo sob seu domínio."
 };
 const ENEMY_POINTS = {
- forest:[{x:220,y:250},{x:730,y:285},{x:470,y:405},{x:260,y:390},{x:760,y:420}],
- cave:[{x:220,y:220},{x:750,y:260},{x:470,y:405},{x:260,y:390},{x:760,y:420}],
- fire:[{x:210,y:260},{x:740,y:220},{x:490,y:405},{x:260,y:390},{x:760,y:420}],
- castle:[{x:220,y:250},{x:740,y:250},{x:480,y:405},{x:260,y:390},{x:760,y:420}],
- shadow:[{x:210,y:230},{x:750,y:245},{x:480,y:405},{x:260,y:390},{x:760,y:420}]
+ forest:[{x:220,y:250},{x:730,y:285},{x:560,y:340},{x:260,y:390},{x:760,y:420}],
+ cave:[{x:220,y:220},{x:750,y:260},{x:560,y:340},{x:260,y:390},{x:760,y:420}],
+ fire:[{x:210,y:260},{x:740,y:220},{x:560,y:340},{x:260,y:390},{x:760,y:420}],
+ castle:[{x:220,y:250},{x:740,y:250},{x:560,y:340},{x:260,y:390},{x:760,y:420}],
+ shadow:[{x:210,y:230},{x:750,y:245},{x:560,y:340},{x:260,y:390},{x:760,y:420}]
 };
 const BOSS_POINTS = {forest:{x:480,y:92},cave:{x:480,y:92},fire:{x:480,y:92},castle:{x:480,y:92},shadow:{x:480,y:92}};
 const NPC_POINTS = [{x:480,y:275,npc:"chronicler"},{x:340,y:360,npc:"healer"},{x:620,y:360,npc:"blacksmith"}];
@@ -235,6 +235,10 @@ function pixelMonster(ctx,name,x,y,scale=3,boss=false,time=0){
  else if(n.includes("salamandra")||n.includes("draco")){body="#c45c37";dark="#6f302c";light="#f3a24e";eye="#fff3a0";}
  else if(n.includes("golem")){body="#9a6a48";dark="#493b43";light="#d49b60";}
  else if(n.includes("necromante")||n.includes("cultista")){body="#67518e";dark="#29233e";light="#b69be0";}
+ else if(n.includes("corvo")||n.includes("morcego")||n.includes("cão")){body="#596b82";dark="#26354c";light="#a8b8cc";eye="#f6d27a";}
+ else if(n.includes("javali")||n.includes("escorpião")){body="#a66b43";dark="#57382d";light="#e1ad68";eye="#fff0a8";}
+ else if(n.includes("harpia")||n.includes("carrasco")){body="#9b5947";dark="#482b39";light="#e6a16f";eye="#fff0a8";}
+ else if(n.includes("xamã")||n.includes("devorador")||n.includes("eclipse")){body="#4f658e";dark="#202b50";light="#a5c3ed";eye="#e8f3ff";}
  else if(n.includes("malakar")||n.includes("vazio")||n.includes("espectro")||n.includes("abominação")){body="#704c91";dark="#251d3d";light="#c68be4";eye="#f6d6ff";}
  const bob=Math.sin(time/230+(x/80))*2*scale;
  const w=(boss?18:13)*scale,h=(boss?19:15)*scale,px=Math.round(x-w/2),py=Math.round(y-h/2+bob);
@@ -249,6 +253,12 @@ function pixelMonster(ctx,name,x,y,scale=3,boss=false,time=0){
  if(n.includes("draco")||n.includes("drag")){rect(ctx,px-7*scale,py+4*scale,9*scale,3*scale,light);rect(ctx,px-11*scale,py+1*scale,8*scale,4*scale,dark);rect(ctx,px+w-2*scale,py+4*scale,9*scale,3*scale,light);rect(ctx,px+w+3*scale,py+1*scale,8*scale,4*scale,dark);rect(ctx,px+w-2*scale,py+10*scale,10*scale,3*scale,dark);}
  if(n.includes("esqueleto")){for(let k=0;k<3;k++)rect(ctx,px+4*scale,py+(10+k*2)*scale,w-8*scale,scale,light);rect(ctx,px+6*scale,py+3*scale,w-12*scale,3*scale,"#eee8d2");}
  if(n.includes("goblin")){rect(ctx,px-5*scale,py+5*scale,7*scale,4*scale,light);rect(ctx,px+w-2*scale,py+5*scale,7*scale,4*scale,light);}
+ if(n.includes("corvo")||n.includes("harpia")){rect(ctx,px-8*scale,py+5*scale,10*scale,4*scale,dark);rect(ctx,px+w-2*scale,py+5*scale,10*scale,4*scale,dark);rect(ctx,px+5*scale,py+15*scale,w-10*scale,3*scale,light);}
+ if(n.includes("morcego")){rect(ctx,px-9*scale,py+3*scale,10*scale,8*scale,dark);rect(ctx,px+w-1*scale,py+3*scale,10*scale,8*scale,dark);}
+ if(n.includes("javali")){rect(ctx,px-5*scale,py+10*scale,6*scale,5*scale,light);rect(ctx,px+w-1*scale,py+10*scale,6*scale,5*scale,light);}
+ if(n.includes("escorpião")){rect(ctx,px+w-2*scale,py-4*scale,5*scale,9*scale,dark);rect(ctx,px+w+2*scale,py-8*scale,5*scale,5*scale,light);}
+ if(n.includes("cão")){rect(ctx,px+2*scale,py-5*scale,5*scale,7*scale,dark);rect(ctx,px+w-7*scale,py-5*scale,5*scale,7*scale,dark);}
+ if(n.includes("xamã")||n.includes("devorador")||n.includes("eclipse")){rect(ctx,px+5*scale,py-6*scale,w-10*scale,4*scale,light);rect(ctx,px+Math.floor(w/2)-scale,py-10*scale,3*scale,5*scale,eye);}
  if(boss){rect(ctx,px+2*scale,py-2*scale,4*scale,5*scale,light);rect(ctx,px+w-6*scale,py-2*scale,4*scale,5*scale,light);rect(ctx,px+5*scale,py-5*scale,w-10*scale,4*scale,dark);}
  else{rect(ctx,px+3*scale,py-2*scale,3*scale,5*scale,dark);rect(ctx,px+w-6*scale,py-2*scale,3*scale,5*scale,dark);}
 }
@@ -622,7 +632,7 @@ socket.on("state",state=>{
    const activePlayer=state.players.find(p=>p.id===b.activePlayerId);
    $("attackBtn").disabled=!isMyTurn;$("potionBtn").disabled=!isMyTurn;$("fleeBtn").disabled=!isMyTurn||b.boss;$("defendBtn").disabled=!isMyTurn;$("skillBtn").disabled=!isMyTurn||!me||me.mana<((window.gameClasses?.[me.classKey]?.skill?.cost)||999);
    $("battleHint").textContent=isMyTurn
-     ? (b.boss && b.enraged ? `🔥 FASE 2 — ${b.enemy} está enfurecido! Rodada ${b.turn}: escolha sua ação com cuidado.` : `Sua vez! Rodada ${b.turn}. ${b.archetype==='caster'?'Cuidado com os feitiços do inimigo.':b.archetype==='brute'?'Prepare-se para golpes esmagadores.':b.archetype==='swift'?'O inimigo é rápido e pode atacar duas vezes.':'Escolha sua ação.'}`)
+     ? (b.boss && b.enraged ? `🔥 FASE 2 — ${b.enemy} está enfurecido! Rodada ${b.turn}: escolha sua ação com cuidado.` : `Sua vez! Rodada ${b.turn}. ${b.archetype==='caster'?'Cuidado com os feitiços do inimigo.':b.archetype==='brute'?'Prepare-se para golpes esmagadores.':b.archetype==='swift'?'O inimigo é veloz e pode surpreender com uma investida.':'Escolha sua ação.'}`)
      : activePlayer
        ? `Rodada ${b.turn}: vez de ${activePlayer.name}. ${b.boss && b.enraged?'CHEFE NA FASE 2! ':''}Aguarde sua vez.`
        : "Aguardando o próximo turno.";
