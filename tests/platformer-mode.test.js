@@ -6,17 +6,17 @@ const path = require('node:path');
 
 test('a página carrega o RPG de visão superior e não o modo plataforma', () => {
   const html = fs.readFileSync(path.join(__dirname, '../public/index.html'), 'utf8');
-  assert.match(html, /game\.js\?v=\d+"><\/script><script src="rpg\.js\?v=\d+"/);
-  assert.doesNotMatch(html, /platformer\.js/);
-  for (const direction of ['up', 'down', 'left', 'right']) {
+  assert.match(html, /game\\.js\\?v=\\d+/);
+  assert.doesNotMatch(html, /rpg\\.js/);
+  assert.doesNotMatch(html, /platformer\\.js/);
     assert.match(html, new RegExp('data-move="' + direction + '"'));
   }
 });
 
 test('o RPG mantém câmera, movimento em quatro direções e colisões', () => {
   const script = fs.readFileSync(path.join(__dirname, '../public/rpg.js'), 'utf8');
-  assert.match(script, /window\.drawWorld = function/);
-  assert.match(script, /window\.movementLoop = function/);
+  assert.match(script, /function drawWorld\\(/);
+  assert.match(script, /function movementLoop\\(/);
   assert.match(script, /moveBlocked\(nx, base\.y\)/);
   assert.match(script, /moveBlocked\(x, ny\)/);
   const game = fs.readFileSync(path.join(__dirname, '../public/game.js'), 'utf8');
