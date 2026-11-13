@@ -19,7 +19,8 @@ test('o RPG mantém câmera, movimento em quatro direções e colisões', () => 
   assert.match(script, /window\.movementLoop = function/);
   assert.match(script, /moveBlocked\(nx, base\.y\)/);
   assert.match(script, /moveBlocked\(x, ny\)/);
-  assert.match(script, /function interactWorld/);
+  const game = fs.readFileSync(path.join(__dirname, '../public/game.js'), 'utf8');
+  assert.match(game, /function interactWorld/);
 });
 
 test('chefes derrotados não reaparecem, mas inimigos comuns continuam exploráveis', () => {
