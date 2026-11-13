@@ -323,7 +323,7 @@ function drawWorld(){
    const next=["forest","cave","fire","castle","shadow"][idx+1];
    drawGate(ctx,480,25,next?(latestState.world?.[area]?"PRÓXIMA":"SELADO"):"FIM",!latestState.world?.[area]);
    const enemies=window.gameRegions?.find(r=>r.id===area)?.enemies||[],defeated=latestState.defeatedEnemies?.[area]||[];
-   if(!latestState.world?.[area])enemies.forEach((enemy,i)=>{if(!defeated.includes(i)){pixelMonster(ctx,enemy.name,ENEMY_POINTS[area][i].x,ENEMY_POINTS[area][i].y,2.2,false,Date.now());ctx.fillStyle="#fff0c2";ctx.font="12px monospace";ctx.textAlign="center";ctx.fillText(enemy.name,ENEMY_POINTS[area][i].x,ENEMY_POINTS[area][i].y+31);}});
+   enemies.forEach((enemy,i)=>{if(!defeated.includes(i)){pixelMonster(ctx,enemy.name,ENEMY_POINTS[area][i].x,ENEMY_POINTS[area][i].y,2.2,false,Date.now());ctx.fillStyle="#fff0c2";ctx.font="12px monospace";ctx.textAlign="center";ctx.fillText(enemy.name,ENEMY_POINTS[area][i].x,ENEMY_POINTS[area][i].y+31);}});
    const region=window.gameRegions?.find(r=>r.id===area);
    if(region?.boss&&!latestState.world?.[area]){pixelMonster(ctx,region.boss.name,BOSS_POINTS[area].x,BOSS_POINTS[area].y,3.5,true,Date.now());ctx.fillStyle="#f4cf72";ctx.font="bold 13px monospace";ctx.textAlign="center";ctx.fillText("GUARDIÃO",480,135);}
  }
@@ -331,7 +331,7 @@ function drawWorld(){
  if(me){latestState.players.filter(p=>p.id!==socket.id).forEach(p=>pixelHero(ctx,p,Date.now()));pixelHero(ctx,{...me,...(localPosition||{})},Date.now());}
  $("nearbyPrompt").textContent=worldInteractionPrompt();
 }
-function renderMap(){if(!latestState)return;try{if(typeof window.drawWorld==="function")window.drawWorld();else drawWorld();checkEncounters();}catch(error){console.error("Falha ao renderizar o mapa:",error);toast("Falha ao desenhar o mapa. Atualize a página.");}}
+function renderMap(){if(!latestState)return;try{const canvas=$("worldCanvas");if(canvas){if(canvas.width!==960)canvas.width=960;if(canvas.height!==576)canvas.height=576;}drawWorld();checkEncounters();}catch(error){console.error("Falha ao renderizar o mapa:",error);const canvas=$("worldCanvas");if(canvas){const ctx=canvas.getContext("2d");ctx.fillStyle="#263e32";ctx.fillRect(0,0,canvas.width,canvas.height);ctx.fillStyle="#fff0c2";ctx.font="bold 24px monospace";ctx.textAlign="center";ctx.fillText("ELDORIA",canvas.width/2,canvas.height/2);}}}
 function moveBlocked(x,y){
  const area=latestState?.activeRegion||"village";if(!worldCache.has(area))worldCache.set(area,drawMapBase(area));
  const tiles=worldCache.get(area).tiles;
