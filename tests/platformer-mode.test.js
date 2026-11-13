@@ -11,9 +11,8 @@ test('a página carrega somente o cliente principal do RPG top-down', () => {
   assert.match(html, /game\.js\?v=\d+/);
   assert.doesNotMatch(html, /rpg\.js/);
   assert.doesNotMatch(html, /platformer\.js/);
-  for (const direction of ['up', 'down', 'left', 'right']) {
-    assert.match(html, new RegExp('data-move="' + direction + '"'));
-  }
+  assert.match(html, /id="virtualJoystick"/);
+  assert.match(html, /id="mobileActionBtn"/);
 });
 
 test('o cliente principal contém desenho, movimentação e interação do herói', () => {
@@ -45,4 +44,16 @@ test('a troca de região acontece pelos portais e respeita o desbloqueio', () =>
   const server = read('server.js');
   assert.match(server, /socket\.on\('travelRegion'/);
   assert.match(server, /Derrote o guardião da região anterior para abrir esta passagem/);
+});
+
+test('o mundo possui tesouros persistentes, patrulhas e dificuldade progressiva', () => {
+  const game = read('public/game.js');
+  const server = read('server.js');
+  const data = read('game-data.js');
+  assert.match(game, /function movingEnemyPoint\(/);
+  assert.match(game, /CHEST_SPOTS/);
+  assert.match(game, /openChest/);
+  assert.match(server, /socket\.on\('openChest'/);
+  assert.match(server, /openedChests/);
+  assert.match(data, /enemy\.hp = Math\.ceil\(enemy\.hp \* 1\.14\)/);
 });

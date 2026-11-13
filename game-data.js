@@ -38,4 +38,9 @@ const QUESTS = [
   {id:'q_final',title:'O fim da escuridão',description:'Entre no Reino Sombrio e derrote Malakar.',region:'shadow',goal:1,reward:{xp:500,gold:350}}
 ];
 
+// Ajuste de dificuldade: inimigos mais resistentes e golpes ligeiramente mais perigosos.
+for (const region of REGIONS) {
+  for (const enemy of region.enemies) { enemy.hp = Math.ceil(enemy.hp * 1.14); enemy.atk = Math.ceil(enemy.atk * 1.10); }
+  region.boss.hp = Math.ceil(region.boss.hp * 1.10); region.boss.atk = Math.ceil(region.boss.atk * 1.08);
+}
 module.exports = {HERO_CLASSES,EQUIPMENT,REGIONS,QUESTS};

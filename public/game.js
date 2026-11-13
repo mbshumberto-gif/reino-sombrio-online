@@ -302,6 +302,22 @@ function drawGate(ctx,x,y,label,locked=false){
  ctx.fillStyle=locked?"#c16d63":"#f4cf72";ctx.font="bold 12px monospace";ctx.textAlign="center";ctx.fillText(label,x,y-25);
 }
 function nearest(a,b){return Math.hypot(a.x-b.x,a.y-b.y);}
+const CHEST_SPOTS={
+ forest:[{id:"forest-1",x:480,y:400},{id:"forest-2",x:288,y:288}],
+ cave:[{id:"cave-1",x:480,y:400},{id:"cave-2",x:768,y:256}],
+ fire:[{id:"fire-1",x:480,y:400},{id:"fire-2",x:256,y:288}],
+ castle:[{id:"castle-1",x:480,y:400},{id:"castle-2",x:736,y:288}],
+ shadow:[{id:"shadow-1",x:480,y:400},{id:"shadow-2",x:256,y:288}]
+};
+function movingEnemyPoint(area,index,now=Date.now()){
+ const p=ENEMY_POINTS[area]?.[index];if(!p)return {x:0,y:0};
+ const phase=now/1700+index*2.3+area.length;
+ return {x:p.x+Math.sin(phase)*24,y:p.y+Math.cos(phase*.83)*17};
+}
+function movingNpcPoint(n,index,now=Date.now()){
+ const phase=now/2600+index*2.1;
+ return {x:n.x+Math.sin(phase)*18,y:n.y+Math.cos(phase*.72)*11};
+}
 function currentPlayer(){return latestState?.players.find(p=>p.id===socket.id);}
 function worldInteractionPrompt(){
  const me=currentPlayer();if(!me||latestState?.battle)return "ESPAÇO ATACA • WASD / SETAS MOVIMENTAM";
@@ -313,9 +329,10 @@ function worldInteractionPrompt(){
    if(!next&&latestState.world?.[area])return "A JORNADA FOI CONCLUÍDA. ELDORIA ESTÁ LIVRE.";
  }
  if(area!=="village"&&me.y>510){const idx=["forest","cave","fire","castle","shadow"].indexOf(area);return idx===0?"E — VOLTAR À VILA":"E — REGRESSAR À REGIÃO ANTERIOR";}
- if(area==="village"){const npc=NPC_POINTS.find(n=>nearest(me,n)<48);if(npc)return "E — CONVERSAR";}
+ if(area==="village"){const npc=NPC_POINTS.find((n,i)=>nearest(me,movingNpcPoint(n,i))<48);if(npc)return "E — CONVERSAR";}
+ const chest=(CHEST_SPOTS[area]||[]).find(c=>!latestState.openedChests?.includes(c.id)&&nearest(me,c)<48);if(chest)return "E — VASCULHAR POTE DE TESOURO";
  const points=ENEMY_POINTS[area]||[],region=window.gameRegions?.find(r=>r.id===area);
- if(points.some((p,i)=>!latestState.defeatedEnemies?.[area]?.includes(i)&&nearest(me,p)<50))return "A CRIATURA PERCEBEU SUA PRESENÇA!";
+ if(points.some((p,i)=>!latestState.defeatedEnemies?.[area]?.includes(i)&&nearest(me,movingEnemyPoint(area,i))<50))return "A CRIATURA PERCEBEU SUA PRESENÇA!";
  if(region?.boss&& !latestState.world?.[area]&&nearest(me,BOSS_POINTS[area])<62)return "O GUARDIÃO ESTÁ DIANTE DE VOCÊ!";
  return "WASD / SETAS PARA ANDAR • E PARA INTERAGIR";
 }
@@ -332,34 +349,35 @@ function interactWorld(){
  }
  if(area!=="village"&&me.y>500){socket.emit("travelRegion",{area:idx===0?"village":ids[idx-1]});return;}
  if(area==="village"){
-   const npc=NPC_POINTS.find(n=>nearest(me,n)<48);
+   const npc=NPC_POINTS.find((n,i)=>nearest(me,movingNpcPoint(n,i))<48);
    if(npc){if(npc.npc==="blacksmith")$("merchant").classList.remove("hidden");socket.emit("talkNpc",{npc:npc.npc});return;}
  }
+ const chest=(CHEST_SPOTS[area]||[]).find(c=>!latestState.openedChests?.includes(c.id)&&nearest(me,c)<48);if(chest){socket.emit('openChest',{id:chest.id});return;}
 }
 function checkEncounters(){
  if(window.platformerMode)return;
  const me=currentPlayer();if(!me||latestState?.battle)return;
  if((latestState.activeRegion||"village")==="village"){
-   const nearby=NPC_POINTS.find(n=>nearest(me,n)<62);
+   const nearby=NPC_POINTS.find((n,i)=>nearest(me,movingNpcPoint(n,i))<62);
    if(nearby&&window.autoNpcTalk!==nearby.npc){window.autoNpcTalk=nearby.npc;socket.emit("talkNpc",{npc:nearby.npc});}
    if(!nearby)window.autoNpcTalk=null;
  }
  if(Date.now()<(window.encounterCooldown||0))return;
  const area=latestState.activeRegion||"village",region=window.gameRegions?.find(r=>r.id===area);if(!region)return;
  const points=ENEMY_POINTS[area]||[],defeated=latestState.defeatedEnemies?.[area]||[];
- for(let i=0;i<points.length;i++){if(!defeated.includes(i)&&nearest(me,points[i])<35){window.encounterCooldown=Date.now()+1800;socket.emit("explore",{area,action:"enter",enemyIndex:i});return;}}
+ for(let i=0;i<points.length;i++){if(!defeated.includes(i)&&nearest(me,movingEnemyPoint(area,i))<48){window.encounterCooldown=Date.now()+1800;socket.emit("explore",{area,action:"enter",enemyIndex:i});return;}}
  if(region.boss&&!latestState.world?.[area]&&nearest(me,BOSS_POINTS[area])<45){window.encounterCooldown=Date.now()+1800;socket.emit("explore",{area,action:"enter",boss:true});}
 }
 function drawWorld(){
  const canvas=$("worldCanvas");if(!canvas||!latestState)return;
  const area=latestState.activeRegion||"village";
  if(!worldCache.has(area))worldCache.set(area,drawMapBase(area));
- const ctx=canvas.getContext("2d"),base=worldCache.get(area);ctx.clearRect(0,0,960,576);ctx.drawImage(base.canvas,0,0);
+ const ctx=canvas.getContext("2d"),base=worldCache.get(area);ctx.imageSmoothingEnabled=false;ctx.clearRect(0,0,960,576);ctx.drawImage(base.canvas,0,0);
  if(area==="village"){
    drawGate(ctx,480,550,"FLORESTA");
    NPC_POINTS.forEach((n,i)=>{
      const npcLook=[{classKey:"mage",level:8},{classKey:"cleric",level:6},{classKey:"warrior",level:9}][i];
-     const t=Date.now()/1000, wanderX=Math.sin(t*.55+i*2.1)*5, wanderY=Math.cos(t*.7+i*1.7)*3;
+     const t=Date.now()/1000, wanderX=Math.sin(t*.55+i*2.1)*18, wanderY=Math.cos(t*.7+i*1.7)*11;
      pixelHero(ctx,{...npcLook,name:["ADERIC","MIRA","ELDRIN"][i],x:n.x+wanderX,y:n.y+wanderY,facing:["down","left","right"][Math.floor((t/4+i)%3)],moving:true},Date.now());
    });
  }
@@ -369,7 +387,7 @@ function drawWorld(){
    const next=["forest","cave","fire","castle","shadow"][idx+1];
    drawGate(ctx,480,25,next?(latestState.world?.[area]?"PRÓXIMA":"SELADO"):"FIM",!latestState.world?.[area]);
    const enemies=window.gameRegions?.find(r=>r.id===area)?.enemies||[],defeated=latestState.defeatedEnemies?.[area]||[];
-   enemies.forEach((enemy,i)=>{if(!defeated.includes(i)){pixelMonster(ctx,enemy.name,ENEMY_POINTS[area][i].x,ENEMY_POINTS[area][i].y,2.2,false,Date.now());ctx.fillStyle="#fff0c2";ctx.font="12px monospace";ctx.textAlign="center";ctx.fillText(enemy.name,ENEMY_POINTS[area][i].x,ENEMY_POINTS[area][i].y+31);}});
+   enemies.forEach((enemy,i)=>{if(!defeated.includes(i)){const pos=movingEnemyPoint(area,i);pixelMonster(ctx,enemy.name,pos.x,pos.y,2.2,false,Date.now());ctx.fillStyle="#fff0c2";ctx.font="12px monospace";ctx.textAlign="center";ctx.fillText(enemy.name,pos.x,pos.y+31);}});
    const region=window.gameRegions?.find(r=>r.id===area);
    if(region?.boss&&!latestState.world?.[area]){pixelMonster(ctx,region.boss.name,BOSS_POINTS[area].x,BOSS_POINTS[area].y,3.5,true,Date.now());ctx.fillStyle="#f4cf72";ctx.font="bold 13px monospace";ctx.textAlign="center";ctx.fillText("GUARDIÃO",480,135);}
  }
@@ -389,6 +407,22 @@ function drawWorld(){
    ctx.globalAlpha=.18;ctx.fillStyle="#d5ffff";ctx.beginPath();ctx.ellipse(757,333,54,12+Math.sin(t)*3,0,0,Math.PI*2);ctx.fill();
    ctx.restore();
  }
+ // Potes de tesouro: recipientes pixelados e persistentes.
+ (CHEST_SPOTS[area]||[]).forEach(chest=>{
+   const opened=latestState.openedChests?.includes(chest.id),x=chest.x,y=chest.y;
+   rect(ctx,x-12,y-10,24,18,opened?"#594b3d":"#98602f");
+   rect(ctx,x-14,y-13,28,6,opened?"#51483e":"#d6a34c");
+   rect(ctx,x-3,y-11,6,18,opened?"#776b55":"#f3d477");
+   rect(ctx,x-9,y-4,18,3,opened?"#332d2a":"#6b3e28");
+   if(!opened){ctx.fillStyle="#fff0a8";ctx.fillRect(x-2,y-19,4,3);}
+ });
+ // Clima regional: vaga-lumes, poeira cristalina, brasas e partículas do vazio.
+ const weather=Date.now()/1000;ctx.save();
+ if(area==="forest"||area==="village"){ctx.globalAlpha=.45;ctx.fillStyle="#d5ed9c";for(let i=0;i<16;i++){const x=(i*79+weather*13)%960,y=(i*47+Math.sin(weather+i)*12)%540;ctx.fillRect(x,y,2,3);}}
+ else if(area==="cave"){ctx.globalAlpha=.38;ctx.fillStyle="#b8e9ef";for(let i=0;i<12;i++){const x=(i*83+Math.sin(weather*.6+i)*22)%960,y=(i*59+weather*8)%540;ctx.fillRect(x,y,2,2);}}
+ else if(area==="fire"){ctx.globalAlpha=.55;ctx.fillStyle="#ffb45d";for(let i=0;i<18;i++){const x=(i*61+Math.sin(weather+i)*15)%960,y=520-((i*37+weather*24)%520);ctx.fillRect(x,y,3,4);}}
+ else if(area==="shadow"){ctx.globalAlpha=.3;ctx.fillStyle="#b78ce0";for(let i=0;i<15;i++){const x=(i*67+weather*5)%960,y=(i*43+weather*11)%540;ctx.fillRect(x,y,2,5);}}
+ ctx.restore();
  const me=currentPlayer();
  if(me){latestState.players.filter(p=>p.id!==socket.id).forEach(p=>pixelHero(ctx,p,Date.now()));pixelHero(ctx,{...me,...(localPosition||{})},Date.now());}
  $("nearbyPrompt").textContent=worldInteractionPrompt();
