@@ -420,7 +420,7 @@ $("musicVolume").addEventListener('input', () => {
 
 fetch("/game-data").then(response=>response.json()).then(data=>{window.gameClasses=data.classes;window.gameQuests=data.quests;window.gameRegions=data.regions;const select=$("heroClass");select.innerHTML="";Object.entries(data.classes).forEach(([key,hero])=>{const option=document.createElement("option");option.value=key;option.textContent=`${hero.name} — ${hero.role} | ${hero.skill.name}`;select.append(option);});if(latestState){renderCampaign(latestState);renderMap();}}).catch(()=>{});
 fetch('/campaign-data').then(r=>r.json()).then(data=>{window.regionScenes=data.scenes;window.dungeonData=data.dungeons;window.sideQuestData=data.sideQuests;if(latestState){renderCampaign(latestState);renderMap();}}).catch(()=>{});
-socket.on("joined",data=>{currentCode=data.code;localPosition=null;enterGame();worldLoopActive=true;requestAnimationFrame(worldAnimation);toast("Você entrou na aventura! Explore Eldoria com WASD ou as setas.")});
+socket.on("joined",data=>{currentCode=data.code;localPosition=null;enterGame();if(!window.platformerMode){worldLoopActive=true;requestAnimationFrame(worldAnimation);}toast("Você entrou na aventura! Explore Eldoria com WASD ou as setas.")});
 socket.on("errorMessage",toast);
 socket.on("notice",msg=>{toast(msg);log(msg)});
 const remoteMoveTimers = new Map();
