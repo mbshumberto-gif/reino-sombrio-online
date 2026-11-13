@@ -259,9 +259,27 @@ function pixelHero(ctx,p,time=0){
  rect(ctx,left+15,top+3,30,21,colors.skin);rect(ctx,left+15,top+18,30,5,colors.hair);
  rect(ctx,left+18,top+10,5,4,"#20232a");rect(ctx,left+36,top+10,5,4,"#20232a");
  if(p.equipment?.armor){const tone=p.equipment.armor==="shadowCloak"?"#382b4f":p.equipment.armor==="chainArmor"?"#9da9b2":"#9a6844";rect(ctx,left+9,top+19,39,23,tone);rect(ctx,left+24,top+23,9,14,colors.accent);}
- if(p.equipment?.weapon){rect(ctx,left+50,top+16,4,29,"#c9d5d9");rect(ctx,left+47,top+23,10,4,colors.accent);}
+ const gear=colors.gear;
+ if(gear==="bow"){rect(ctx,left+49,top+13,3,34,"#9b6a3e");rect(ctx,left+47,top+13,7,3,"#e8d9bd");rect(ctx,left+47,top+44,7,3,"#e8d9bd");rect(ctx,left+52,top+15,1,28,"#eee5c9");}
+ else if(gear==="staff"){rect(ctx,left+50,top+9,4,40,"#805333");rect(ctx,left+47,top+5,10,8,colors.accent);rect(ctx,left+50,top+2,4,4,"#fff0a8");}
+ else {rect(ctx,left+51,top+13,4,31,"#d8e4e8");rect(ctx,left+47,top+21,12,4,colors.accent);rect(ctx,left+52,top+43,3,7,"#805333");}
+ if(p.equipment?.weapon){rect(ctx,left+49,top+10,5,34,"#f0d77d");rect(ctx,left+46,top+20,11,4,"#fff0a8");}
+ if((p.level||1)>=5){rect(ctx,left+8,top+19,41,24,"#b4a06b");rect(ctx,left+23,top+22,12,16,colors.accent);}
+ if((p.level||1)>=10){rect(ctx,left+12,top+1,36,4,"#f4cf72");rect(ctx,left+7,top+5,4,8,"#f4cf72");rect(ctx,left+49,top+5,4,8,"#f4cf72");}
  if(p.facing==="left") { /* corpo mantém a silhueta legível; rosto e arma indicam direção */ rect(ctx,left+15,top+10,4,4,"#20232a"); }
  if(p.facing==="up"){rect(ctx,left+15,top+3,30,8,colors.hair);rect(ctx,left+18,top+13,24,6,colors.hair);}
+}
+function drawBattleScene(state){
+ const canvas=$("battleSceneCanvas");if(!canvas||!state?.battle)return;
+ const ctx=canvas.getContext("2d");ctx.clearRect(0,0,960,280);
+ const grad=ctx.createLinearGradient(0,0,0,280);grad.addColorStop(0,"#283b49");grad.addColorStop(1,"#111b29");ctx.fillStyle=grad;ctx.fillRect(0,0,960,280);
+ for(let n=0;n<12;n++){rect(ctx,n*90,190+(n%3)*8,64,5,"#53606a");rect(ctx,n*90+24,205+(n%2)*9,42,4,"#344653");}
+ ctx.fillStyle="#f4cf72";ctx.font="bold 18px monospace";ctx.textAlign="center";ctx.fillText("EQUIPE DE ELDORIA",210,28);
+ ctx.fillStyle="#f3a08e";ctx.fillText(state.battle.enemy.toUpperCase(),755,28);
+ const party=state.players.filter(p=>p.hp>0);
+ party.forEach((p,index)=>{const x=110+(index%4)*125,y=130+Math.floor(index/4)*76;pixelHero(ctx,{...p,x,y,facing:"right",moving:true},Date.now());ctx.fillStyle="#fff0c2";ctx.font="13px monospace";ctx.fillText(p.name.slice(0,13),x,y+43);if(p.id===state.battle.activePlayerId){ctx.strokeStyle="#f4cf72";ctx.lineWidth=3;ctx.beginPath();ctx.arc(x,y-5,34,0,Math.PI*2);ctx.stroke();}});
+ pixelMonster(ctx,state.battle.enemy,755,145,5.5,!!state.battle.boss,Date.now());
+ ctx.fillStyle="#f4cf72";ctx.font="bold 13px monospace";ctx.fillText("INIMIGO",755,238);
 }
 function drawGate(ctx,x,y,label,locked=false){
  rect(ctx,x-25,y-20,50,40,locked?"#51424a":"#72523a");rect(ctx,x-19,y-16,38,34,locked?"#2b2534":"#263e45");
@@ -306,6 +324,11 @@ function interactWorld(){
 function checkEncounters(){
  if(window.platformerMode)return;
  const me=currentPlayer();if(!me||latestState?.battle||Date.now()<(window.encounterCooldown||0))return;
+ if((latestState.activeRegion||"village")==="village"){
+   const nearby=NPC_POINTS.find(n=>nearest(me,n)<48);
+   if(nearby&&window.autoNpcTalk!==nearby.npc){window.autoNpcTalk=nearby.npc;socket.emit("talkNpc",{npc:nearby.npc});}
+   if(!nearby)window.autoNpcTalk=null;
+ }
  const area=latestState.activeRegion||"village",region=window.gameRegions?.find(r=>r.id===area);if(!region)return;
  const points=ENEMY_POINTS[area]||[],defeated=latestState.defeatedEnemies?.[area]||[];
  for(let i=0;i<points.length;i++){if(!defeated.includes(i)&&nearest(me,points[i])<35){window.encounterCooldown=Date.now()+1800;socket.emit("explore",{area,action:"enter",enemyIndex:i});return;}}
@@ -316,7 +339,7 @@ function drawWorld(){
  const area=latestState.activeRegion||"village";
  if(!worldCache.has(area))worldCache.set(area,drawMapBase(area));
  const ctx=canvas.getContext("2d"),base=worldCache.get(area);ctx.clearRect(0,0,960,576);ctx.drawImage(base.canvas,0,0);
- if(area==="village"){drawGate(ctx,480,550,"FLORESTA");NPC_POINTS.forEach((n,i)=>{pixelHero(ctx,{x:n.x,y:n.y,facing:"down",classKey:i===0?"mage":i===1?"cleric":"warrior"},Date.now());});}
+ if(area==="village"){drawGate(ctx,480,550,"FLORESTA");NPC_POINTS.forEach((n,i)=>{const npcLook=[{classKey:"mage",level:8},{classKey:"cleric",level:6},{classKey:"warrior",level:9}][i];pixelHero(ctx,{...npcLook,x:n.x,y:n.y,facing:"down"},Date.now());ctx.fillStyle="#fff0c2";ctx.font="12px monospace";ctx.textAlign="center";ctx.fillText(["ADERIC","MIRA","ELDRIN"][i],n.x,n.y+35);});}
  else{
    const idx=["forest","cave","fire","castle","shadow"].indexOf(area),previous=idx===0?"VILA":(["forest","cave","fire","castle","shadow"][idx-1]||"VILA");
    drawGate(ctx,480,550,previous,false);
@@ -510,7 +533,7 @@ socket.on("state",state=>{
  if(b){
    $("areaTitle").textContent="Combate cooperativo";
    $("storyText").textContent="A equipe precisa agir em conjunto. Cada jogador tem uma ação por rodada.";
-   $("enemyName").textContent=b.enemy;const portrait=$("enemyPortrait").getContext("2d");portrait.clearRect(0,0,160,140);pixelMonster(portrait,b.enemy,80,76,5.2,!!b.boss,Date.now());$("enemyHp").textContent=`${b.hp} / ${b.maxHp} de vida`;
+   $("enemyName").textContent=b.enemy;drawBattleScene(state);const portrait=$("enemyPortrait").getContext("2d");portrait.clearRect(0,0,160,140);pixelMonster(portrait,b.enemy,80,76,5.2,!!b.boss,Date.now());$("enemyHp").textContent=`${b.hp} / ${b.maxHp} de vida`;
    $("enemyBar").style.width=(100*b.hp/b.maxHp)+"%";
    const me=state.players.find(p=>p.id===socket.id);
    const isMyTurn=!!me&&b.activePlayerId===socket.id&&me.hp>0;
