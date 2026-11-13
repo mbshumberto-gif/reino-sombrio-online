@@ -26,6 +26,9 @@ function enterGame(){ $("titleScreen")?.classList.add("hidden"); $("entry").clas
 function chosenHero(){ return $("heroClass").value || 'warrior'; }
 
 $("createBtn").onclick=()=>socket.emit("createRoom",{name:$("playerName").value,heroClass:chosenHero(),characterId});
+$("continueSaveBtn").onclick=()=>socket.emit("continueSave",{name:$("playerName").value||"Aventureiro",characterId});
+$("saveGameBtn").onclick=()=>socket.emit("saveGame");
+$("dialogueNext").onclick=()=>$("dialoguePanel").classList.add("hidden");
 $("joinBtn").onclick=()=>socket.emit("joinRoom",{name:$("playerName").value,roomCode:$("roomCode").value,heroClass:chosenHero(),characterId});
 $("copyBtn").onclick=async()=>{try{await navigator.clipboard.writeText(currentCode);toast("Código copiado! Envie para seus amigos.")}catch{toast("Código da sala: "+currentCode)}};
 $("readyBtn").onclick=()=>socket.emit("ready");
@@ -323,12 +326,13 @@ function interactWorld(){
 }
 function checkEncounters(){
  if(window.platformerMode)return;
- const me=currentPlayer();if(!me||latestState?.battle||Date.now()<(window.encounterCooldown||0))return;
+ const me=currentPlayer();if(!me||latestState?.battle)return;
  if((latestState.activeRegion||"village")==="village"){
-   const nearby=NPC_POINTS.find(n=>nearest(me,n)<48);
+   const nearby=NPC_POINTS.find(n=>nearest(me,n)<62);
    if(nearby&&window.autoNpcTalk!==nearby.npc){window.autoNpcTalk=nearby.npc;socket.emit("talkNpc",{npc:nearby.npc});}
    if(!nearby)window.autoNpcTalk=null;
  }
+ if(Date.now()<(window.encounterCooldown||0))return;
  const area=latestState.activeRegion||"village",region=window.gameRegions?.find(r=>r.id===area);if(!region)return;
  const points=ENEMY_POINTS[area]||[],defeated=latestState.defeatedEnemies?.[area]||[];
  for(let i=0;i<points.length;i++){if(!defeated.includes(i)&&nearest(me,points[i])<35){window.encounterCooldown=Date.now()+1800;socket.emit("explore",{area,action:"enter",enemyIndex:i});return;}}
@@ -470,7 +474,8 @@ $("musicVolume").addEventListener('input', () => {
 
 fetch("/game-data").then(response=>response.json()).then(data=>{window.gameClasses=data.classes;window.gameQuests=data.quests;window.gameRegions=data.regions;const select=$("heroClass");select.innerHTML="";Object.entries(data.classes).forEach(([key,hero])=>{const option=document.createElement("option");option.value=key;option.textContent=`${hero.name} — ${hero.role} | ${hero.skill.name}`;select.append(option);});if(latestState){renderCampaign(latestState);renderMap();}}).catch(()=>{});
 fetch('/campaign-data').then(r=>r.json()).then(data=>{window.regionScenes=data.scenes;window.dungeonData=data.dungeons;window.sideQuestData=data.sideQuests;if(latestState){renderCampaign(latestState);renderMap();}}).catch(()=>{});
-socket.on("joined",data=>{currentCode=data.code;localPosition=null;enterGame();if(!window.platformerMode){worldLoopActive=true;requestAnimationFrame(worldAnimation);}toast("Você entrou na aventura! Explore Eldoria com WASD ou as setas.")});
+socket.on("joined",data=>{currentCode=data.code;localPosition=null;enterGame();if(!window.platformerMode){worldLoopActive=true;requestAnimationFrame(worldAnimation);}toast(data.restored?"Progresso recuperado!":"Você entrou na aventura! Explore Eldoria.");});
+socket.on("dialogue",data=>{if(!data)return;$("dialogueTitle").textContent=data.title||"Morador de Eldoria";$("dialogueText").textContent=(data.lines||[]).join(" ");$("dialoguePanel").classList.remove("hidden");if(data.npc==="blacksmith")$("merchant").classList.remove("hidden");});
 socket.on("errorMessage",toast);
 socket.on("notice",msg=>{toast(msg);log(msg)});
 const remoteMoveTimers = new Map();
@@ -489,11 +494,14 @@ socket.on('playerMoved', data => {
   }
 });
 socket.on("state",state=>{
+ const previousBattle=latestState?.battle,nextBattle=state.battle;
+ if(previousBattle&&nextBattle&&nextBattle.hp<previousBattle.hp)window.battleFx={type:"attack",at:Date.now()};
+ if(previousBattle&&nextBattle&&nextBattle.turn>previousBattle.turn)window.battleFx={type:"enemy",at:Date.now()};
  latestState=state;
  try{renderCampaign(state);}catch(error){console.error("Falha ao atualizar painel da campanha:",error);toast("Painel da campanha com erro; mapa será mantido.");}
  const meNow = state.players.find(p => p.id === socket.id);
  if (meNow) localPosition = {x:meNow.x,y:meNow.y};
- if (state.battle) { heldKeys.clear(); localPosition = null; }
+ if (state.battle) { heldKeys.clear();localPosition=null;cancelAnimationFrame(moveFrame);moveFrame=null; }
  $("players").innerHTML="";
  state.players.forEach(p=>{
    const el=document.createElement("div");el.className="player";
