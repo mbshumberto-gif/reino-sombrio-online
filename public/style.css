@@ -196,3 +196,8 @@ body{background:#101a23;color:#fff0c2}
 .overworld.pixel-world{background:#18251e!important;}
 #worldCanvas{display:block;width:100%;height:auto;aspect-ratio:16/9;object-fit:contain;background:#18251e;}
 .mobile-pad [data-interact]{border-color:#a8c66c;background:#31543d;}
+
+/* RPG top-down: o canvas representa um mapa local de 960x576. */
+.overworld.pixel-world{aspect-ratio:5/3!important;height:auto!important;min-height:0!important;max-height:none!important;background:#18251e!important}
+#worldCanvas{width:100%!important;height:auto!important;aspect-ratio:5/3!important;object-fit:fill!important;background:#18251e}
+@media(max-width:560px){.overworld.pixel-world{aspect-ratio:5/4!important}#worldCanvas{height:100%!important;aspect-ratio:5/4!important;object-fit:fill!important}}
