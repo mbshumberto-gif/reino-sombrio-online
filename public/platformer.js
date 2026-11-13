@@ -155,7 +155,7 @@
     }
     if(region!=="village"){
       const defeated=latestState.defeatedEnemies?.[region]||[];
-      mobs().forEach((x,i)=>{if(!defeated.includes(i)&&stage===0)drawMob(x,i,pal);});
+      mobs().forEach((x,i)=>{if(!defeated.includes(i))drawMob(x,i,pal);});
     }
     const zoneEnd=regionBase(region)+REGION_WIDTH,gateX=zoneEnd-camera;
     if(gateX>-80&&gateX<1040){rect(gateX-28,330,56,125,"#735b43");rect(gateX-19,342,38,108,"#19232d");rect(gateX-9,350,18,92,pal[4]);ctx.fillStyle="#fff0c2";ctx.font="bold 12px monospace";ctx.textAlign="center";ctx.fillText(region==="shadow"?"FIM DO REINO":"PASSAGEM",gateX,315);}
