@@ -304,6 +304,7 @@ function interactWorld(){
  }
 }
 function checkEncounters(){
+ if(window.platformerMode)return;
  const me=currentPlayer();if(!me||latestState?.battle||Date.now()<(window.encounterCooldown||0))return;
  const area=latestState.activeRegion||"village",region=window.gameRegions?.find(r=>r.id===area);if(!region)return;
  const points=ENEMY_POINTS[area]||[],defeated=latestState.defeatedEnemies?.[area]||[];
