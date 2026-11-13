@@ -236,6 +236,7 @@ io.on('connection', (socket) => {
     player.y = clamp(requestedY, 30, 520);
     player.facing = allowedFacing.includes(payload.facing) ? payload.facing : player.facing;
     player.lastMoveAt = now;
+    if (!player.lastPersistAt || now - player.lastPersistAt > 5000) { player.lastPersistAt = now; persistence.saveCharacter(player,campaignSnapshot(room)).catch(error=>console.error('Falha ao salvar posição:',error)); }
     socket.to(room.code).emit('playerMoved', { id: player.id, x: player.x, y: player.y, facing: player.facing });
   });
 
@@ -634,7 +635,7 @@ io.on('connection', (socket) => {
     const room = findRoomByPlayerId(socket.id);
     if (!room) return;
     const player = room.players.get(socket.id);
-    if (player) await persistence.saveCharacter(player);
+    if (player) await persistence.saveCharacter(player,campaignSnapshot(room));
     room.players.delete(socket.id);
     if (player) sendRoomMessage(room, `${player.name} saiu da sala.`);
     if (room.players.size === 0) {
