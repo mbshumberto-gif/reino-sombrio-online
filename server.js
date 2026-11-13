@@ -102,13 +102,23 @@ function emitRoom(room) {
 function sendRoomMessage(room, text) { io.to(room.code).emit('notice', text); }
 function sendPlayerMessage(player, text) { io.to(player.id).emit('notice', text); }
 
+function enemyArchetype(name, boss = false) {
+  if (boss) return 'boss';
+  const n = String(name || '').toLowerCase();
+  if (/xamã|necromante|cultista|arauto|druida/.test(n)) return 'caster';
+  if (/lobo|aranha|morcego|corvo|harpia|cão|devorador|escorpião/.test(n)) return 'swift';
+  if (/golem|troll|javali|cavaleiro|carrasco|abominação/.test(n)) return 'brute';
+  return 'fighter';
+}
 function createBattle(room, details) {
   const turnOrder = [...room.players.values()]
     .filter((player) => player.hp > 0)
     .map((player) => player.id);
   return {
     ...details,
+    archetype: enemyArchetype(details.enemy, details.boss),
     turn: 1,
+    enraged: false,
     acted: [],
     turnOrder,
     activePlayerId: turnOrder[0] || null
@@ -530,6 +540,11 @@ io.on('connection', (socket) => {
       return socket.emit('errorMessage', 'Ação inválida.');
     }
 
+    if (battle.boss && !battle.enraged && battle.hp > 0 && battle.hp <= battle.maxHp * 0.5) {
+      battle.enraged = true;
+      battle.atk = Math.ceil(battle.atk * 1.25);
+      sendRoomMessage(room, `🔥 ${battle.enemy} entrou na FASE 2! Seus ataques ficaram muito mais perigosos!`);
+    }
     battle.acted.push(socket.id);
     const livingPlayers = [...room.players.values()].filter((candidate) => candidate.hp > 0);
     if (battle.hp <= 0) {
@@ -566,6 +581,11 @@ io.on('connection', (socket) => {
         room.defeatedEnemies ||= {};
         room.defeatedEnemies[defeated.area] ||= [];
         if (!room.defeatedEnemies[defeated.area].includes(defeated.enemyIndex)) room.defeatedEnemies[defeated.area].push(defeated.enemyIndex);
+        if (livingPlayers.length && Math.random() < 0.28) {
+          const finder = livingPlayers[Math.floor(Math.random() * livingPlayers.length)];
+          finder.potions += 1;
+          sendPlayerMessage(finder, '🎒 O monstro deixou uma poção! Ela foi guardada na mochila.');
+        }
       }
       if (!defeated.boss) { for (const q of SIDE_QUESTS) { const progress = room.sideQuests?.[q.id]; if (q.region === defeated.area && progress?.accepted && !progress.completed) progress.progress = Math.min(q.goal, progress.progress + 1); } }
       sendRoomMessage(room, defeated.boss
@@ -592,8 +612,15 @@ io.on('connection', (socket) => {
       battle.activePlayerId = nextId;
     } else {
       // Todos os aventureiros vivos agiram: agora o inimigo realiza seu turno.
+      const specialChance = battle.boss ? 0.34 : battle.archetype === 'caster' ? 0.32 : battle.archetype === 'swift' ? 0.26 : 0.18;
+      const specialAttack = Math.random() < specialChance;
       for (const target of livingPlayers) {
-        let damage = Math.max(1, battle.atk - Math.floor(target.defense / 2) + Math.floor(Math.random() * 5));
+        let damage = Math.max(1, battle.atk - Math.floor(target.defense / 2) + Math.floor(Math.random() * 7));
+        if (specialAttack) {
+          const multiplier = battle.boss ? 1.45 : battle.archetype === 'brute' ? 1.5 : battle.archetype === 'caster' ? 1.4 : 1.28;
+          damage = Math.ceil(damage * multiplier);
+          if (battle.archetype === 'caster') target.mana = Math.max(0, target.mana - 7);
+        }
         if (target.classKey === 'warrior') damage = Math.ceil(damage * 0.85);
         if (target.classKey === 'paladin' && battle.boss) damage = Math.ceil(damage * 0.8);
         if (target.defending) damage = Math.ceil(damage * 0.4);
@@ -601,7 +628,8 @@ io.on('connection', (socket) => {
         target.defending = false;
         target.hp = Math.max(0, target.hp - damage);
         target.mana = Math.min(target.maxMana, target.mana + 6);
-        sendPlayerMessage(target, `💥 ${battle.enemy} atacou você e causou ${damage} de dano.`);
+        const moveName = battle.boss ? 'TÉCNICA DEVASTADORA' : battle.archetype === 'caster' ? 'FEITIÇO SOMBRIO' : battle.archetype === 'brute' ? 'GOLPE ESMAGADOR' : battle.archetype === 'swift' ? 'INVESTIDA' : 'ATAQUE';
+        sendPlayerMessage(target, specialAttack ? `☠️ ${battle.enemy} usou ${moveName} e causou ${damage} de dano!` : `💥 ${battle.enemy} atacou você e causou ${damage} de dano.`);
       }
 
       const survivors = [...room.players.values()].filter((candidate) => candidate.hp > 0);

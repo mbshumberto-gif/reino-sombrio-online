@@ -23,11 +23,11 @@ const EQUIPMENT = {
 };
 
 const REGIONS = [
-  {id:'forest',name:'Floresta Amaldiçoada',level:1,unlock:null,description:'Árvores antigas, lobos sombrios e ruínas élficas.',enemies:[{name:'Lobo sombrio',hp:38,atk:9,xp:25,gold:12},{name:'Goblin ladrão',hp:48,atk:11,xp:30,gold:16},{name:'Aranha gigante',hp:44,atk:12,xp:35,gold:18}],boss:{name:'Ent Corrompido',hp:125,atk:14,xp:100,gold:65}},
-  {id:'cave',name:'Caverna dos Ecos',level:3,unlock:'forest',description:'Galerias subterrâneas tomadas por orcs e mortos-vivos.',enemies:[{name:'Orc guerreiro',hp:68,atk:15,xp:40,gold:25},{name:'Esqueleto amaldiçoado',hp:58,atk:17,xp:45,gold:28},{name:'Troll da caverna',hp:88,atk:13,xp:50,gold:35}],boss:{name:'Troll Rei das Profundezas',hp:190,atk:19,xp:150,gold:100}},
-  {id:'fire',name:'Terras do Fogo',level:6,unlock:'cave',description:'Campos vulcânicos guardados por criaturas ígneas.',enemies:[{name:'Salamandra ígnea',hp:100,atk:21,xp:70,gold:45},{name:'Cultista das chamas',hp:90,atk:24,xp:75,gold:50},{name:'Golem de magma',hp:140,atk:19,xp:85,gold:60}],boss:{name:'Draco de Brasas',hp:290,atk:26,xp:240,gold:180}},
-  {id:'castle',name:'Castelo dos Condenados',level:9,unlock:'fire',description:'Fortaleza em ruínas, lar dos generais de Malakar.',enemies:[{name:'Cavaleiro condenado',hp:145,atk:27,xp:100,gold:70},{name:'Necromante real',hp:120,atk:31,xp:110,gold:75},{name:'Abominação',hp:180,atk:25,xp:120,gold:85}],boss:{name:'General Vharok',hp:390,atk:32,xp:350,gold:260}},
-  {id:'shadow',name:'Reino Sombrio',level:12,unlock:'castle',description:'O domínio de Malakar, onde a realidade se curva à escuridão.',enemies:[{name:'Guardião do vazio',hp:190,atk:34,xp:140,gold:100},{name:'Espectro ancestral',hp:160,atk:38,xp:150,gold:110},{name:'Arauto de Malakar',hp:220,atk:32,xp:165,gold:120}],boss:{name:'Malakar, Senhor das Trevas',hp:650,atk:39,xp:650,gold:500}}
+  {id:'forest',name:'Floresta Amaldiçoada',level:1,unlock:null,description:'Árvores antigas, lobos sombrios e ruínas élficas.',enemies:[{name:'Lobo sombrio',hp:38,atk:9,xp:25,gold:12},{name:'Goblin ladrão',hp:48,atk:11,xp:30,gold:16},{name:'Aranha gigante',hp:44,atk:12,xp:35,gold:18},{name:'Corvo carniceiro',hp:55,atk:14,xp:38,gold:21},{name:'Javali das raízes',hp:78,atk:16,xp:48,gold:28}],boss:{name:'Ent Corrompido',hp:150,atk:17,xp:140,gold:85}},
+  {id:'cave',name:'Caverna dos Ecos',level:3,unlock:'forest',description:'Galerias subterrâneas tomadas por orcs e mortos-vivos.',enemies:[{name:'Orc guerreiro',hp:68,atk:15,xp:40,gold:25},{name:'Esqueleto amaldiçoado',hp:58,atk:17,xp:45,gold:28},{name:'Troll da caverna',hp:88,atk:13,xp:50,gold:35},{name:'Morcego de cristal',hp:82,atk:20,xp:55,gold:36},{name:'Xamã subterrâneo',hp:112,atk:24,xp:70,gold:48}],boss:{name:'Troll Rei das Profundezas',hp:230,atk:23,xp:190,gold:130}},
+  {id:'fire',name:'Terras do Fogo',level:6,unlock:'cave',description:'Campos vulcânicos guardados por criaturas ígneas.',enemies:[{name:'Salamandra ígnea',hp:100,atk:21,xp:70,gold:45},{name:'Cultista das chamas',hp:90,atk:24,xp:75,gold:50},{name:'Golem de magma',hp:140,atk:19,xp:85,gold:60},{name:'Escorpião de lava',hp:130,atk:28,xp:88,gold:58},{name:'Harpia das cinzas',hp:150,atk:31,xp:105,gold:72}],boss:{name:'Draco de Brasas',hp:350,atk:32,xp:300,gold:220}},
+  {id:'castle',name:'Castelo dos Condenados',level:9,unlock:'fire',description:'Fortaleza em ruínas, lar dos generais de Malakar.',enemies:[{name:'Cavaleiro condenado',hp:145,atk:27,xp:100,gold:70},{name:'Necromante real',hp:120,atk:31,xp:110,gold:75},{name:'Abominação',hp:180,atk:25,xp:120,gold:85},{name:'Cão espectral',hp:180,atk:34,xp:125,gold:86},{name:'Carrasco de Vharok',hp:225,atk:38,xp:145,gold:105}],boss:{name:'General Vharok',hp:470,atk:40,xp:440,gold:310}},
+  {id:'shadow',name:'Reino Sombrio',level:12,unlock:'castle',description:'O domínio de Malakar, onde a realidade se curva à escuridão.',enemies:[{name:'Guardião do vazio',hp:190,atk:34,xp:140,gold:100},{name:'Espectro ancestral',hp:160,atk:38,xp:150,gold:110},{name:'Arauto de Malakar',hp:220,atk:32,xp:165,gold:120},{name:'Devorador de almas',hp:240,atk:42,xp:175,gold:125},{name:'Cavaleiro do eclipse',hp:290,atk:46,xp:195,gold:145}],boss:{name:'Malakar, Senhor das Trevas',hp:780,atk:50,xp:800,gold:600}}
 ];
 
 const QUESTS = [
@@ -38,9 +38,9 @@ const QUESTS = [
   {id:'q_final',title:'O fim da escuridão',description:'Entre no Reino Sombrio e derrote Malakar.',region:'shadow',goal:1,reward:{xp:500,gold:350}}
 ];
 
-// Ajuste de dificuldade: inimigos mais resistentes e golpes ligeiramente mais perigosos.
+// Curva de dificuldade de campanha: mais criaturas, inimigos resistentes e chefes em duas etapas.
 for (const region of REGIONS) {
-  for (const enemy of region.enemies) { enemy.hp = Math.ceil(enemy.hp * 1.14); enemy.atk = Math.ceil(enemy.atk * 1.10); }
-  region.boss.hp = Math.ceil(region.boss.hp * 1.10); region.boss.atk = Math.ceil(region.boss.atk * 1.08);
+  for (const enemy of region.enemies) { enemy.hp = Math.ceil(enemy.hp * 1.28); enemy.atk = Math.ceil(enemy.atk * 1.18); }
+  region.boss.hp = Math.ceil(region.boss.hp * 1.25); region.boss.atk = Math.ceil(region.boss.atk * 1.18);
 }
 module.exports = {HERO_CLASSES,EQUIPMENT,REGIONS,QUESTS};

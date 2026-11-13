@@ -55,9 +55,24 @@ test('o mundo possui tesouros persistentes, patrulhas e dificuldade progressiva'
   assert.match(game, /openChest/);
   assert.match(server, /socket\.on\('openChest'/);
   assert.match(server, /openedChests/);
-  assert.match(data, /enemy\.hp = Math\.ceil\(enemy\.hp \* 1\.14\)/);
+  assert.match(data, /enemy\.hp = Math\.ceil\(enemy\.hp \* 1\.28\)/);
+  assert.match(data, /name:'Corvo carniceiro'/);
+  assert.match(data, /name:'Cavaleiro do eclipse'/);
+  assert.match(data, /enemies:\[.*?name:'Javali das raízes'/);
 });
 
+test('cada região exige cinco encontros antes do guardião e os inimigos têm arquétipos', () => {
+  const data = read('game-data.js');
+  const server = read('server.js');
+  const game = read('public/game.js');
+  assert.equal((data.match(/enemies:\[/g)||[]).length, 5);
+  assert.match(data, /enemy\.atk = Math\.ceil\(enemy\.atk \* 1\.18\)/);
+  assert.match(server, /function enemyArchetype\(/);
+  assert.match(server, /const specialChance = battle\.boss \? 0\.34/);
+  assert.match(server, /battle\.enraged = true/);
+  assert.match(game, /Fase 2|FASE 2/);
+  assert.match(game, /\{x:760,y:420\}/);
+});
 test('retorno da Terra do Fogo leva ao portal inferior da região anterior e permite voltar à vila', () => {
   const server = read('server.js');
   const game = read('public/game.js');
