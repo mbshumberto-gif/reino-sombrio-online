@@ -31,5 +31,5 @@ const DIALOGUES = {
   villager:[{speaker:'Moradora de Eldoria',text:'As luzes da floresta se movem quando ninguém está olhando. Meu irmão foi atrás delas.'}]
 };
 // Salas de dungeon exigem um pouco mais de preparo, sem saltos bruscos de dificuldade.
-for (const rooms of Object.values(DUNGEONS)) for (const room of rooms) if (room.hp && room.atk) { room.hp = Math.ceil(room.hp * 1.10); room.atk = Math.ceil(room.atk * 1.08); }
+for (const rooms of Object.values(DUNGEONS)) for (const room of rooms) if (room.hp && room.atk) { room.hp = Math.ceil(room.hp * 1.25); room.atk = Math.ceil(room.atk * 1.20); }
 module.exports={REGION_SCENES,DUNGEONS,SIDE_QUESTS,DIALOGUES};

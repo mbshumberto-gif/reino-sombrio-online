@@ -60,7 +60,7 @@ function makePlayer(id, name, classKey, spawn, characterId, saved = {}) {
     id, name, characterId, classKey: hero, className: config.name,
     x: spawn.x, y: spawn.y, facing: 'down',
     hp: config.hp, maxHp: config.hp, attack: config.attack, baseAttack: config.attack, defense: config.defense, baseDefense: config.defense,
-    mana: config.mana, maxMana: config.mana, level: 1, xp: 0, gold: 50, potions: 3,
+    mana: config.mana, maxMana: config.mana, level: 1, xp: 0, gold: 50, potions: 2,
     weapon: config.weapon, armor: 'Vestuário de aventureiro', equipment: { weapon: null, armor: null },
     inventory: ['Poção de vida x3'], skillPoints: 0, skillLevel: 1, skillCooldown: 0, defending: false, buffs: {},
     ready: false, lastMoveAt: 0
@@ -489,7 +489,7 @@ io.on('connection', (socket) => {
       if (player.potions < 1) return socket.emit('errorMessage', 'Você não tem poções.');
       if (player.hp === player.maxHp) return socket.emit('errorMessage', 'Sua vida já está cheia.');
       player.potions -= 1;
-      player.hp = Math.min(player.maxHp, player.hp + (player.classKey === 'cleric' ? 45 : 35));
+      player.hp = Math.min(player.maxHp, player.hp + (player.classKey === 'cleric' ? 35 : 25));
       sendRoomMessage(room, `🧪 ${player.name} usou uma poção.`);
     } else if (action === 'attack') {
       let damage = Math.max(1, player.attack + Math.floor(Math.random() * 7) - 2);
@@ -540,9 +540,9 @@ io.on('connection', (socket) => {
       return socket.emit('errorMessage', 'Ação inválida.');
     }
 
-    if (battle.boss && !battle.enraged && battle.hp > 0 && battle.hp <= battle.maxHp * 0.5) {
+    if (battle.boss && !battle.enraged && battle.hp > 0 && battle.hp <= battle.maxHp * 0.55) {
       battle.enraged = true;
-      battle.atk = Math.ceil(battle.atk * 1.25);
+      battle.atk = Math.ceil(battle.atk * 1.4);
       sendRoomMessage(room, `🔥 ${battle.enemy} entrou na FASE 2! Seus ataques ficaram muito mais perigosos!`);
     }
     battle.acted.push(socket.id);
@@ -568,7 +568,7 @@ io.on('connection', (socket) => {
           member.y = 400 + Math.floor(index / 3) * 24;
           member.facing = 'down';
         });
-        room.transition = { region: defeated.area, nextRegion, title: REGION_SCENES[defeated.area]?.title || defeated.area, message: nextRegion ? 'A passagem para a próxima região foi aberta.' : 'Malakar caiu. Eldoria está livre!', at: Date.now() };
+        room.transition = { region: defeated.area, nextRegion, title: REGION_SCENES[defeated.area]?.title || defeated.area, message: nextRegion ? 'A passagem para a próxima região foi aberta.' : 'Malakar caiu. As correntes se partiram, os prisioneiros despertaram e o povo de Eldoria está livre!', at: Date.now() };
         const quest = QUESTS.find((entry) => entry.region === defeated.area);
         if (quest && !room.quests[quest.id].completed) {
           room.quests[quest.id].progress = 1; room.quests[quest.id].completed = true;
@@ -581,7 +581,7 @@ io.on('connection', (socket) => {
         room.defeatedEnemies ||= {};
         room.defeatedEnemies[defeated.area] ||= [];
         if (!room.defeatedEnemies[defeated.area].includes(defeated.enemyIndex)) room.defeatedEnemies[defeated.area].push(defeated.enemyIndex);
-        if (livingPlayers.length && Math.random() < 0.28) {
+        if (livingPlayers.length && Math.random() < 0.20) {
           const finder = livingPlayers[Math.floor(Math.random() * livingPlayers.length)];
           finder.potions += 1;
           sendPlayerMessage(finder, '🎒 O monstro deixou uma poção! Ela foi guardada na mochila.');
@@ -612,12 +612,12 @@ io.on('connection', (socket) => {
       battle.activePlayerId = nextId;
     } else {
       // Todos os aventureiros vivos agiram: agora o inimigo realiza seu turno.
-      const specialChance = battle.boss ? 0.34 : battle.archetype === 'caster' ? 0.32 : battle.archetype === 'swift' ? 0.26 : 0.18;
+      const specialChance = battle.boss ? 0.46 : battle.archetype === 'caster' ? 0.40 : battle.archetype === 'swift' ? 0.34 : battle.archetype === 'brute' ? 0.30 : 0.24;
       const specialAttack = Math.random() < specialChance;
       for (const target of livingPlayers) {
         let damage = Math.max(1, battle.atk - Math.floor(target.defense / 2) + Math.floor(Math.random() * 7));
         if (specialAttack) {
-          const multiplier = battle.boss ? 1.45 : battle.archetype === 'brute' ? 1.5 : battle.archetype === 'caster' ? 1.4 : 1.28;
+          const multiplier = battle.boss ? 1.65 : battle.archetype === 'brute' ? 1.65 : battle.archetype === 'caster' ? 1.55 : 1.4;
           damage = Math.ceil(damage * multiplier);
           if (battle.archetype === 'caster') target.mana = Math.max(0, target.mana - 7);
         }

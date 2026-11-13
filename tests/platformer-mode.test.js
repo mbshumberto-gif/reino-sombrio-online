@@ -15,13 +15,14 @@ test('a página carrega somente o cliente principal do RPG top-down', () => {
   assert.match(html, /id="mobileActionBtn"/);
 });
 
-test('o jogador pode iniciar um herói do zero sem perder o personagem anterior', () => {
+test('a tela inicial oferece apenas criar aventura e continuar o mesmo personagem', () => {
   const html = read('public/index.html');
   const game = read('public/game.js');
-  assert.match(html, /id="newCharacterBtn"/);
-  assert.match(html, /id="continuePreviousBtn"/);
-  assert.match(game, /eldoriaPreviousCharacterId/);
-  assert.match(game, /characterId=crypto\.randomUUID/);
+  assert.match(html, /id="createBtn"/);
+  assert.match(html, /id="continueSaveBtn"/);
+  assert.doesNotMatch(html, /newCharacterBtn|continuePreviousBtn/);
+  assert.doesNotMatch(game, /newCharacterBtn|continuePreviousBtn/);
+  assert.match(game, /localStorage\.removeItem\('eldoriaPreviousCharacterId'\)/);
 });
 test('o cliente principal contém desenho, movimentação e interação do herói', () => {
   const game = read('public/game.js');
@@ -63,7 +64,7 @@ test('o mundo possui tesouros persistentes, patrulhas e dificuldade progressiva'
   assert.match(game, /openChest/);
   assert.match(server, /socket\.on\('openChest'/);
   assert.match(server, /openedChests/);
-  assert.match(data, /enemy\.hp = Math\.ceil\(enemy\.hp \* 1\.28\)/);
+  assert.match(data, /enemy\.hp = Math\.ceil\(enemy\.hp \* 1\.42\)/);
   assert.match(data, /name:'Corvo carniceiro'/);
   assert.match(data, /name:'Cavaleiro do eclipse'/);
   assert.match(data, /enemies:\[.*?name:'Javali das raízes'/);
@@ -74,12 +75,20 @@ test('cada região exige cinco encontros antes do guardião e os inimigos têm a
   const server = read('server.js');
   const game = read('public/game.js');
   assert.equal((data.match(/enemies:\[/g)||[]).length, 5);
-  assert.match(data, /enemy\.atk = Math\.ceil\(enemy\.atk \* 1\.18\)/);
+  assert.match(data, /enemy\.atk = Math\.ceil\(enemy\.atk \* 1\.28\)/);
   assert.match(server, /function enemyArchetype\(/);
-  assert.match(server, /const specialChance = battle\.boss \? 0\.34/);
+  assert.match(server, /const specialChance = battle\.boss \? 0\.46/);
+  assert.match(server, /battle\.atk = Math\.ceil\(battle\.atk \* 1\.4\)/);
   assert.match(server, /battle\.enraged = true/);
   assert.match(game, /Fase 2|FASE 2/);
   assert.match(game, /\{x:760,y:420\}/);
+});
+test('o jogo apresenta a libertação do povo após derrotar Malakar', () => {
+  const html = read('public/index.html'), game = read('public/game.js'), server = read('server.js');
+  assert.match(html, /id="endingSequence"/);
+  assert.match(game, /AS CORRENTES SE PARTEM/);
+  assert.match(game, /ELDORIA LIVRE/);
+  assert.match(server, /os prisioneiros despertaram e o povo de Eldoria está livre/);
 });
 test('retorno da Terra do Fogo leva ao portal inferior da região anterior e permite voltar à vila', () => {
   const server = read('server.js');

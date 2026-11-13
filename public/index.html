@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#18251e">
-<title>As Crônicas do Reino Sombrio</title><link rel="stylesheet" href="style.css?v=5">
+<title>As Crônicas do Reino Sombrio</title><link rel="stylesheet" href="style.css?v=6">
 </head>
 <body>
 <main class="shell">
@@ -20,7 +20,7 @@
   <h2>Prepare seu aventureiro</h2>
   <label for="playerName">Nome do herói</label><input id="playerName" maxlength="18" placeholder="Nome do seu herói">
   <label for="heroClass">Escolha sua classe</label><select id="heroClass"><option value="warrior">Guerreiro</option></select>
-  <button id="createBtn" class="primary">Criar nova aventura</button><button id="newCharacterBtn" class="secondary">Novo herói do zero</button><button id="continueSaveBtn" class="secondary">Continuar de onde parei</button><button id="continuePreviousBtn" class="secondary hidden">Continuar personagem anterior</button><p class="hint">O novo herói começa no nível 1. Seu personagem anterior fica preservado e pode ser retomado.</p>
+  <button id="createBtn" class="primary">Criar nova aventura</button><button id="continueSaveBtn" class="secondary">Continuar de onde parei</button><p class="hint">Sua aventura é salva automaticamente. Continue de onde parou sempre que voltar.</p>
   <div class="or">OU ENTRE NA AVENTURA DE UM AMIGO</div>
   <label for="roomCode">Código da sala</label><input id="roomCode" maxlength="6" placeholder="ABC123" class="code">
   <button id="joinBtn">Entrar na sala</button><p class="hint">Até 8 aventureiros podem jogar juntos.</p>
@@ -59,9 +59,9 @@
     </div></details>
   </div>
   <section id="regionScene" class="region-scene hidden"><div class="scene-heading"><span>REGIÃO</span><h3 id="sceneTitle">Vila de Eldoria</h3><p id="sceneSubtitle">O último refúgio</p></div><div id="sceneLandmarks" class="scene-landmarks"></div><div id="enemyGallery" class="enemy-gallery"></div></section>
-  <section id="transitionScreen" class="transition-screen hidden"><div class="transition-card"><small>CAPÍTULO CONCLUÍDO</small><h2 id="transitionTitle">Região conquistada</h2><p id="transitionMessage"></p><button id="continueCampaignBtn" class="primary">Continuar campanha</button></div></section>
+  <section id="transitionScreen" class="transition-screen hidden"><div class="transition-card"><small id="transitionEyebrow">CAPÍTULO CONCLUÍDO</small><h2 id="transitionTitle">Região conquistada</h2><p id="transitionMessage"></p><div id="endingSequence" class="ending-sequence hidden"><div id="endingStage" class="ending-stage"><div class="ending-moon"></div><div class="ending-castle">♜</div><div class="ending-chains">⛓　⛓　⛓</div><div class="freed-people"><span>♟</span><span>♟</span><span>♟</span><span>♟</span><span>♟</span><span>♟</span><span>♟</span></div><div class="ending-sun"></div></div><p id="endingNarration" class="ending-narration"></p></div><button id="continueCampaignBtn" class="primary">Continuar campanha</button></div></section>
 </section>
 <div id="toast" role="status"></div>
 </main>
-<script src="/socket.io/socket.io.js"></script><script src="game.js?v=12"></script>
+<script src="/socket.io/socket.io.js"></script><script src="game.js?v=13"></script>
 </body></html>
