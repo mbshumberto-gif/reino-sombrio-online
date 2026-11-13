@@ -1,9 +1,9 @@
 const socket = io();
 const $ = id => document.getElementById(id);
-$("startAdventureBtn")?.addEventListener("click",()=>{$("titleScreen").classList.add("hidden");$("gameHeader").classList.remove("hidden");$("entry").classList.remove("hidden");if(localStorage.getItem('eldoriaPreviousCharacterId'))$("continuePreviousBtn").classList.remove("hidden");});
+$("startAdventureBtn")?.addEventListener("click",()=>{$("titleScreen").classList.add("hidden");$("gameHeader").classList.remove("hidden");$("entry").classList.remove("hidden");});
 $("backTitleBtn")?.addEventListener("click",()=>{$("entry").classList.add("hidden");$("gameHeader").classList.add("hidden");$("titleScreen").classList.remove("hidden");});
 let currentCode = null, latestState = null, toastTimer;
-let characterId=localStorage.getItem('eldoriaCharacterId')||(crypto.randomUUID?crypto.randomUUID():'hero-'+Math.random().toString(36).slice(2));localStorage.setItem('eldoriaCharacterId',characterId);
+let characterId=localStorage.getItem('eldoriaPreviousCharacterId')||localStorage.getItem('eldoriaCharacterId')||(crypto.randomUUID?crypto.randomUUID():'hero-'+Math.random().toString(36).slice(2));localStorage.setItem('eldoriaCharacterId',characterId);localStorage.removeItem('eldoriaPreviousCharacterId');
 let localPosition = null;
 const heldKeys = new Set();
 let moveFrame = null, lastMoveSent = 0;
@@ -27,17 +27,7 @@ function chosenHero(){ return $("heroClass").value || 'warrior'; }
 
 $("createBtn").onclick=()=>socket.emit("createRoom",{name:$("playerName").value,heroClass:chosenHero(),characterId});
 $("continueSaveBtn").onclick=()=>socket.emit("continueSave",{name:$("playerName").value||"Aventureiro",characterId});
-$("newCharacterBtn").onclick=()=>{
- localStorage.setItem('eldoriaPreviousCharacterId',characterId);
- characterId=crypto.randomUUID?crypto.randomUUID():'hero-'+Math.random().toString(36).slice(2);
- localStorage.setItem('eldoriaCharacterId',characterId);
- $("continuePreviousBtn").classList.remove("hidden");
- socket.emit("createRoom",{name:$("playerName").value,heroClass:chosenHero(),characterId});
-};
-$("continuePreviousBtn").onclick=()=>{
- const previous=localStorage.getItem('eldoriaPreviousCharacterId');
- if(previous)socket.emit("continueSave",{name:$("playerName").value||"Aventureiro",characterId:previous});
-};
+// Um único personagem persistente: criar ou continuar a aventura, sem perfis duplicados.
 $("saveGameBtn").onclick=()=>socket.emit("saveGame");
 $("dialogueNext").onclick=()=>$("dialoguePanel").classList.add("hidden");
 $("dialoguePanel").addEventListener("click",event=>{if(event.target.id!=="dialogueNext")$("dialoguePanel").classList.add("hidden");});
@@ -63,7 +53,15 @@ $("dungeonStartBtn").onclick=()=>socket.emit('startDungeon',{area:latestState?.a
 $("dungeonRoomBtn").onclick=()=>{const d=latestState?.dungeon;const r=window.dungeonData?.[d?.region]?.[d?.currentRoom];const answer=r?.kind==='puzzle'?prompt('ENIGMA: '+r.description+'\n\nDICA: '+(r.hint||'Observe a sala.')+'\n\nDigite sua resposta:') : undefined;socket.emit('dungeonAction',{action:'enter',answer});};
 $("dungeonAdvanceBtn").onclick=()=>socket.emit('dungeonAction',{action:'advance'});
 $("dungeonLeaveBtn").onclick=()=>socket.emit('dungeonAction',{action:'leave'});
-$("continueCampaignBtn").onclick=()=>{$("transitionScreen").classList.add('hidden');};
+window.endingStep=0;
+const endingScenes=[
+ {title:"O ÚLTIMO GRITO DE MALAKAR",text:"A espada atravessa o coração do vazio. Malakar tenta pronunciar uma última maldição, mas sua voz se desfaz em milhares de fragmentos de sombra.",stage:"ending-dark"},
+ {title:"AS CORRENTES SE PARTEM",text:"Muito longe dali, as correntes que prendiam os moradores de Eldoria começam a rachar. A magia que os mantinha adormecidos perde sua força. Um a um, eles abrem os olhos e voltam a respirar livres.",stage:"ending-chains"},
+ {title:"ELDORIA DESPERTA",text:"Nas minas, nas fortalezas e nas aldeias esquecidas, as portas se abrem. Os prisioneiros se reencontram, famílias se abraçam e os antigos guardiões recuperam suas formas. O povo já não teme a noite.",stage:"ending-people"},
+ {title:"O PRIMEIRO AMANHECER",text:"A névoa abandona os campos. Os sinos tocam novamente — desta vez anunciando esperança. Na praça, o povo recebe os aventureiros. Eldoria está livre, e sua história será contada por gerações.",stage:"ending-dawn"}
+];
+function showEndingStep(){const scene=endingScenes[window.endingStep];if(!scene)return;$("transitionEyebrow").textContent="O FIM DA ESCURIDÃO";$("transitionTitle").textContent=scene.title;$("endingNarration").textContent=scene.text;$("endingStage").className="ending-stage "+scene.stage;$("endingSequence").classList.remove("hidden");$("continueCampaignBtn").textContent=window.endingStep===endingScenes.length-1?"Voltar à Eldoria livre":"Próxima cena ▶";}
+$("continueCampaignBtn").onclick=()=>{if(window.endingActive&&window.endingStep<endingScenes.length-1){window.endingStep++;showEndingStep();return;}if(window.endingActive){localStorage.setItem('eldoriaEndingSeen:'+characterId,'1');window.endingActive=false;$("endingSequence").classList.add("hidden");}$("transitionScreen").classList.add('hidden');};
 document.querySelectorAll("[data-boss-area]").forEach(button=>button.onclick=()=>socket.emit("explore",{area:button.dataset.bossArea,action:"enter",boss:true}));
 
 // Sprites SVG originais desenhados em blocos para manter o visual pixel art.
@@ -103,7 +101,8 @@ function renderCampaign(state){
  if(dungeon){dRooms.forEach((room,i)=>{const line=document.createElement('div');line.className='dungeon-room';line.textContent=(dungeon.cleared[i]?'✓ ':'◇ ')+(i+1)+'. '+room.name+' — '+room.description;$('dungeonStatus').append(line);});$('dungeonRoomBtn').textContent=dRooms[dungeon.currentRoom]?.kind==='puzzle'?'Resolver enigma':'Explorar sala '+(dungeon.currentRoom+1);$('dungeonRoomBtn').disabled=!!dungeon.cleared[dungeon.currentRoom]||!!state.battle;$('dungeonAdvanceBtn').disabled=!dungeon.cleared[dungeon.currentRoom]||!!state.battle;$('dungeonLeaveBtn').disabled=!!state.battle;}else{$('dungeonRoomBtn').disabled=true;$('dungeonAdvanceBtn').disabled=true;$('dungeonLeaveBtn').disabled=true;}
  $('dungeonStartBtn').disabled=!!state.battle||!!dungeon;
  $('sideQuestList').innerHTML='';(window.sideQuestData||[]).filter(q=>q.region===key).forEach(q=>{const p=state.sideQuests?.[q.id]||{};const item=document.createElement('div');item.className='sidequest';const title=document.createElement('strong');title.textContent=q.title;const desc=document.createElement('p');desc.textContent=q.description+' ('+(p.progress||0)+'/'+q.goal+')';item.append(title,desc);const btn=document.createElement('button');btn.textContent=p.completed?'Concluída':p.accepted?(p.progress>=q.goal?'Resgatar recompensa':'Em andamento'):'Aceitar missão';btn.disabled=!!state.battle||p.completed;btn.onclick=()=>socket.emit('sideQuest',{id:q.id,action:p.accepted?(p.progress>=q.goal?'claim':'accept'):'accept'});item.append(btn);$('sideQuestList').append(item);});
- if(state.transition&&window.lastTransitionAt!==state.transition.at){window.lastTransitionAt=state.transition.at;$('transitionTitle').textContent=state.transition.title+' conquistada!';$('transitionMessage').textContent=state.transition.message;$('transitionScreen').classList.remove('hidden');}
+ if(state.transition&&window.lastTransitionAt!==state.transition.at){window.lastTransitionAt=state.transition.at;$('transitionEyebrow').textContent='CAPÍTULO CONCLUÍDO';$('transitionTitle').textContent=state.transition.title+' conquistada!';$('transitionMessage').textContent=state.transition.message;$('endingSequence').classList.add('hidden');window.endingActive=false;$('continueCampaignBtn').textContent='Continuar campanha';$('transitionScreen').classList.remove('hidden');}
+ if(state.world?.shadow&&localStorage.getItem('eldoriaEndingSeen:'+characterId)!=='1'&&!window.endingActive){window.endingActive=true;window.endingStep=0;$('transitionMessage').textContent='A última batalha terminou. Mas a vitória pertence a todo o povo de Eldoria.';$('transitionScreen').classList.remove('hidden');showEndingStep();}
 }
 function enemyGlyph(name='') {
   const n=name.toLowerCase();
@@ -128,12 +127,12 @@ const TILE_SIZE = 32, MAP_COLS = 30, MAP_ROWS = 18;
 const KEY_DIRECTIONS = {ArrowUp:"up",KeyW:"up",ArrowDown:"down",KeyS:"down",ArrowLeft:"left",KeyA:"left",ArrowRight:"right",KeyD:"right"};
 const worldCache = new Map();
 const REGION_STORY = {
- village:"Há vinte anos, Malakar foi derrotado e desapareceu nas montanhas. Agora, os sinos de Eldoria tocam sozinhos e uma névoa negra cobre os campos. A cronista Aderic acredita que alguém está reunindo os antigos selos.",
- forest:"A floresta já foi protegida pelos guardiões élficos. Malakar corrompeu suas raízes para alimentar um portal. O Ent Corrompido conhece o caminho até as minas, mas sua memória foi consumida pela escuridão.",
- cave:"Sob a montanha existe uma cidade mineradora esquecida. Seus habitantes encontraram um fragmento de estrela e desapareceram na mesma noite. Os ecos repetem uma voz que chama pelo nome do herói.",
- fire:"As Terras do Fogo escondem a forja onde Malakar criou sua armadura. O Draco de Brasas guarda a última chama capaz de destruir o metal sombrio.",
- castle:"Vharok foi o maior comandante de Eldoria antes de se aliar a Malakar. Os documentos do castelo revelam que ele tentou impedir o ritual e foi corrompido por quem deveria proteger.",
- shadow:"Além do castelo existe um reino preso entre a vida e a morte. Malakar não deseja apenas conquistar Eldoria: ele pretende apagar todas as memórias do mundo e reescrevê-lo sob seu domínio."
+ village:"Há vinte anos, Malakar foi derrotado na Guerra das Sete Lanternas. Antes de desaparecer, lançou uma maldição sobre as famílias que guardavam os antigos selos. Agora, os sinos tocam sozinhos, a névoa avança e moradores desaparecem durante a noite. Aderic acredita que a maldição está despertando — e que o herói marcado pela estrela pode ser a última esperança.",
+ forest:"A Floresta Amaldiçoada já foi o coração vivo de Eldoria. Os guardiões élficos protegiam a Árvore-Mãe, cujas raízes mantinham o equilíbrio entre os reinos. Malakar envenenou suas raízes para abrir uma passagem ao mundo das sombras. O Ent Corrompido não nasceu maligno: foi o último guardião a resistir, e sua memória ainda guarda o nome de quem traiu os antigos reis.",
+ cave:"Sob as montanhas existe uma cidade mineradora construída em torno de um fragmento caído das estrelas. Os mineiros descobriram que o cristal não era uma fonte de energia, mas uma prisão. Quando tentaram removê-lo, libertaram ecos de pessoas desaparecidas há séculos. A cada corredor, as vozes repetem lembranças de famílias que ainda esperam por seus entes queridos na superfície.",
+ fire:"As Terras do Fogo abrigam a Forja do Eclipse, onde Malakar fundiu sua armadura com o metal de uma estrela morta. O calor não vem apenas do vulcão: é alimentado pela esperança roubada dos prisioneiros. O Draco de Brasas protege a chama capaz de quebrar a armadura, mas esqueceu por que jurou proteger aquele lugar.",
+ castle:"Vharok foi o mais respeitado comandante de Eldoria. Ele descobriu que o rei pretendia usar os selos para controlar a magia do povo e tentou impedir o ritual. Malakar ofereceu-lhe poder para salvar seus soldados, mas transformou sua lealdade em uma prisão. Nos arquivos do castelo, cartas escondidas revelam que Vharok deixou pistas para quem tivesse coragem de terminar o que ele começou.",
+ shadow:"O Reino Sombrio é uma ferida aberta entre a memória e o esquecimento. Malakar alimenta o vazio com as lembranças dos moradores que aprisionou. Se vencer, ninguém se lembrará de Eldoria, nem mesmo aqueles que nascerem depois. Para derrotá-lo, os aventureiros precisarão reunir as histórias que o tirano tentou apagar — e devolver ao povo aquilo que nunca deveria ter sido roubado."
 };
 const ENEMY_POINTS = {
  forest:[{x:220,y:250},{x:730,y:285},{x:560,y:340},{x:260,y:390},{x:760,y:420}],
@@ -401,6 +400,11 @@ function drawWorld(){
      const t=Date.now()/1000, wanderX=Math.sin(t*.55+i*2.1)*18, wanderY=Math.cos(t*.7+i*1.7)*11;
      pixelHero(ctx,{...npcLook,name:["ADERIC","MIRA","ELDRIN"][i],x:n.x+wanderX,y:n.y+wanderY,facing:["down","left","right"][Math.floor((t/4+i)%3)],moving:true},Date.now());
    });
+   if(latestState.world?.shadow){
+     const freed=[{x:250,y:220,classKey:"rogue",name:"LIA"},{x:690,y:220,classKey:"ranger",name:"TOMAS"},{x:250,y:445,classKey:"bard",name:"ELARA"},{x:700,y:445,classKey:"paladin",name:"BORIN"},{x:390,y:185,classKey:"monk",name:"NILO"},{x:570,y:185,classKey:"cleric",name:"SERA"}];
+     freed.forEach((villager,i)=>{const t=Date.now()/1000;pixelHero(ctx,{...villager,level:1,x:villager.x+Math.sin(t*.4+i)*8,y:villager.y+Math.cos(t*.5+i)*6,facing:["down","left","right"][i%3],moving:true},Date.now());});
+     ctx.save();ctx.fillStyle="#ffe79a";ctx.font="bold 16px monospace";ctx.textAlign="center";ctx.fillText("ELDORIA LIVRE — O POVO VOLTOU PARA CASA",480,65);ctx.restore();
+   }
  }
  else{
    const idx=["forest","cave","fire","castle","shadow"].indexOf(area),previous=idx===0?"VILA":(["forest","cave","fire","castle","shadow"][idx-1]||"VILA");
@@ -650,7 +654,7 @@ socket.on("state",state=>{
  } else {
    $("areaTitle").textContent=window.regionScenes?.[state.activeRegion]?.title || "Vila de Eldoria";
    $("mapTitle").textContent=(window.regionScenes?.[state.activeRegion]?.title || "ELDORIA").toUpperCase();
-   $("storyText").textContent=state.world.shadow?"O reino está livre da escuridão! Malakar foi derrotado. A vitória pertence à equipe.":(REGION_STORY[state.activeRegion||"village"]||"Explore o mundo e descubra seus segredos.");
+   $("storyText").textContent=state.world.shadow?"O povo de Eldoria foi libertado. As famílias voltaram para casa e a luz retornou ao reino.":(REGION_STORY[state.activeRegion||"village"]||"Explore o mundo e descubra seus segredos.");
  }
  renderMap();
 });
