@@ -26,7 +26,7 @@ async function loadCharacter(id) {
 }
 async function saveCharacter(player, campaign = null) {
   if (!pool || !player?.characterId) return;
-  const { id, ready, lastMoveAt, x, y, facing, campaign: _oldCampaign, ...data } = player;
+  const { id, ready, lastMoveAt, campaign: _oldCampaign, ...data } = player;
   if (campaign) data.campaign = campaign;
   try {
     await pool.query(
