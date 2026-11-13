@@ -20,7 +20,7 @@
   <h2>Prepare seu aventureiro</h2>
   <label for="playerName">Nome do herói</label><input id="playerName" maxlength="18" placeholder="Nome do seu herói">
   <label for="heroClass">Escolha sua classe</label><select id="heroClass"><option value="warrior">Guerreiro</option></select>
-  <button id="createBtn" class="primary">Criar nova aventura</button><button id="continueSaveBtn" class="secondary">Continuar de onde parei</button><p class="hint">Progresso salvo automaticamente. Você também pode salvar manualmente.</p>
+  <button id="createBtn" class="primary">Criar nova aventura</button><button id="newCharacterBtn" class="secondary">Novo herói do zero</button><button id="continueSaveBtn" class="secondary">Continuar de onde parei</button><button id="continuePreviousBtn" class="secondary hidden">Continuar personagem anterior</button><p class="hint">O novo herói começa no nível 1. Seu personagem anterior fica preservado e pode ser retomado.</p>
   <div class="or">OU ENTRE NA AVENTURA DE UM AMIGO</div>
   <label for="roomCode">Código da sala</label><input id="roomCode" maxlength="6" placeholder="ABC123" class="code">
   <button id="joinBtn">Entrar na sala</button><p class="hint">Até 8 aventureiros podem jogar juntos.</p>
@@ -63,5 +63,5 @@
 </section>
 <div id="toast" role="status"></div>
 </main>
-<script src="/socket.io/socket.io.js"></script><script src="game.js?v=11"></script>
+<script src="/socket.io/socket.io.js"></script><script src="game.js?v=12"></script>
 </body></html>
