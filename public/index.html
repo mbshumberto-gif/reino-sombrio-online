@@ -9,7 +9,7 @@
 <section id="titleScreen" class="title-screen">
   <div class="title-sky"><span class="moon"></span><span class="star s1">✦</span><span class="star s2">✧</span><span class="star s3">✦</span><div class="title-mountains"></div><div class="title-castle">♜</div><div class="title-forest"></div></div>
   <div class="title-copy"><p class="eyebrow">UMA AVENTURA EM ELDORIA</p><h1>AS CRÔNICAS DO<br><span>REINO SOMBRIO</span></h1><p>Uma antiga escuridão desperta além das montanhas...</p><button id="startAdventureBtn" class="primary start-button">▶ COMEÇAR AVENTURA</button></div>
-  <div class="title-footer">A / D OU SETAS PARA ANDAR　 •　 ESPAÇO PARA PULAR　 •　 E NO PORTAL</div>
+  <div class="title-footer">WASD / SETAS PARA ANDAR　 •　 E PARA INTERAGIR</div>
 </section>
 <header id="gameHeader" class="game-header hidden">
   <div><p class="eyebrow">AS CRÔNICAS DO REINO SOMBRIO</p><h1>ELDORIA</h1></div>
@@ -35,7 +35,7 @@
         <div class="map-title" id="mapTitle">ELDORIA • VILA DOS AVENTUREIROS</div>
         <div id="nearbyPrompt" class="nearby-prompt">WASD / SETAS PARA ANDAR • E PARA INTERAGIR</div>
       </div>
-      <div class="mobile-pad" aria-label="Controles da plataforma"><div><button type="button" data-move="left" aria-label="Andar para esquerda">◀</button><button type="button" data-move="right" aria-label="Andar para direita">▶</button><button type="button" data-jump="true">PULAR</button><button type="button" data-interact="true">AÇÃO</button></div></div>
+      <div class="mobile-pad" aria-label="Controles de movimento"><div><button type="button" data-move="up" aria-label="Andar para cima">▲</button><button type="button" data-move="left" aria-label="Andar para esquerda">◀</button><button type="button" data-move="down" aria-label="Andar para baixo">▼</button><button type="button" data-move="right" aria-label="Andar para direita">▶</button></div></div>
       <div id="battle" class="battle-stage hidden">
         <div class="battle-art"><canvas id="enemyPortrait" class="enemy-portrait" width="160" height="140" aria-label="Inimigo em pixel art"></canvas><div class="enemy-info"><small>INIMIGO</small><h3 id="enemyName">---</h3><div class="bar"><i id="enemyBar"></i></div><p id="enemyHp"></p></div></div>
         <p id="battleHint">A batalha começou!</p><button id="attackBtn" class="primary attack-main">⚔ ATACAR <kbd>ESPAÇO</kbd></button>
@@ -61,5 +61,5 @@
 </section>
 <div id="toast" role="status"></div>
 </main>
-<script src="/socket.io/socket.io.js"></script><script src="game.js"></script><script src="platformer.js?v=5"></script>
+<script src="/socket.io/socket.io.js"></script><script src="game.js"></script><script src="rpg.js?v=1"></script>
 </body></html>
