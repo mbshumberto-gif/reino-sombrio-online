@@ -259,11 +259,13 @@ io.on('connection', (socket) => {
     // Portais inferiores levam à região anterior; ao atravessá-los, reapareça
     // junto ao portal inferior do mapa de destino, nunca no lado oposto.
     const returningToVillage = target === 'village';
-    const enteringFromNorth = !returningToVillage && targetIndex > currentIndex;
+    const enteredFromNorthExit = !returningToVillage && targetIndex > currentIndex;
     [...room.players.values()].forEach((member,index) => {
       member.x = returningToVillage ? 480 + (index % 4) * 28 : 440 + (index % 4) * 30;
-      member.y = returningToVillage ? 450 + Math.floor(index / 4) * 22 : (enteringFromNorth ? 110 : 465) + Math.floor(index / 4) * 28;
-      member.facing = returningToVillage ? 'down' : (enteringFromNorth ? 'down' : 'up');
+      // A saída superior da região atual conecta à entrada inferior da próxima;
+      // a saída inferior conecta à entrada superior da região anterior.
+      member.y = returningToVillage ? 450 + Math.floor(index / 4) * 22 : (enteredFromNorthExit ? 465 : 110) + Math.floor(index / 4) * 28;
+      member.facing = returningToVillage ? 'down' : (enteredFromNorthExit ? 'up' : 'down');
     });
     const chapter = target === 'village' ? 'Vila de Eldoria' : REGION_SCENES[target]?.title || target;
     sendRoomMessage(room, target === 'village' ? 'Vocês retornaram à Vila de Eldoria.' : `A jornada continua: ${chapter}.`);
