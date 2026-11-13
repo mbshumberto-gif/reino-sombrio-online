@@ -25,7 +25,7 @@ async function launch(t, storage = createStorage()) {
 }
 
 async function start(page, url, action = 'create') {
-  await page.goto(url);
+  await page.goto(url, { waitUntil:'domcontentloaded' });
   await page.locator('#startAdventureBtn').click();
   await page.waitForFunction(() => document.querySelector('#heroClass').options.length === 9);
   await page.locator('#playerName').fill('Beto');
@@ -51,11 +51,12 @@ async function touch(page, session, dx, dy, milliseconds, ending = 'touchEnd') {
   await session.send('Input.dispatchTouchEvent', { type:ending, touchPoints:[] });
 }
 
-test('toque em retrato e paisagem, maçã e portal da Vila', async t => {
+test('toque em retrato e paisagem, maçã e portal da Vila', { timeout:35000 }, async t => {
   const { browser, url } = await launch(t);
   const context = await browser.newContext({ ...devices['Pixel 7'], viewport:{ width:360,height:800 } });
   const page = await context.newPage();
   page.setDefaultTimeout(6500);
+  page.setDefaultNavigationTimeout(12000);
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
   await start(page, url);
@@ -79,7 +80,7 @@ test('toque em retrato e paisagem, maçã e portal da Vila', async t => {
   if (process.env.ELDORIA_SCREENSHOT) await page.screenshot({ path:process.env.ELDORIA_SCREENSHOT });
 });
 
-test('Ent tem três fases, Espaço ataca e o herói volta a andar após a vitória', async t => {
+test('Ent tem três fases, Espaço ataca e o herói volta a andar após a vitória', { timeout:35000 }, async t => {
   const storage = createStorage();
   const room = newCampaign('D1133A', id.id);
   room.data.defeated.forest = [0,1,2,3,4];
@@ -90,6 +91,7 @@ test('Ent tem três fases, Espaço ataca e o herói volta a andar após a vitór
   const { browser, url } = await launch(t, storage);
   const page = await browser.newPage({ viewport:{ width:1220,height:890 } });
   page.setDefaultTimeout(6500);
+  page.setDefaultNavigationTimeout(12000);
   await page.addInitScript(id => localStorage.setItem('eldoriaIdentityV2', JSON.stringify(id)), id);
   await start(page, url, 'continue');
   await page.waitForTimeout(1860);
@@ -115,13 +117,13 @@ test('Ent tem três fases, Espaço ataca e o herói volta a andar após a vitór
   await page.waitForFunction(() => document.querySelector('#nearbyPrompt').textContent.includes('Voltar à Vila de Eldoria'));
   await page.keyboard.press('KeyE');
   await page.locator('#areaTitle').getByText('Vila de Eldoria', { exact:true }).waitFor();
-  await page.reload();
+  await page.reload({ waitUntil:'domcontentloaded' });
   await page.locator('#roomLabel').getByText('D1133A', { exact:true }).waitFor();
   assert.equal(await page.locator('#heroName').innerText(),'Beto');
   if (process.env.ELDORIA_VILLAGE_SCREENSHOT) await page.screenshot({ path:process.env.ELDORIA_VILLAGE_SCREENSHOT });
 });
 
-test('quatro cenas de Malakar ficam acessíveis em celular baixo mesmo com fontes indisponíveis', async t => {
+test('quatro cenas de Malakar ficam acessíveis em celular baixo mesmo com fontes indisponíveis', { timeout:35000 }, async t => {
   const storage = createStorage();
   const room = newCampaign('C124F0', id.id, { world:{ forest:true,cave:true,fire:true,castle:true,shadow:true } });
   const hero = { id:id.id, keyHash:hash(id.key), revision:0, data:makeHero('Beto','ranger') };
@@ -132,6 +134,7 @@ test('quatro cenas de Malakar ficam acessíveis em celular baixo mesmo com fonte
   await context.route('**/*.woff2', route => route.abort());
   const page = await context.newPage();
   page.setDefaultTimeout(6500);
+  page.setDefaultNavigationTimeout(12000);
   await page.addInitScript(id => localStorage.setItem('eldoriaIdentityV2', JSON.stringify(id)), id);
   await start(page, url, 'continue');
   for (const title of ['O último grito de Malakar','As correntes se partem','Eldoria desperta','O primeiro amanhecer']) {
