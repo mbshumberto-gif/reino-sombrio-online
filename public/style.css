@@ -235,3 +235,6 @@ body{background:#101a23;color:#fff0c2}
 .dialogue-pokemon button{position:absolute;right:13px;bottom:10px;border:0;background:transparent;color:#ffe6a3;font-size:23px;animation:dialogue-caret .8s steps(2) infinite}
 @keyframes dialogue-caret{50%{transform:translateY(4px);opacity:.35}}
 #worldCanvas{position:relative}
+
+/* Pixel art nítido em telas retina. */
+#worldCanvas,#battleSceneCanvas,#enemyPortrait{image-rendering:pixelated;image-rendering:crisp-edges;display:block;width:100%;height:auto;}
