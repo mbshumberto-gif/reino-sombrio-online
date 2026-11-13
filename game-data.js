@@ -40,7 +40,7 @@ const QUESTS = [
 
 // Curva de dificuldade de campanha: mais criaturas, inimigos resistentes e chefes em duas etapas.
 for (const region of REGIONS) {
-  for (const enemy of region.enemies) { enemy.hp = Math.ceil(enemy.hp * 1.28); enemy.atk = Math.ceil(enemy.atk * 1.18); }
-  region.boss.hp = Math.ceil(region.boss.hp * 1.25); region.boss.atk = Math.ceil(region.boss.atk * 1.18);
+  for (const enemy of region.enemies) { enemy.hp = Math.ceil(enemy.hp * 1.42); enemy.atk = Math.ceil(enemy.atk * 1.28); }
+  region.boss.hp = Math.ceil(region.boss.hp * 1.42); region.boss.atk = Math.ceil(region.boss.atk * 1.30);
 }
 module.exports = {HERO_CLASSES,EQUIPMENT,REGIONS,QUESTS};
