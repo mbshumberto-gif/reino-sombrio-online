@@ -4,34 +4,35 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 
-test('a página carrega o mundo aberto 2D sem o renderizador antigo', () => {
+test('a página carrega o RPG de visão superior e não o modo plataforma', () => {
   const html = fs.readFileSync(path.join(__dirname, '../public/index.html'), 'utf8');
-  assert.match(html, /platformer\.js\?v=5/);
-  assert.doesNotMatch(html, /rpg\.js/);
-  assert.match(html, /data-move="left"/);
-  assert.match(html, /data-move="right"/);
-  assert.match(html, /data-jump="true"/);
+  assert.match(html, /game\.js"><\/script><script src="rpg\.js\?v=1"/);
+  assert.doesNotMatch(html, /platformer\.js/);
+  for (const direction of ['up', 'down', 'left', 'right']) {
+    assert.match(html, new RegExp('data-move="' + direction + '"'));
+  }
 });
 
-test('o mapa é contínuo e contém os seis biomas em sequência', () => {
-  const script = fs.readFileSync(path.join(__dirname, '../public/platformer.js'), 'utf8');
-  assert.match(script, /REGION_ORDER = \["village","forest","cave","fire","castle","shadow"\]/);
-  assert.match(script, /W = REGION_WIDTH \* REGION_ORDER\.length/);
-  assert.match(script, /const worldTerrain = \{floors:\[\],platforms:\[\],hazards:\[\]\}/);
-  assert.match(script, /const levelData = \(\) => worldTerrain/);
-  assert.doesNotMatch(script, /platformerAdvance/);
-  assert.match(script, /function drawBackground/);
+test('o RPG mantém câmera, movimento em quatro direções e colisões', () => {
+  const script = fs.readFileSync(path.join(__dirname, '../public/rpg.js'), 'utf8');
+  assert.match(script, /window\.drawWorld = function/);
+  assert.match(script, /window\.movementLoop = function/);
+  assert.match(script, /moveBlocked\(nx, base\.y\)/);
+  assert.match(script, /moveBlocked\(x, ny\)/);
+  assert.match(script, /function interactWorld/);
 });
 
-test('o servidor permite atravessar o mundo e protege passagens bloqueadas', () => {
+test('chefes derrotados não reaparecem, mas inimigos comuns continuam exploráveis', () => {
+  const script = fs.readFileSync(path.join(__dirname, '../public/rpg.js'), 'utf8');
+  assert.match(script, /if \(!cleared && region\?\.boss\)/);
+  assert.match(script, /if \(defeated\.includes\(i\) \|\| !ENEMY_POINTS/);
   const server = fs.readFileSync(path.join(__dirname, '../server.js'), 'utf8');
-  assert.match(server, /OPEN_WORLD_REGION_WIDTH = 1800/);
-  assert.match(server, /OPEN_WORLD_REGION_WIDTH \* OPEN_WORLD_REGION_ORDER\.length/);
-  assert.match(server, /targetRegion\?\.unlock && !room\.world\[targetRegion\.unlock\]/);
-  assert.match(server, /blockedByGate/);
+  assert.match(server, /room\.world\[defeated\.area\] = true/);
+  assert.match(server, /if \(region\.boss && room\.world\[area\]\) return socket\.emit/);
 });
 
-test('o modo plataforma desativa os encontros do mapa antigo', () => {
-  const game = fs.readFileSync(path.join(__dirname, '../public/game.js'), 'utf8');
-  assert.match(game, /if\(window\.platformerMode\)return/);
+test('o servidor continua liberando a próxima região após a vitória', () => {
+  const server = fs.readFileSync(path.join(__dirname, '../server.js'), 'utf8');
+  assert.match(server, /if \(REGIONS\[targetIndex\]\.unlock && !room\.world\[REGIONS\[targetIndex\]\.unlock\]\)/);
+  assert.match(server, /A passagem para a próxima região foi aberta/);
 });
