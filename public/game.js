@@ -331,7 +331,7 @@ function drawWorld(){
  if(me){latestState.players.filter(p=>p.id!==socket.id).forEach(p=>pixelHero(ctx,p,Date.now()));pixelHero(ctx,{...me,...(localPosition||{})},Date.now());}
  $("nearbyPrompt").textContent=worldInteractionPrompt();
 }
-function renderMap(){if(!latestState)return;drawWorld();checkEncounters();}
+function renderMap(){if(!latestState)return;try{if(typeof window.drawWorld==="function")window.drawWorld();else drawWorld();checkEncounters();}catch(error){console.error("Falha ao renderizar o mapa:",error);toast("Falha ao desenhar o mapa. Atualize a página.");}}
 function moveBlocked(x,y){
  const area=latestState?.activeRegion||"village";if(!worldCache.has(area))worldCache.set(area,drawMapBase(area));
  const tiles=worldCache.get(area).tiles;
@@ -440,7 +440,7 @@ socket.on('playerMoved', data => {
 });
 socket.on("state",state=>{
  latestState=state;
- renderCampaign(state);
+ try{renderCampaign(state);}catch(error){console.error("Falha ao atualizar painel da campanha:",error);toast("Painel da campanha com erro; mapa será mantido.");}
  const meNow = state.players.find(p => p.id === socket.id);
  if (meNow) localPosition = {x:meNow.x,y:meNow.y};
  if (state.battle) { heldKeys.clear(); localPosition = null; }
