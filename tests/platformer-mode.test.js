@@ -57,3 +57,25 @@ test('o mundo possui tesouros persistentes, patrulhas e dificuldade progressiva'
   assert.match(server, /openedChests/);
   assert.match(data, /enemy\.hp = Math\.ceil\(enemy\.hp \* 1\.14\)/);
 });
+
+test('retorno da Terra do Fogo leva ao portal inferior da região anterior e permite voltar à vila', () => {
+  const server = read('server.js');
+  const game = read('public/game.js');
+  assert.match(server, /const enteringFromNorth = !returningToVillage && targetIndex > currentIndex/);
+  assert.match(server, /const returningToVillage = target === 'village'/);
+  assert.match(game, /socket\.emit\("travelRegion",\{area:"village"\}\)/);
+});
+test('o guardião só aparece depois que todos os monstros comuns forem derrotados', () => {
+  const server = read('server.js');
+  const game = read('public/game.js');
+  assert.match(server, /defeatedList\.length < regionData\.enemies\.length/);
+  assert.match(game, /length>=region\.enemies\.length/);
+});
+test('enigmas possuem respostas alternativas e dicas claras', () => {
+  const server = read('server.js');
+  const campaign = read('campaign-expansion.js');
+  const game = read('public/game.js');
+  assert.match(server, /normalizeAnswer/);
+  assert.match(campaign, /hint:'Pense na parte da árvore/);
+  assert.match(game, /r\.hint\|\|/);
+});

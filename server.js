@@ -248,19 +248,22 @@ io.on('connection', (socket) => {
     const targetIndex = REGIONS.findIndex(region => region.id === target);
     const currentIndex = room.activeRegion === 'village' ? -1 : REGIONS.findIndex(region => region.id === room.activeRegion);
     if (target === 'village') {
-      if (currentIndex !== 0) return socket.emit('errorMessage','A vila só pode ser alcançada pela passagem da floresta.');
+      if (!room.world.forest && currentIndex !== 0) return socket.emit('errorMessage','A passagem de retorno ainda está selada.');
       room.activeRegion = 'village';
     } else {
       if (targetIndex < 0 || targetIndex < currentIndex - 1 || targetIndex > currentIndex + 1) return socket.emit('errorMessage','A passagem ainda está bloqueada.');
-      if (REGIONS[targetIndex].unlock && !room.world[REGIONS[targetIndex].unlock]) return socket.emit('errorMessage','Derrote o guardião da região anterior para abrir esta passagem.');
+      if (targetIndex > currentIndex && REGIONS[targetIndex].unlock && !room.world[REGIONS[targetIndex].unlock]) return socket.emit('errorMessage','Derrote o guardião da região anterior para abrir esta passagem.');
       room.activeRegion = target;
     }
     room.dungeon = null; room.transition = null; room.levelIndex = 0;
-    const enteringFromNorth = target !== 'village' && targetIndex < currentIndex;
+    // Portais inferiores levam à região anterior; ao atravessá-los, reapareça
+    // junto ao portal inferior do mapa de destino, nunca no lado oposto.
+    const returningToVillage = target === 'village';
+    const enteringFromNorth = !returningToVillage && targetIndex > currentIndex;
     [...room.players.values()].forEach((member,index) => {
-      member.x = 440 + (index % 4) * 30;
-      member.y = (enteringFromNorth ? 110 : 465) + Math.floor(index / 4) * 28;
-      member.facing = enteringFromNorth ? 'down' : 'up';
+      member.x = returningToVillage ? 480 + (index % 4) * 28 : 440 + (index % 4) * 30;
+      member.y = returningToVillage ? 450 + Math.floor(index / 4) * 22 : (enteringFromNorth ? 110 : 465) + Math.floor(index / 4) * 28;
+      member.facing = returningToVillage ? 'down' : (enteringFromNorth ? 'down' : 'up');
     });
     const chapter = target === 'village' ? 'Vila de Eldoria' : REGION_SCENES[target]?.title || target;
     sendRoomMessage(room, target === 'village' ? 'Vocês retornaram à Vila de Eldoria.' : `A jornada continua: ${chapter}.`);
@@ -365,6 +368,10 @@ io.on('connection', (socket) => {
     const regionData = REGIONS.find((entry) => entry.id === area);
     const isBoss = payload.boss === true;
     const defeatedList = room.defeatedEnemies?.[area] || [];
+    if (isBoss && defeatedList.length < regionData.enemies.length) {
+      const remaining = regionData.enemies.length - defeatedList.length;
+      return socket.emit('errorMessage', `O guardião está protegido! Derrote as ${remaining} criaturas restantes desta região primeiro.`);
+    }
     const available = regionData.enemies.map((entry,index)=>({entry,index})).filter(item=>!defeatedList.includes(item.index));
     const selected = Number.isInteger(payload.enemyIndex) ? available.find(item=>item.index===payload.enemyIndex) : available[Math.floor(Math.random()*Math.max(1,available.length))];
     if (!isBoss && !selected) return socket.emit('errorMessage','Não há mais criaturas nesta região. Explore a passagem para seguir adiante.');
@@ -396,7 +403,12 @@ io.on('connection', (socket) => {
       else dungeon.currentRoom++;emitRoom(room);return;
     }
     const roomData=roomsData[index];if(!roomData||dungeon.cleared[index])return socket.emit('errorMessage','Esta sala já foi concluída.');
-    if(roomData.kind==='puzzle'){if(payload.answer!=='eldoria')return socket.emit('errorMessage','O mecanismo não reagiu. Leia as inscrições e tente novamente.');dungeon.cleared[index]=true;player.xp+=35;player.gold+=20;sendRoomMessage(room,'🔓 Enigma resolvido! A passagem secreta se abriu.');emitRoom(room);return;}
+    if(roomData.kind==='puzzle'){
+      const normalizeAnswer=value=>String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLowerCase();
+      const accepted=[roomData.answer,...(roomData.accept||[])].filter(Boolean).map(normalizeAnswer);
+      if(!accepted.includes(normalizeAnswer(payload.answer)))return socket.emit('errorMessage',`Ainda não! Dica: ${roomData.hint||'Observe os detalhes da sala e tente novamente.'}`);
+      dungeon.cleared[index]=true;addExperience(player,35);player.gold+=20;sendRoomMessage(room,'🔓 Enigma resolvido! A passagem secreta se abriu.');emitRoom(room);return;
+    }
     const isBoss=roomData.kind==='boss';
     room.battle=createBattle(room,{area:dungeon.region,enemy:roomData.enemy,hp:roomData.hp,maxHp:roomData.hp,atk:roomData.atk,xp:roomData.xp,gold:roomData.gold,boss:isBoss,dungeonRoomIndex:index});
     sendRoomMessage(room,isBoss?'☠ Guardião da dungeon à vista!':'⚔ Uma criatura bloqueia a passagem!');emitRoom(room);
