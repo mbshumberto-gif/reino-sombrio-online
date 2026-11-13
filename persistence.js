@@ -24,9 +24,10 @@ async function loadCharacter(id) {
     return result.rows[0]?.character_data || null;
   } catch (error) { console.error('Falha ao carregar personagem:', error.message); return null; }
 }
-async function saveCharacter(player) {
+async function saveCharacter(player, campaign = null) {
   if (!pool || !player?.characterId) return;
-  const { id, ready, lastMoveAt, x, y, facing, ...data } = player;
+  const { id, ready, lastMoveAt, campaign: _oldCampaign, ...data } = player;
+  if (campaign) data.campaign = campaign;
   try {
     await pool.query(
       `INSERT INTO game_characters(character_id,character_name,class_key,character_data,updated_at)

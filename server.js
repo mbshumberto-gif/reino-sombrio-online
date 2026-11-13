@@ -91,9 +91,10 @@ function publicRoom(room) {
 }
 
 // Salva os personagens e envia o estado. Um erro ao salvar nunca impede o envio do estado.
+function campaignSnapshot(room) { return { world:room.world, defeatedEnemies:room.defeatedEnemies, quests:room.quests, activeRegion:room.activeRegion, levelIndex:room.levelIndex, dungeon:room.dungeon, sideQuests:room.sideQuests }; }
 function emitRoom(room) {
   for (const player of room.players.values()) {
-    try { Promise.resolve(persistence.saveCharacter(player)).catch(e => console.error('Falha ao salvar:', e)); }
+    try { Promise.resolve(persistence.saveCharacter(player,campaignSnapshot(room))).catch(e => console.error('Falha ao salvar:', e)); }
     catch (e) { console.error('Falha ao salvar:', e); }
   }
   io.to(room.code).emit('state', publicRoom(room));
@@ -160,6 +161,14 @@ io.on('connection', (socket) => {
     }
   });
 
+  socket.on('continueSave', async (payload = {}) => {
+    const characterId=String(payload.characterId||'').slice(0,80);const saved=await persistence.loadCharacter(characterId);
+    if(!saved?.campaign)return socket.emit('errorMessage','Nenhum progresso salvo foi encontrado para este personagem.');
+    const name=cleanName(payload.name)||'Aventureiro';let code;do{code=createRoomCode();}while(rooms.has(code));
+    const c=saved.campaign;const room={code,hostId:socket.id,players:new Map(),world:c.world||{forest:false,cave:false,fire:false,castle:false,shadow:false},defeatedEnemies:c.defeatedEnemies||{forest:[],cave:[],fire:[],castle:[],shadow:[]},quests:c.quests||Object.fromEntries(QUESTS.map(q=>[q.id,{progress:0,completed:false}])),battle:null,activeRegion:c.activeRegion||'village',levelIndex:c.levelIndex||0,dungeon:c.dungeon||null,transition:null,sideQuests:c.sideQuests||Object.fromEntries(SIDE_QUESTS.map(q=>[q.id,{accepted:false,progress:0,completed:false}]))};
+    const player=makePlayer(socket.id,name,saved.classKey,nextSpawn(room),characterId,saved);player.x=Number.isFinite(saved.x)?saved.x:480;player.y=Number.isFinite(saved.y)?saved.y:(room.activeRegion==='cave'?180:430);player.facing=saved.facing||'down';room.players.set(socket.id,player);rooms.set(code,room);socket.join(code);socket.emit('joined',{code,restored:true});emitRoom(room);
+  });
+  socket.on('saveGame',async()=>{const room=findRoomByPlayerId(socket.id);if(!room)return;for(const player of room.players.values())await persistence.saveCharacter(player,campaignSnapshot(room));socket.emit('notice','💾 Aventura salva! Você pode continuar daqui quando voltar.');});
   socket.on('createRoom', async (payload = {}) => {
     const name = cleanName(payload.name) || 'Aventureiro';
     const heroClass = HERO_CLASSES[payload.heroClass] ? payload.heroClass : 'warrior';
@@ -227,6 +236,7 @@ io.on('connection', (socket) => {
     player.y = clamp(requestedY, 30, 520);
     player.facing = allowedFacing.includes(payload.facing) ? payload.facing : player.facing;
     player.lastMoveAt = now;
+    if (!player.lastPersistAt || now - player.lastPersistAt > 5000) { player.lastPersistAt = now; persistence.saveCharacter(player,campaignSnapshot(room)).catch(error=>console.error('Falha ao salvar posição:',error)); }
     socket.to(room.code).emit('playerMoved', { id: player.id, x: player.x, y: player.y, facing: player.facing });
   });
 
@@ -506,8 +516,8 @@ io.on('connection', (socket) => {
         room.levelIndex = 3;
         // Depois do chefão, todos voltam para dentro do mapa, perto da passagem aberta.
         [...room.players.values()].forEach((member, index) => {
-          member.x = 440 + (index % 4) * 30;
-          member.y = 130 + Math.floor(index / 4) * 28;
+          member.x = 480 + ((index % 3) - 1) * 34;
+          member.y = defeated.area === 'cave' ? 180 + Math.floor(index / 3) * 28 : 190 + Math.floor(index / 3) * 28;
           member.facing = 'down';
         });
         room.transition = { region: defeated.area, nextRegion, title: REGION_SCENES[defeated.area]?.title || defeated.area, message: nextRegion ? 'A passagem para a próxima região foi aberta.' : 'Malakar caiu. Eldoria está livre!', at: Date.now() };
@@ -598,14 +608,12 @@ io.on('connection', (socket) => {
     if (room.battle) return socket.emit('errorMessage', 'Não é possível conversar durante o combate.');
     const player = room.players.get(socket.id);
     if (payload.npc === 'healer') {
-      if (player.gold < 15) return socket.emit('errorMessage', 'A curandeira cobra 15 ouros pelo tratamento.');
-      player.gold -= 15; player.hp = player.maxHp; player.mana = player.maxMana;
-      socket.emit('dialogue',{title:'Mira, a Curandeira',lines:DIALOGUES.healer.map(line=>line.text).concat('Pronto. Suas forças foram restauradas.')});
+      socket.emit('dialogue',{title:'Mira, a Curandeira',npc:'healer',lines:DIALOGUES.healer.map(line=>line.text).concat('Posso cuidar de suas feridas por 15 ouros. Use o descanso do acampamento para recuperar suas forças.')});
     } else if (payload.npc === 'blacksmith') {
-      socket.emit('dialogue', { title:'Eldrin, o Ferreiro', lines:DIALOGUES.blacksmith.map(line=>line.text).concat('Abra o mercador para conferir armas e armaduras disponíveis.') });
+      socket.emit('dialogue', { title:'Eldrin, o Ferreiro',npc:'blacksmith', lines:DIALOGUES.blacksmith.map(line=>line.text).concat('Abra o mercador para conferir armas e armaduras disponíveis.') });
     } else if (payload.npc === 'chronicler') {
       const next = QUESTS.find(quest => !room.quests[quest.id].completed);
-      socket.emit('dialogue', { title:'Cronista Aderic', lines:DIALOGUES.chronicler.map(line=>line.text).concat(next ? `A próxima crônica é: ${next.title}. ${next.description}` : 'Você concluiu todas as crônicas de Eldoria.') });
+      socket.emit('dialogue', { title:'Cronista Aderic',npc:'chronicler', lines:DIALOGUES.chronicler.map(line=>line.text).concat(next ? `A próxima crônica é: ${next.title}. ${next.description}` : 'Você concluiu todas as crônicas de Eldoria.') });
     } else if (payload.npc === 'villager') { socket.emit('dialogue',{title:'Moradora de Eldoria',lines:DIALOGUES.villager.map(line=>line.text).concat('Se encontrar a relíquia, leve-a ao cronista. Ele saberá o que fazer.')}); }
     else return;
     emitRoom(room);
@@ -627,7 +635,7 @@ io.on('connection', (socket) => {
     const room = findRoomByPlayerId(socket.id);
     if (!room) return;
     const player = room.players.get(socket.id);
-    if (player) await persistence.saveCharacter(player);
+    if (player) await persistence.saveCharacter(player,campaignSnapshot(room));
     room.players.delete(socket.id);
     if (player) sendRoomMessage(room, `${player.name} saiu da sala.`);
     if (room.players.size === 0) {

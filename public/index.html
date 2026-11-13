@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#18251e">
-<title>As Crônicas do Reino Sombrio</title><link rel="stylesheet" href="style.css">
+<title>As Crônicas do Reino Sombrio</title><link rel="stylesheet" href="style.css?v=2">
 </head>
 <body>
 <main class="shell">
@@ -20,13 +20,13 @@
   <h2>Prepare seu aventureiro</h2>
   <label for="playerName">Nome do herói</label><input id="playerName" maxlength="18" placeholder="Nome do seu herói">
   <label for="heroClass">Escolha sua classe</label><select id="heroClass"><option value="warrior">Guerreiro</option></select>
-  <button id="createBtn" class="primary">Criar nova aventura</button>
+  <button id="createBtn" class="primary">Criar nova aventura</button><button id="continueSaveBtn" class="secondary">Continuar de onde parei</button><p class="hint">Progresso salvo automaticamente. Você também pode salvar manualmente.</p>
   <div class="or">OU ENTRE NA AVENTURA DE UM AMIGO</div>
   <label for="roomCode">Código da sala</label><input id="roomCode" maxlength="6" placeholder="ABC123" class="code">
   <button id="joinBtn">Entrar na sala</button><p class="hint">Até 8 aventureiros podem jogar juntos.</p>
 </section>
 <section id="game" class="hidden">
-  <div class="game-topbar"><div class="room-chip">SALA <strong id="roomLabel">------</strong><button id="copyBtn" class="small">Copiar</button></div><div id="heroHud" class="hero-hud"><span id="character">Seu herói</span></div></div>
+  <div class="game-topbar"><div class="room-chip">SALA <strong id="roomLabel">------</strong><button id="copyBtn" class="small">Copiar</button><button id="saveGameBtn" class="small">Salvar agora</button></div><div id="heroHud" class="hero-hud"><span id="character">Seu herói</span></div></div>
   <div class="game-layout">
     <section class="world-panel">
       <div class="scene-caption"><span id="areaTitle">Vila de Eldoria</span><p id="storyText">As sombras avançam sobre o reino.</p></div>
@@ -59,10 +59,10 @@
     </div></details>
   </div>
   <section id="regionScene" class="region-scene hidden"><div class="scene-heading"><span>REGIÃO</span><h3 id="sceneTitle">Vila de Eldoria</h3><p id="sceneSubtitle">O último refúgio</p></div><div id="sceneLandmarks" class="scene-landmarks"></div><div id="enemyGallery" class="enemy-gallery"></div></section>
-  <section id="dialoguePanel" class="transition-screen hidden"><div class="transition-card"><small>CONVERSA</small><h2 id="dialogueTitle">Personagem</h2><p id="dialogueText"></p><button id="dialogueNext" class="primary">Próximo</button></div></section>
+  <section id="dialoguePanel" class="dialogue-toast hidden" aria-live="polite"><div><small>ELDORIA</small><strong id="dialogueTitle">Personagem</strong><p id="dialogueText"></p></div><button id="dialogueNext" type="button" aria-label="Fechar conversa">×</button></section>
   <section id="transitionScreen" class="transition-screen hidden"><div class="transition-card"><small>CAPÍTULO CONCLUÍDO</small><h2 id="transitionTitle">Região conquistada</h2><p id="transitionMessage"></p><button id="continueCampaignBtn" class="primary">Continuar campanha</button></div></section>
 </section>
 <div id="toast" role="status"></div>
 </main>
-<script src="/socket.io/socket.io.js"></script><script src="game.js?v=6"></script>
+<script src="/socket.io/socket.io.js"></script><script src="game.js?v=7"></script>
 </body></html>
