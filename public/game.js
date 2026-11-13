@@ -364,6 +364,33 @@ window.addEventListener("keydown",event=>{
 });
 window.addEventListener("keyup",event=>endMovement(event.code));
 window.addEventListener("blur",()=>{heldKeys.clear();const me=currentPlayer();if(me){me.moving=false;renderMap();}});
+// Analógico virtual: converte a posição do dedo em direções contínuas.
+const joystick=$("virtualJoystick"),joystickKnob=$("joystickKnob");
+let joystickPointer=null;
+function setJoystickFromPointer(event){
+ if(!joystick)return;
+ const rect=joystick.getBoundingClientRect(),cx=rect.left+rect.width/2,cy=rect.top+rect.height/2;
+ let dx=event.clientX-cx,dy=event.clientY-cy;const max=Math.min(rect.width,rect.height)*0.31;
+ const length=Math.hypot(dx,dy);if(length>max){dx=dx/length*max;dy=dy/length*max;}
+ if(joystickKnob)joystickKnob.style.transform=`translate(${dx}px,${dy}px)`;
+ heldKeys.clear();
+ if(Math.hypot(dx,dy)>max*0.18){
+   if(dx < -max*.2)heldKeys.add("left");if(dx > max*.2)heldKeys.add("right");
+   if(dy < -max*.2)heldKeys.add("up");if(dy > max*.2)heldKeys.add("down");
+   if(!moveFrame){lastFrameTime=0;moveFrame=requestAnimationFrame(movementLoop);}
+ }
+}
+function resetJoystick(){
+ joystickPointer=null;heldKeys.clear();if(joystickKnob)joystickKnob.style.transform="translate(0,0)";
+ const me=currentPlayer();if(me){me.moving=false;renderMap();}
+}
+if(joystick){
+ joystick.addEventListener("pointerdown",event=>{event.preventDefault();joystickPointer=event.pointerId;joystick.setPointerCapture(event.pointerId);setJoystickFromPointer(event);});
+ joystick.addEventListener("pointermove",event=>{if(event.pointerId===joystickPointer){event.preventDefault();setJoystickFromPointer(event);}});
+ ["pointerup","pointercancel","lostpointercapture"].forEach(name=>joystick.addEventListener(name,resetJoystick));
+}
+$("mobileActionBtn")?.addEventListener("click",()=>interactWorld());
+$("mobileAttackBtn")?.addEventListener("click",()=>{if(latestState?.battle)$("attackBtn")?.click();else toast("Aproxime-se de um inimigo para iniciar o combate.");});
 document.querySelectorAll("[data-move]").forEach(button=>{
  const keys={up:"ArrowUp",down:"ArrowDown",left:"ArrowLeft",right:"ArrowRight"},key=keys[button.dataset.move];
  button.addEventListener("pointerdown",event=>{event.preventDefault();button.setPointerCapture?.(event.pointerId);beginMovement(key);});
