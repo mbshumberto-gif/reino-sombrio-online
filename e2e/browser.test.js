@@ -126,9 +126,10 @@ test('Ent tem três fases, Espaço ataca e o herói volta a andar após a vitór
   await keyboard(page, 'ArrowDown', 670);
   await page.waitForFunction(() => document.querySelector('#nearbyPrompt').textContent.includes('Voltar à Vila de Eldoria'));
   await page.keyboard.press('KeyE');
-  await page.locator('#areaTitle').getByText('Vila de Eldoria', { exact:true }).waitFor();
+  await page.waitForFunction(() => document.querySelector('#areaTitle').textContent === 'Vila de Eldoria');
   await page.reload({ waitUntil:'domcontentloaded' });
-  await page.locator('#roomLabel').getByText('D1133A', { exact:true }).waitFor();
+  await page.waitForFunction(() => !document.querySelector('#game').classList.contains('hidden') &&
+    document.querySelector('#roomLabel').textContent === 'D1133A');
   assert.equal(await page.locator('#heroName').innerText(),'Beto');
   assert.equal(await page.locator('#transitionScreen').isVisible(),false);
   if (process.env.ELDORIA_VILLAGE_SCREENSHOT) await page.screenshot({ path:process.env.ELDORIA_VILLAGE_SCREENSHOT });
