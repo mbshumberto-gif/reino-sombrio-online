@@ -103,9 +103,9 @@ test('Ent tem três fases, Espaço ataca e o herói volta a andar após a vitór
   await start(page, url, 'continue');
   await page.waitForTimeout(1860);
   await page.keyboard.press('KeyE');
-  await page.getByText('FASE 1/3').waitFor();
+  await page.waitForFunction(() => document.querySelector('#enemyPhase').textContent === 'FASE 1/3');
   await page.keyboard.press('Space');
-  await page.getByText('FASE 2/3').waitFor();
+  await page.waitForFunction(() => document.querySelector('#enemyPhase').textContent === 'FASE 2/3');
   await page.locator('#totemBtn').click();
   await page.waitForFunction(() => document.querySelector('#totemBtn').textContent.includes('1 restante'));
   await page.waitForTimeout(150);
@@ -113,11 +113,12 @@ test('Ent tem três fases, Espaço ataca e o herói volta a andar após a vitór
   await page.locator('#totemBtn').waitFor({ state:'hidden' });
   await page.waitForFunction(() => !document.querySelector('#attackBtn').disabled);
   await page.keyboard.press('Space');
-  await page.getByText('FASE 3/3').waitFor();
+  await page.waitForFunction(() => document.querySelector('#enemyPhase').textContent === 'FASE 3/3');
   await page.waitForFunction(() => !document.querySelector('#attackBtn').disabled);
   await page.keyboard.press('Space');
-  await page.getByRole('dialog').getByText('Floresta Amaldiçoada conquistada').waitFor();
-  await page.getByRole('dialog').getByText('I · O ENT CORROMPIDO').waitFor();
+  await page.waitForFunction(() => document.querySelector('#transitionScreen').open &&
+    document.querySelector('#transitionTitle').textContent === 'Floresta Amaldiçoada conquistada');
+  assert.equal(await page.locator('#transitionCaption').textContent(),'I · O ENT CORROMPIDO');
   assert.ok(await page.locator('#endingStage').isVisible());
   await page.locator('#continueCampaignBtn').click();
   await page.locator('#worldCanvas').waitFor();
@@ -148,7 +149,8 @@ test('quatro cenas de Malakar ficam acessíveis em celular baixo mesmo com fonte
   await page.addInitScript(id => localStorage.setItem('eldoriaIdentityV2', JSON.stringify(id)), id);
   await start(page, url, 'continue');
   for (const title of ['O último grito de Malakar','As correntes se partem','Eldoria desperta','O primeiro amanhecer']) {
-    await page.getByRole('dialog').getByText(title, { exact:true }).waitFor();
+    await page.waitForFunction(title => document.querySelector('#transitionScreen').open &&
+      document.querySelector('#transitionTitle').textContent === title, title);
     await page.locator('#continueCampaignBtn').tap();
   }
   await page.locator('#transitionScreen').waitFor({ state:'hidden' });
