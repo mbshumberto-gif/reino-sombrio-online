@@ -14,6 +14,7 @@ const HERO_CLASSES = {
 };
 
 const EQUIPMENT = {
+  dawnBlade:{name:'Lâmina da Alvorada',slot:'weapon',attack:6,defense:0,price:0,look:'dawn'},
   ironSword:{name:'Espada de ferro',slot:'weapon',attack:3,defense:0,price:35,look:'iron'},
   steelSword:{name:'Espada de aço',slot:'weapon',attack:7,defense:0,price:90,look:'steel'},
   oakStaff:{name:'Cajado de carvalho',slot:'weapon',attack:5,defense:1,price:70,look:'staff'},

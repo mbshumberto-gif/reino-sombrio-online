@@ -179,6 +179,39 @@ test('servidor valida o trajeto, o turno e descarta a repetição de um golpe', 
   assert.equal(socket.state.battle.hp, hit.battle.hp);
 });
 
+test('a pedra dá uma lâmina por herói só depois de tocar o sino da Vila', async t => {
+  const storage = createStorage();
+  const hero = identity('Alvorada');
+  const campaign = newCampaign('BE1170', hero.id);
+  campaign.data.defeated.forest = [0,1,2,3,4];
+  const row = { id:hero.id, keyHash:digest(hero.key), revision:0,
+    data:makeHero(hero.name,'warrior') };
+  row.data.homeCampaign = campaign.id;
+  const member = makeMember(campaign,hero.id,{ x:660,y:456,campaign:{ activeRegion:'forest' } });
+  await storage.save({ campaign, players:[row], members:[member] });
+  const f = await fixture(t, { storage });
+  const socket = await f.connect();
+  await enter(socket,'continue',hero);
+  const hint = await send(socket,'interact',{ id:'dawn-sword' },'dialogue');
+  assert.match(hint.lines[0], /sino/);
+  assert.ok(!(await storage.readHero(hero.id)).data.owned.includes('dawnBlade'));
+  await walk(socket,482,478);
+  await interact(socket,'south-road',state=>state.zone==='village');
+  await walk(socket,487,265);
+  await walk(socket,690,265);
+  await walk(socket,701,205);
+  await interact(socket,'echo-bell',state=>state.world.opened.includes('echo-bell'));
+  await walk(socket,697,265);
+  await walk(socket,482,265);
+  await walk(socket,480,467);
+  await interact(socket,'forest-road',state=>state.zone==='forest');
+  await walk(socket,636,454);
+  await interact(socket,'dawn-sword',state=>state.self.owned.includes('dawnBlade'));
+  await wait(190);
+  await send(socket,'interact',{ id:'dawn-sword' },'dialogue');
+  assert.equal((await storage.readHero(hero.id)).data.owned.filter(id=>id==='dawnBlade').length,1);
+});
+
 test('dungeons publicam pistas e reservam a resposta para o servidor', async t => {
   const f = await fixture(t);
   const payload = await (await fetch(f.url + '/campaign-data')).json();

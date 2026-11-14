@@ -82,6 +82,7 @@ function enemyTurn(battle, entries) {
   const targets = move.type === 'area' ? alive : [target];
   const hits = [];
   const enemyHp = battle.hp;
+  let riposte = false;
   for (const entry of targets) {
     const hero = entry.data;
     const status = effects(battle, entry.id);
@@ -100,6 +101,10 @@ function enemyTurn(battle, entries) {
       if (battle.target.region === 'shadow' && battle.hp) battle.hp = Math.min(Math.ceil(battle.maxHp * 0.32), battle.hp + Math.ceil(damage * 0.3));
     }
     if (status.guard && status.counter && hero.hp > 0) harm(battle, heroStats(hero).attack * 0.5);
+    if (status.defending && hero.hp > 0 && ['charge', 'area'].includes(move.type)) {
+      status.riposte = true;
+      riposte = true;
+    }
     hits.push({ id:entry.id, damage:before - hero.hp, guarded:!!(status.defending || status.ward) });
   }
   for (const { id, data } of alive) {
@@ -120,7 +125,7 @@ function enemyTurn(battle, entries) {
     return name + (hit.damage ? ' −' + hit.damage + ' PV' : ' esquivou') + (hit.guarded ? ' (bloqueio)' : '');
   }).join(', ');
   battle.lastAction = { side:'enemy', action:move.type, hits, damage:Math.max(0, enemyHp - battle.hp),
-    text: phase ? text + ' · ' + phase : text };
+    text: [text, phase, riposte ? 'Guarda firme! Próximo golpe ofensivo +35%.' : null].filter(Boolean).join(' · ') };
   return { outcome:battle.hp <= 0 ? 'won' : survivors.length ? null : 'lost', text };
 }
 
@@ -128,8 +133,10 @@ function powerAttack(hero, battle, multiplier, pierce = 0) {
   const status = effects(battle, battle.active);
   const crit = hero.classKey === 'rogue' && Math.random() < 0.27 ? 1.6 : 1;
   const inspire = status.inspire ? 1.25 : 1;
+  const riposte = status.riposte ? 1.35 : 1;
   status.inspire = false;
-  return harm(battle, (heroStats(hero).attack * multiplier + 2) * crit * inspire, pierce);
+  status.riposte = false;
+  return harm(battle, (heroStats(hero).attack * multiplier + 2) * crit * inspire * riposte, pierce);
 }
 
 function castPrimary(battle, entry, alive) {
@@ -261,7 +268,7 @@ function act(battle, id, action, entries) {
   battle.expires = Date.now() + 30000;
   const damage = before - battle.hp;
   if (damage && (action === 'skill' || action === 'technique')) text += ' −' + damage + ' PV.';
-  battle.lastAction = { side:'party', heroId:id, action, damage, text:phase ? text + ' · ' + phase : text };
+  battle.lastAction = { side:'party', heroId:id, action, damage, phaseChange:!!phase, text:phase ? text + ' · ' + phase : text };
   return { outcome:battle.hp <= 0 ? 'won' : null, text };
 }
 

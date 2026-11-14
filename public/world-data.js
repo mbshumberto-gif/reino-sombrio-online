@@ -157,6 +157,8 @@
     portal('forest-road', 480, 513, 'Estrada da Floresta', 'forest', [480, 458]),
     portal('lume-trail', 754, 448, 'Trilha do Pomar · Lume', 'orchard', [475, 366]),
     point('apple-village', 'tree', 365, 408, 'Macieira da praça'),
+    point('echo-bell', 'secret', 700, 188, 'Sino do primeiro amanhecer'),
+    point('wishing-well', 'secret', 224, 287, 'Poço dos desejos'),
     point('lamp-village', 'lamp', 561, 409, 'Lanterna da praça')
   ]);
   REGIONS.forEach((region, index) => {
@@ -174,7 +176,8 @@
       ...ENEMIES[region].map(([x, y], i) => point(region + '-mob-' + i, 'enemy', x, y, 'Criatura', { enemyIndex: i }))
     ];
     if (next) points.push(portal('north-road', 480, 52, 'Rota para ' + NAMES[next], next, [480, 458], { requires: region }));
-    if (region === 'forest') points.push(point('apple-forest', 'tree', 347, 439, 'Macieira selvagem'));
+    if (region === 'forest') points.push(point('apple-forest', 'tree', 347, 439, 'Macieira selvagem'),
+      point('dawn-sword', 'secret', 660, 456, 'Espada na pedra'));
     addZone(region, NAMES[region], region, 'surface', points);
 
     const branchPoints = [
@@ -189,7 +192,8 @@
       branchPoints.push(portal('orchard-shortcut', 480, 52, 'Atalho para a Vila', 'village', [480, 425], { shortcut: true }));
       zones.village.points.push(portal('village-shortcut', 480, 54, 'Atalho do Pomar', 'orchard', [480, 106], { shortcut: true }));
     }
-    if (region === 'cave') branchPoints.push(point('letters-grotto', 'clue', 463, 128, 'Carta na margem'));
+    if (region === 'cave') branchPoints.push(point('letters-grotto', 'clue', 463, 128, 'Carta na margem'),
+      point('echo-crystal', 'secret', 702, 252, 'Cristal que canta'));
     if (region === 'castle') branchPoints.push(point('letters-archive', 'clue', 463, 128, 'Correspondência de Vharok'));
     if (region === 'shadow') branchPoints.push(point('lamp-garden', 'lamp', 681, 132, 'Lanterna do jardim'));
     addZone(branch.id, branch.name, region, 'branch', branchPoints);
@@ -209,6 +213,16 @@
   });
 
   const zone = id => Object.hasOwn(zones, id) ? zones[id] : zones.village;
+
+  function remainingEnemies(map, world) {
+    if (world.cleared[map.region]) return 0;
+    const defeated = world.defeated[map.region] || [];
+    return map.points.filter(point => point.kind === 'enemy' && !defeated.includes(point.enemyIndex)).length;
+  }
+
+  function bossVisible(map, world) {
+    return !world.cleared[map.region] && remainingEnemies(map, world) === 0;
+  }
 
   function canStand(zoneId, x, y) {
     const grid = zone(zoneId).grid;
@@ -254,5 +268,5 @@
     ? (dx < 0 ? 'left' : 'right') : dy ? (dy < 0 ? 'up' : 'down') : current;
 
   return { TILE, COLS, ROWS, WIDTH, HEIGHT, SPEED, REGIONS, BRANCHES, NAMES, DUNGEONS, NPCS, zones, zone,
-    dungeonId, canStand, walk, safePosition, npcPositions, distance, facing };
+    dungeonId, canStand, walk, safePosition, npcPositions, distance, facing, remainingEnemies, bossVisible };
 });

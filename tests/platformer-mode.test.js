@@ -67,6 +67,22 @@ test('o movimento respeita parede e o mesmo limite na diagonal', () => {
   assert.ok(World.canStand('village', position.x, position.y));
 });
 
+test('cada guardião fica oculto até a última criatura e some após a vitória', () => {
+  const world = newCampaign('F111AE', 'hero').data;
+  for (const region of World.REGIONS) {
+    const map = World.zone(region);
+    const enemies = map.points.filter(point => point.kind === 'enemy');
+    assert.equal(World.remainingEnemies(map, world), enemies.length);
+    assert.equal(World.bossVisible(map, world), false);
+    for (const enemy of enemies.slice(0, -1)) world.defeated[region].push(enemy.enemyIndex);
+    assert.equal(World.bossVisible(map, world), false);
+    world.defeated[region].push(enemies.at(-1).enemyIndex);
+    assert.equal(World.bossVisible(map, world), true);
+    world.cleared[region] = true;
+    assert.equal(World.bossVisible(map, world), false);
+  }
+});
+
 test('as rotinas usam posições transitáveis durante todo o ciclo', () => {
   for (const zone of ['village','orchard']) {
     for (let time = 0; time < 88000; time += 200) {
@@ -141,6 +157,12 @@ test('o monstro tem um turno próprio e defender mitiga o golpe e recupera mana'
   assert.equal(battle.lastAction.side, 'enemy');
   assert.ok(guarded.guarded && guarded.damage > 0);
   assert.equal(battle.active, hero.id);
+  assert.equal(battle.status[hero.id].riposte, true);
+  const baseline = startBattle('forest', { region:'forest', boss:false }, enemy, entries);
+  act(baseline, hero.id, 'attack', entries);
+  act(battle, hero.id, 'attack', entries);
+  assert.ok(battle.lastAction.damage > baseline.lastAction.damage);
+  assert.equal(battle.status[hero.id].riposte, false);
   const unguarded = startBattle('forest', { region:'forest', boss:false }, enemy, entries);
   enemyTurn(unguarded, entries);
   assert.ok(unguarded.lastAction.hits[0].damage > guarded.damage * 2);
