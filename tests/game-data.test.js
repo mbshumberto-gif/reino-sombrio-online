@@ -3,9 +3,9 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { HERO_CLASSES, EQUIPMENT, REGIONS, QUESTS, TECHNIQUES } = require('../game-data');
 
-test('the RPG exposes the nine requested playable classes', () => {
-  assert.equal(Object.keys(HERO_CLASSES).length, 9);
-  for (const key of ['warrior','mage','sorceress','cleric','rogue','bard','paladin','ranger','monk']) {
+test('the RPG exposes the ten requested playable classes', () => {
+  assert.equal(Object.keys(HERO_CLASSES).length, 10);
+  for (const key of ['warrior','mage','sorceress','cleric','rogue','bard','paladin','ranger','monk','druid']) {
     assert.ok(HERO_CLASSES[key], `missing class ${key}`);
     assert.ok(HERO_CLASSES[key].skill?.id);
     assert.ok(HERO_CLASSES[key].skill?.cost > 0);

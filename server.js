@@ -11,6 +11,8 @@ const { DUNGEONS } = require('./campaign-expansion');
 const World = require('./public/world-data');
 const Story = require('./adventure');
 const Combat = require('./combat');
+const Field = require('./field-combat');
+const Farming = require('./farming');
 
 const GRACE_MS = 45000;
 const ROOM_LIMIT = 8;
@@ -61,7 +63,7 @@ function createGame({ storage = createStorage({
       res.status(503).json({ ok: false, database: false, mode: 'unavailable' });
     }
   });
-  app.get('/game-data', (_req, res) => res.json({ classes: HERO_CLASSES, regions: REGIONS, equipment: EQUIPMENT, techniques: TECHNIQUES }));
+  app.get('/game-data', (_req, res) => res.json({ classes: HERO_CLASSES, regions: REGIONS, equipment: EQUIPMENT, techniques: TECHNIQUES, crops: Farming.CROPS }));
   app.get('/campaign-data', (_req, res) => res.json({
     lore: Story.lore,
     dungeons: Object.fromEntries(Object.entries(DUNGEONS).map(([key, list]) => [key, list.map(
@@ -95,7 +97,8 @@ function createGame({ storage = createStorage({
 
   function stateFor(room, entry, now) {
     const member = entry.member.data;
-    const battle = room.battles.get(member.zone);
+    const encounter = room.battles.get(member.zone);
+    const battle = encounter?.mode === 'field' && !encounter.heroes.includes(entry.id) ? null : encounter;
     const people = [...room.players.values()];
     const heroes = people.map(player => ({
       id: player.id, name: player.data.name, classKey: player.data.classKey,
@@ -111,12 +114,13 @@ function createGame({ storage = createStorage({
       skillPoints, skillLevel } = entry.data;
     return {
       code: room.code, campaignId: room.id, hostId: room.hostId, id: entry.id, now,
-      zone: member.zone, players, heroes, world: Story.publicCampaign(room.data),
+      zone: member.zone, players, heroes, world: Story.publicCampaign(room.data), combatMode: room.data.combatMode || 'turn',
       journal: Story.questJournal(member, room.data), seenEnding: member.seenEnding,
       self: { name, classKey, hp, maxHp, mana, maxMana, level, xp, gold, potions, apples,
+        farm: Farming.publicState(entry.data, now),
         forge: { weapon:Story.forgeOffer(entry.data, 'weapon'), armor:Story.forgeOffer(entry.data, 'armor') },
         equipment, owned, companions, skillPoints, skillLevel, xpToNext:Story.xpForNext(level), ...Story.heroStats(entry.data) },
-      battle: battle || null, mobs: room.mobs.get(member.zone) || {}, activeCheckpoint: member.checkpoint, durable: storage.durable,
+      battle: battle?.mode === 'field' ? Field.publicState(battle) : battle || null, mobs: room.mobs.get(member.zone) || {}, activeCheckpoint: member.checkpoint, durable: storage.durable,
       fruit: [...room.fruit.values()].filter(fruit => fruit.zone === member.zone && fruit.expires > now)
     };
   }
@@ -237,6 +241,7 @@ function createGame({ storage = createStorage({
     }
     if (event === 'create' || (event === 'continue' && importedRoom)) {
       newRoom = event === 'continue' ? importedRoom : Story.newCampaign(await reserveCode(importedRoom?.code), id);
+      if (event === 'create') newRoom.data.combatMode = payload.combatMode === 'field' ? 'field' : 'turn';
       selected = newRoom;
     } else if (event === 'join') {
       if (!ROOM_CODE_PATTERN.test(payload.code || '')) throw fail('Digite o código de seis caracteres da sala.');
@@ -291,9 +296,12 @@ function createGame({ storage = createStorage({
   function showNpc(room, entry, npc, send) {
     const world = room.data;
     const member = entry.member.data;
+    if (member.quests.island_rescue?.step === 0 && world.voyage?.cleared) member.quests.island_rescue.step = 1;
     const lines = Story.dialogues[npc.id].slice();
     if (world.cleared.shadow && npc.id === 'villager') lines.push('Malakar caiu. Meu irmão voltou na primeira manhã. Vamos acender as lanternas para celebrar?');
     if (npc.id === 'lia' && entry.data.companions.lume) lines.push('Lume gosta de você. Se quiser, eu conheço caminhos que a luz dele consegue revelar.');
+    if (npc.id === 'lia') lines.push('Os quatro canteiros ao sul são seus: plante, regue e leve comida à viagem. Depois de libertar a Floresta, o barco a leste leva à Ilha das Raízes.');
+    if (npc.id === 'chronicler') lines.push('Cada guardião aprisiona moradores e um fragmento da Lanterna. Recupere os cinco para devolver a memória a Eldoria.');
     const options = Object.entries(Story.quests).flatMap(([id, quest]) => {
       if (quest.npc !== npc.id || !Story.canOffer(id, world) || member.quests[id]?.completed) return [];
       const step = member.quests[id]?.step;
@@ -323,7 +331,14 @@ function createGame({ storage = createStorage({
     const map = World.zone(zone);
     const region = regionById[map.region];
     let enemy;
-    if (target.kind === 'dungeonEnemy') {
+    if (target.kind === 'voyageEnemy') {
+      if (room.data.voyage?.defeated?.includes(target.id)) return;
+      enemy = { name:'Saqueador das marés', hp:80, atk:14, gold:22, xp:45 };
+    } else if (target.kind === 'voyageBoss') {
+      if (room.data.voyage?.cleared) return;
+      if (!['deck-raider-0', 'deck-raider-1'].every(id => room.data.voyage?.defeated?.includes(id))) throw fail('Proteja o barco antes de enfrentar o Carcereiro.');
+      enemy = { name:'Carcereiro das Raízes', hp:260, atk:20, gold:95, xp:140 };
+    } else if (target.kind === 'dungeonEnemy') {
       const detail = DUNGEONS[map.region][map.dungeonIndex];
       if (room.data.rooms[map.region]?.includes(map.dungeonIndex)) return;
       enemy = { name: detail.enemy, hp: detail.hp, atk: detail.atk, gold: detail.gold, xp: detail.xp };
@@ -336,13 +351,18 @@ function createGame({ storage = createStorage({
       if (target.kind === 'enemy' && defeated.includes(target.enemyIndex)) return;
       enemy = target.kind === 'boss' ? region.boss : region.enemies[target.enemyIndex];
     }
-    const group = [...room.players.values()].filter(player => player.socketId && player.data.hp > 0 && player.member.data.zone === zone);
+    const inField = room.data.combatMode === 'field' || map.kind === 'voyage';
+    const origin = room.mobs.get(zone)?.[target.id] || target;
+    const group = [...room.players.values()].filter(player => player.socketId && player.data.hp > 0 && player.member.data.zone === zone
+      && (!inField || World.distance(player.member.data, origin) <= 280));
     if (!group.length) return;
     for (const player of group) player.battleBaseline = structuredClone(player.data);
-    const battle = Combat.startBattle(zone, {
+    const encounterTarget = {
       kind: target.kind, region: map.region, index: target.enemyIndex ?? map.dungeonIndex,
-      boss: target.kind === 'boss' || target.kind === 'dungeonEnemy' && map.dungeonIndex === 3
-    }, enemy, group);
+      pointId:target.id, boss: target.kind === 'boss' || target.kind === 'voyageBoss' || target.kind === 'dungeonEnemy' && map.dungeonIndex === 3
+    };
+    const battle = inField ? Field.start(zone, encounterTarget, enemy, group, origin, Date.now())
+      : Combat.startBattle(zone, encounterTarget, enemy, group);
     battle.expires = Date.now() + turnMs;
     room.battles.set(zone, battle);
   }
@@ -359,6 +379,7 @@ function createGame({ storage = createStorage({
     const map = World.zone(member.zone);
     const world = room.data;
     if (portal.requires && !world.cleared[portal.requires]) throw fail('O guardião ainda protege essa passagem.');
+    if (portal.requiresVoyage === 'deck' && !['deck-raider-0', 'deck-raider-1'].every(id => world.voyage?.defeated?.includes(id))) throw fail('Derrote os dois saqueadores no convés para alcançar a ilha.');
     if (portal.shortcut && !world.orchardOpen) throw fail('A passagem está selada. Procure a origem da luz no pomar.');
     if (portal.requiresRoom !== undefined && !world.rooms[map.region]?.includes(portal.requiresRoom)) {
       throw fail('Resolva o encontro da sala para abrir a porta.');
@@ -445,11 +466,23 @@ function createGame({ storage = createStorage({
     if (World.distance(member, position) > range) throw fail('Chegue mais perto.');
     if (point.kind === 'portal') return portalTravel(room, entry, point, send);
     if (point.kind === 'tree') return treeAction(room, entry, point, send);
+    if (point.kind === 'plot') {
+      send(entry, 'garden', { plotId:point.id });
+      return;
+    }
+    if (point.kind === 'captive') {
+      const freed = member.zone === 'island' ? room.data.voyage?.cleared : room.data.cleared[map.region];
+      send(entry, 'dialogue', { title:point.label, lines:[freed
+        ? 'As correntes se partiram. Os moradores já encontraram o caminho para a Vila.'
+        : 'Há pessoas presas nas raízes. Derrote o guardião para quebrar o selo e libertá-las.'], options:[] });
+      return;
+    }
     if (point.kind === 'secret') return exploreSecret(room, entry, point, send);
     if (point.kind === 'camp') {
       const hero = entry.data;
+      member.checkpoint = { zone:member.zone, x:point.x, y:point.y };
       if (hero.hp === hero.maxHp && hero.mana === hero.maxMana) {
-        send(entry, 'notice', 'Você já recuperou toda a sua energia.');
+        send(entry, 'notice', 'Sua energia está completa. Ponto de retorno guardado.');
         return;
       }
       hero.hp = hero.maxHp;
@@ -471,7 +504,31 @@ function createGame({ storage = createStorage({
       const puzzle = DUNGEONS[map.region][map.dungeonIndex];
       send(entry, 'puzzle', { title: map.name, description: puzzle.description, hint: puzzle.hint, id: point.id });
     }
-    if (['enemy', 'boss', 'dungeonEnemy'].includes(point.kind)) beginEncounter(room, entry, point);
+    if (['enemy', 'boss', 'dungeonEnemy', 'voyageEnemy', 'voyageBoss'].includes(point.kind)) beginEncounter(room, entry, point);
+  }
+
+  function farmAction(room, entry, payload, send) {
+    if (room.battles.has(entry.member.data.zone)) throw fail('Cuide da plantação e dos alimentos fora do combate.');
+    if (payload.action === 'eat') {
+      const result = Farming.eat(entry.data, payload.crop);
+      send(entry, 'notice', Farming.CROPS[result.crop].name + ' recuperou ' + result.hp + ' PV e ' + result.mana + ' MP.');
+      return;
+    }
+    const member = entry.member.data;
+    const plot = World.zone(member.zone).points.find(p => p.kind === 'plot' && p.id === payload.plotId);
+    if (member.zone !== 'orchard' || !plot || World.distance(member, plot) > 64) throw fail('Aproxime-se do seu canteiro no Pomar.');
+    if (payload.action === 'plant') {
+      Farming.plant(entry.data, plot.id, payload.crop);
+      send(entry, 'notice', Farming.CROPS[payload.crop].name + ' plantada. O alimento continua crescendo enquanto você explora.');
+    } else if (payload.action === 'water') {
+      Farming.water(entry.data, plot.id);
+      send(entry, 'notice', 'Canteiro regado. A colheita ficará pronta mais cedo.');
+    } else if (payload.action === 'harvest') {
+      const result = Farming.harvest(entry.data, plot.id);
+      const quest = member.quests.harvest_home;
+      if (quest && quest.step === 0) quest.step = 1;
+      send(entry, 'notice', result.count + ' × ' + Farming.CROPS[result.crop].name + ' guardados na mochila.');
+    } else throw fail('Escolha plantar, regar ou colher.');
   }
 
   function exploreSecret(room, entry, point, send) {
@@ -538,8 +595,8 @@ function createGame({ storage = createStorage({
       if (quest.npc !== npc.id || !Story.canOffer(id, room.data)) throw fail('Essa missão ainda não está disponível.');
       const progress = member.quests[id];
       if (!progress) {
-        const apples = id === 'herbalist' ? Math.min(2, hero.apples) : 0;
-        member.quests[id] = { step: apples, completed: false };
+        const step = id === 'herbalist' ? Math.min(2, hero.apples) : id === 'island_rescue' && room.data.voyage?.cleared ? 1 : 0;
+        member.quests[id] = { step, completed: false };
         send(entry, 'notice', 'Missão aceita · ' + quest.title);
       } else {
         if (progress.completed || progress.step !== quest.steps.length - 1) throw fail('O objetivo ainda precisa ser concluído.');
@@ -635,7 +692,7 @@ function createGame({ storage = createStorage({
   function battleAction(room, entry, payload, send, timeout = false) {
     const zone = entry.member.data.zone;
     const battle = room.battles.get(zone);
-    if (!battle || battle.resolveAt || !battle.active || (!timeout && (payload.id !== battle.id || payload.turn !== battle.turn))) {
+    if (!battle || battle.mode === 'field' || battle.resolveAt || !battle.active || (!timeout && (payload.id !== battle.id || payload.turn !== battle.turn))) {
       throw fail('O turno mudou. Aguarde a próxima ação.');
     }
     const group = battle.heroes.map(id => room.players.get(id)).filter(Boolean);
@@ -650,6 +707,15 @@ function createGame({ storage = createStorage({
     }
   }
 
+  function fieldAction(room, entry, payload, send) {
+    const battle = room.battles.get(entry.member.data.zone);
+    if (!battle || battle.mode !== 'field' || payload.id !== battle.id || !battle.heroes.includes(entry.id)) throw fail('Este encontro já terminou.');
+    const group = battle.heroes.map(id => room.players.get(id)).filter(Boolean);
+    const result = Field.act(battle, entry, payload, group, Date.now());
+    if (result.error) throw fail(result.error);
+    if (result.outcome) finishBattle(room, battle, group, result, send);
+  }
+
   function finishBattle(room, battle, group, result, send) {
     const { zone } = battle;
     room.battles.delete(zone);
@@ -657,6 +723,13 @@ function createGame({ storage = createStorage({
     const world = room.data;
     const won = result.outcome === 'won';
     if (won && kind === 'boss') world.cleared[region] = true;
+    if (won && (kind === 'voyageEnemy' || kind === 'voyageBoss')) {
+      const voyage = world.voyage ||= { defeated:[], cleared:false };
+      if (kind === 'voyageEnemy' && !voyage.defeated.includes(battle.target.pointId)) voyage.defeated.push(battle.target.pointId);
+      if (kind === 'voyageBoss') voyage.cleared = true;
+    }
+    const rescued = won && kind === 'boss' ? Story.CAPTIVES[region] : won && kind === 'voyageBoss' ? Story.CAPTIVES.island : [];
+    if (rescued?.length) world.rescued = [...new Set([...(world.rescued || []), ...rescued])];
     if (won && kind === 'enemy') world.defeated[region].push(targetIndex);
     const revealed = won && kind === 'enemy' && World.bossVisible(World.zone(zone), world);
     if (won && kind === 'dungeonEnemy') (world.rooms[region] ||= []).push(targetIndex);
@@ -664,6 +737,7 @@ function createGame({ storage = createStorage({
     for (const [i, player] of group.entries()) {
       player.battleBaseline = null;
       if (won) {
+        if (kind === 'voyageBoss' && player.member.data.quests.island_rescue?.step === 0) player.member.data.quests.island_rescue.step = 1;
         const mission = kind === 'boss' ? Story.mainQuest(region)?.reward : null;
         Story.reward(player.data, Math.ceil((battle.rewards.gold + (mission?.gold || 0)) * (bards ? 1.1 : 1)), battle.rewards.xp + (mission?.xp || 0));
         if (kind === 'dungeonEnemy' && targetIndex === 3) {
@@ -675,7 +749,7 @@ function createGame({ storage = createStorage({
         player.data.hp = Math.ceil(player.data.maxHp * 0.55);
         player.data.mana = Math.ceil(player.data.maxMana * 0.55);
         const checkpoint = player.member.data.checkpoint;
-        if (World.zone(checkpoint?.zone).kind === 'surface' && World.canStand(checkpoint.zone, checkpoint.x, checkpoint.y)) {
+        if (['surface', 'branch', 'voyage'].includes(World.zone(checkpoint?.zone).kind) && World.canStand(checkpoint.zone, checkpoint.x, checkpoint.y)) {
           teleport(player, checkpoint.zone, [checkpoint.x, checkpoint.y]);
         } else teleport(player, 'village', [480 + (i % 4) * 23, 451 + Math.floor(i / 4) * 22]);
       } else if (kind === 'boss' && won) {
@@ -692,11 +766,13 @@ function createGame({ storage = createStorage({
         won ? battle.name + ' foi derrotado. Recompensas guardadas.' :
         result.outcome === 'lost' ? 'O grupo recuou a um ponto seguro. Descanse antes de tentar de novo.' : result.text;
       send(player, 'notice', message);
+      if (rescued?.length) send(player, 'notice', rescued.join(' e ') + ' foram libertados! ' + (kind === 'boss' ? 'Mais um fragmento da Lanterna voltou à Vila.' : 'A rota da ilha está segura.'));
     }
   }
 
   function move(room, entry, socket, payload) {
-    if (!payload || room.locked || room.battles.get(entry.member.data.zone)?.heroes.includes(entry.id)) return;
+    const battle = room.battles.get(entry.member.data.zone);
+    if (!payload || room.locked || entry.data.hp <= 0 || (battle?.mode !== 'field' && battle?.heroes.includes(entry.id))) return;
     const { dx, dy, seq, zone } = payload;
     const member = entry.member.data;
     if (zone !== member.zone || !Number.isSafeInteger(seq) || seq <= entry.lastInput
@@ -810,7 +886,11 @@ function createGame({ storage = createStorage({
       }).catch(error => report(socket, error)).finally(() => admissionsQueued--);
     });
     const event = (name, handler, cooldown = 175, options) => socket.on(name, (payload = {}) => {
-      if (!payload || typeof payload !== 'object' || stopping || !limit(socket, name, cooldown)) return;
+      if (!payload || typeof payload !== 'object' || stopping) return;
+      if (!limit(socket, name, cooldown)) {
+        if (name === 'farmAction') socket.emit('errorMessage', 'Aguarde um instante antes de cuidar do próximo canteiro.', { retryable:false });
+        return;
+      }
       const { room, entry } = current();
       if (!entry) return;
       queue(room, () => {
@@ -842,8 +922,10 @@ function createGame({ storage = createStorage({
     event('interact', interact);
     event('puzzleAnswer', resolvePuzzle, 400);
     event('npcAction', npcAction);
+    event('farmAction', farmAction, 200);
     event('inventoryAction', equip);
     event('battleAction', battleAction, 0);
+    event('fieldAction', fieldAction, 80);
     event('saveGame', (_room, entry, _payload, send) => {
       if (!storage.durable) throw fail('Modo temporário. Configure PostgreSQL para salvar entre reinícios.');
       send(entry, 'notice', entry.battleBaseline ? 'Checkpoint salvo. Este combate pode ser retomado enquanto a sala estiver aberta.' : 'Progresso salvo.');
@@ -881,6 +963,15 @@ function createGame({ storage = createStorage({
 
   function settleTimeouts(room, now) {
     for (const battle of room.battles.values()) {
+      if (battle.mode === 'field') {
+        queue(room, () => change(room, send => {
+          if (room.battles.get(battle.zone)?.id !== battle.id) return;
+          const group = battle.heroes.map(id => room.players.get(id)).filter(Boolean);
+          const result = Field.tick(battle, group, Date.now());
+          if (result.outcome) finishBattle(room, battle, group, result, send);
+        })).catch(error => logger.error(error));
+        continue;
+      }
       if (battle.resolveAt && battle.resolveAt <= now) {
         queue(room, () => change(room, send => {
           if (room.battles.get(battle.zone)?.id !== battle.id) return;
@@ -910,6 +1001,11 @@ function createGame({ storage = createStorage({
     if (!battle || !battle.heroes.includes(entry.id)) return;
     if (entry.battleBaseline) entry.data = entry.battleBaseline;
     entry.battleBaseline = null;
+    if (battle.mode === 'field') {
+      Field.remove(battle, entry.id);
+      if (!battle.heroes.length) room.battles.delete(battle.zone);
+      return;
+    }
     const survivors = battle.heroes.filter(id => id !== entry.id && room.players.get(id)?.data.hp > 0);
     if (!survivors.length) {
       for (const id of battle.heroes) {
@@ -950,15 +1046,16 @@ function createGame({ storage = createStorage({
     const now = Date.now();
     for (const room of rooms.values()) {
       if (room.locked || room.queued) continue;
-      settleTimeouts(room, now);
-      if (room.queued) continue;
-      moveMonsters(room, now);
       for (const [id, fruit] of room.fruit) if (fruit.expires <= now) room.fruit.delete(id);
       for (const entry of room.players.values()) expirePlayer(room, entry, now);
-      if (room.nextPositionSave && room.nextPositionSave > now) continue;
-      room.nextPositionSave = now + 4500;
-      const force = [...room.players.values()].filter(entry => entry.positionDirty).map(entry => entry.id);
-      if (force.length) queue(room, () => change(room, () => {}, { force, announce: false })).catch(error => logger.error(error));
+      if (!room.nextPositionSave || room.nextPositionSave <= now) {
+        room.nextPositionSave = now + 4500;
+        const force = [...room.players.values()].filter(entry => entry.positionDirty).map(entry => entry.id);
+        if (force.length) queue(room, () => change(room, () => {}, { force, announce: false })).catch(error => logger.error(error));
+      }
+      if (room.queued) continue;
+      settleTimeouts(room, now);
+      if (!room.queued) moveMonsters(room, now);
     }
   }, 125);
   timer.unref();

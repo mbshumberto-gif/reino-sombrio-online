@@ -10,7 +10,8 @@ const HERO_CLASSES = {
   bard:{name:'Bardo',role:'Suporte / inspiração',hp:110,attack:13,defense:5,mana:95,weapon:'Alaúde antigo',skill:{id:'cancao_guerreira',name:'Canção guerreira',description:'Fortalece ataque e defesa do grupo nesta rodada.',cost:24,power:1.25},passive:'A equipe recebe mais ouro quando vence.'},
   paladin:{name:'Paladino',role:'Defesa / cura',hp:150,attack:14,defense:10,mana:75,weapon:'Martelo da aurora',skill:{id:'escudo_luz',name:'Escudo de luz',description:'Reduz o próximo dano recebido por todos.',cost:22,power:0.5},passive:'Resistência elevada contra chefes.'},
   ranger:{name:'Ranger',role:'Dano à distância',hp:115,attack:18,defense:5,mana:65,weapon:'Arco élfico',skill:{id:'chuva_flechas',name:'Chuva de flechas',description:'Dispara uma sequência de flechas.',cost:18,power:1.8},passive:'Dano aumentado contra criaturas.'},
-  monk:{name:'Monge',role:'Combate / equilíbrio',hp:125,attack:16,defense:7,mana:70,weapon:'Manoplas de jade',skill:{id:'punhos_ki',name:'Punhos de Ki',description:'Golpe concentrado que ignora parte da defesa.',cost:18,power:1.9},passive:'Recupera pequena quantidade de vida ao atacar.'}
+  monk:{name:'Monge',role:'Combate / equilíbrio',hp:125,attack:16,defense:7,mana:70,weapon:'Manoplas de jade',skill:{id:'punhos_ki',name:'Punhos de Ki',description:'Golpe concentrado que ignora parte da defesa.',cost:18,power:1.9},passive:'Recupera pequena quantidade de vida ao atacar.'},
+  druid:{name:'Druida',role:'Natureza / cura e controle',hp:118,attack:16,defense:6,mana:95,weapon:'Cajado de salgueiro',skill:{id:'raizes_vivas',name:'Raízes vivas',description:'Raízes ferem a criatura e enfraquecem seu próximo ataque.',cost:18,power:1.65},passive:'Recupera 3 PV ao defender, sem reanimar aliados caídos.'}
 };
 
 const EQUIPMENT = {
@@ -57,7 +58,8 @@ const TECHNIQUES = {
   bard: { name: 'Acorde da vigília', cost: 14, description: 'Causa dano, restaura mana e protege o próximo alvo.' },
   paladin: { name: 'Juramento da luz', cost: 17, description: 'Golpeia o inimigo, atrai sua atenção e protege aliados.' },
   ranger: { name: 'Flecha de precisão', cost: 14, description: 'Marca a criatura e destrói um totem.' },
-  monk: { name: 'Ruptura de Ki', cost: 14, description: 'Interrompe a investida e recupera vida.' }
+  monk: { name: 'Ruptura de Ki', cost: 14, description: 'Interrompe a investida e recupera vida.' },
+  druid: { name: 'Florescer', cost: 23, description: 'Cura os aliados em pé e protege a Druida com casca viva. A cura cresce com o nível da habilidade.' }
 };
 
 module.exports = {HERO_CLASSES,EQUIPMENT,REGIONS,QUESTS,TECHNIQUES};

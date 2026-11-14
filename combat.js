@@ -29,7 +29,16 @@ function startBattle(zone, target, enemy, heroes) {
 }
 
 function effects(battle, id) {
-  return battle.status[id] ||= {};
+  if (!Object.hasOwn(battle.status, id)) {
+    Object.defineProperty(battle.status, id, { value:{}, writable:true, configurable:true, enumerable:true });
+  }
+  return battle.status[id];
+}
+
+function ward(battle, id, power = 0.55) {
+  const status = effects(battle, id);
+  status.wardPower = status.ward ? Math.min(status.wardPower ?? 0.55, power) : power;
+  status.ward = true;
 }
 
 function nextPhase(battle) {
@@ -89,7 +98,7 @@ function enemyTurn(battle, entries) {
     const defense = heroStats(hero).defense;
     const strength = move.type === 'charge' ? 1.85 : move.type === 'area' ? 1.46 : move.type === 'shield' ? 0.9 : 1;
     const interrupted = battle.interrupted && ['charge', 'area'].includes(move.type) ? 0.45 : 1;
-    const guardPower = status.defending ? 0.4 : status.ward ? 0.55 : 1;
+    const guardPower = Math.min(status.defending ? 0.4 : 1, status.ward ? status.wardPower ?? 0.55 : 1);
     const passive = hero.classKey === 'warrior' ? 0.85 : hero.classKey === 'paladin' && battle.boss ? 0.8 : 1;
     const damage = status.evade ? 0 : Math.max(1, Math.floor((battle.attack * strength - defense * 0.67) * guardPower *
       passive * interrupted * (battle.weakened ? 0.76 : 1)));
@@ -111,6 +120,7 @@ function enemyTurn(battle, entries) {
     if (data.hp > 0) restore(data, 0, 3);
     const status = effects(battle, id);
     status.defending = status.ward = status.guard = status.counter = status.evade = false;
+    delete status.wardPower;
   }
   battle.interrupted = battle.weakened = false;
   const phase = nextPhase(battle);
@@ -132,9 +142,10 @@ function enemyTurn(battle, entries) {
 function powerAttack(hero, battle, multiplier, pierce = 0) {
   const status = effects(battle, battle.active);
   const crit = hero.classKey === 'rogue' && Math.random() < 0.27 ? 1.6 : 1;
-  const inspire = status.inspire ? 1.25 : 1;
+  const inspire = status.inspire ? status.inspirePower ?? 1.25 : 1;
   const riposte = status.riposte ? 1.35 : 1;
   status.inspire = false;
+  delete status.inspirePower;
   status.riposte = false;
   return harm(battle, (heroStats(hero).attack * multiplier + 2) * crit * inspire * riposte, pierce);
 }
@@ -147,14 +158,20 @@ function castPrimary(battle, entry, alive) {
       alive.forEach(ally => restore(ally.data, Math.floor(power)));
       break;
     case 'bard':
-      alive.forEach(ally => { effects(battle, ally.id).inspire = effects(battle, ally.id).ward = true; });
+      alive.forEach(ally => {
+        const status = effects(battle, ally.id);
+        const inspire = Math.min(2, 1.25 + (hero.skillLevel - 1) * 0.08);
+        status.inspirePower = status.inspire ? Math.max(status.inspirePower ?? 1.25, inspire) : inspire;
+        status.inspire = true;
+        ward(battle, ally.id, Math.max(0.3, 0.55 - (hero.skillLevel - 1) * 0.02));
+      });
       break;
     case 'paladin':
-      alive.forEach(ally => { effects(battle, ally.id).ward = true; });
+      alive.forEach(ally => ward(battle, ally.id, Math.max(0.25, 0.55 - (hero.skillLevel - 1) * 0.04)));
       break;
     default:
       powerAttack(hero, battle, power * (hero.classKey === 'mage' ? 1.2 : 1), hero.classKey === 'monk' ? 0.65 : 0);
-      if (hero.classKey === 'sorceress') battle.weakened = true;
+      if (hero.classKey === 'sorceress' || hero.classKey === 'druid') battle.weakened = true;
       if (hero.classKey === 'monk') restore(hero, 8);
   }
 }
@@ -208,6 +225,10 @@ function castTechnique(battle, entry, entries) {
       powerAttack(hero, battle, 1.3, 0.65);
       restore(hero, 13);
       break;
+    case 'druid':
+      entries.filter(ally => ally.data.hp > 0).forEach(ally => restore(ally.data, 20 + 4 * (hero.skillLevel - 1)));
+      ward(battle, entry.id);
+      break;
   }
 }
 
@@ -231,6 +252,7 @@ function act(battle, id, action, entries) {
     status.defending = true;
     const mana = hero.mana;
     restore(hero, 0, 9);
+    if (hero.classKey === 'druid') restore(hero, 3);
     text = 'Defesa preparada · −60% de dano recebido · +' + (hero.mana - mana) + ' MP.';
   } else if (action === 'potion' || action === 'apple') {
     const supply = action === 'potion' ? 'potions' : 'apples';

@@ -43,6 +43,7 @@ canvas{image-rendering:pixelated;display:block}
 .entry .button-row{margin-top:8px}
 .code{text-transform:uppercase;letter-spacing:.15em;max-width:180px}
 .status{color:var(--green);margin:12px 0 0}
+.entry-help{font-size:17px;margin:5px 0 12px}
 .topbar{display:flex;align-items:center;justify-content:space-between;gap:8px 15px;flex-wrap:wrap;padding:10px 0 17px}
 .brand{display:flex;gap:10px;align-items:center}
 .brand span{color:var(--gold)}
@@ -79,6 +80,11 @@ canvas{image-rendering:pixelated;display:block}
 .list li,.entry-line{border-top:1px solid #46556c;padding:5px 0}
 .entry-line small,.list small{color:#c8c5bd;display:block;font-size:16px}
 .entry-line button{min-height:33px;padding:2px 7px;font-size:17px}
+.garden-choices{display:grid;gap:7px}
+.garden-choices button{width:100%;min-height:48px;text-align:left}
+.garden-actions{margin-top:12px}
+.garden-actions button{min-height:48px}
+#gardenStatus{color:var(--green);margin:12px 0}
 .history{max-height:145px;overflow:auto;color:#cfd0cb;font-size:17px}
 .dialogue{display:grid;grid-template-columns:auto 1fr;align-items:start;gap:10px;padding:10px;margin-top:9px;background:#17263b;border:2px solid #a29179;box-shadow:0 3px var(--edge)}
 .dialogue h2{margin:2px 0}
@@ -93,6 +99,18 @@ canvas{image-rendering:pixelated;display:block}
 .enemy-hud .meter{margin:4px 0}
 #enemyPhase{color:#f2cc91}
 .battle-actions{display:grid;grid-template-columns:repeat(auto-fit,minmax(124px,1fr));gap:7px}
+.field-battle{margin-top:9px;padding:10px;background:#18283b;border:2px solid #9a8067}
+.field-enemy-summary{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:7px}
+.field-enemy-summary h2{margin-top:4px;font-size:10px}
+.field-enemy-summary>span{white-space:nowrap;color:var(--gold);font-size:18px}
+.field-actions{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:6px}
+.field-actions button{min-height:46px;padding:7px;font-size:18px}
+#fieldHint{color:var(--gold);margin:8px 0 4px}
+#fieldLog{font-size:18px;margin:0 0 8px;min-height:1.15em}
+.field-instructions{font-size:17px;color:var(--muted);margin:9px 0 0}
+.field-instructions kbd{display:block;font-size:15px}
+.field-player-tools{display:flex;align-items:center;gap:8px;font-size:17px;color:var(--green)}
+.field-player-tools button{padding:4px 8px;min-height:40px}
 #battleHint{color:var(--gold);margin-bottom:0}
 #battleLog{color:var(--muted);min-height:1.15em}
 kbd{font:13px var(--body);color:#ffe1ac}
@@ -114,6 +132,9 @@ dialog h2{margin:6px 0 12px}
   .joystick-knob{pointer-events:none;width:43px;height:43px;border:3px solid #e8c58e;border-radius:50%;background:#597567;box-shadow:0 4px #263546}
   .mobile-action{width:112px;min-height:54px;font-family:var(--pixel);font-size:10px}
   .battle-actions button{min-height:48px}
+  .field-actions{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .field-actions button{min-height:48px}
+  .field-instructions kbd{display:none}
   kbd{display:none}
 }
 @media(orientation:landscape) and (pointer:coarse) and (max-height:500px){
@@ -129,6 +150,54 @@ dialog h2{margin:6px 0 12px}
   .play{position:relative}
   .mobile-controls{position:absolute;left:11px;right:11px;top:50%;transform:translateY(-25%);margin:0;pointer-events:none}
   .mobile-controls>*{pointer-events:auto}
+  .field-combat .mobile-controls{top:calc(50dvh - 35px);transform:none}
   .mobile-action{width:85px;min-height:46px}
   .dialogue{position:relative;z-index:1}
+}
+
+/* Field combat keeps movement, the map and every action in the same mobile viewport. */
+@media(any-pointer:coarse),(max-width:720px){
+  .play.field-combat{position:fixed;inset:0;z-index:10;display:grid;grid-template-columns:96px minmax(0,1fr);grid-template-rows:auto auto 5px minmax(0,1fr) auto auto;gap:5px 8px;padding:max(7px,env(safe-area-inset-top)) max(7px,env(safe-area-inset-right)) max(7px,env(safe-area-inset-bottom)) max(7px,env(safe-area-inset-left));border:0;overflow:hidden;background:#182638;box-shadow:none}
+  .field-combat .location{grid-row:1;grid-column:1/-1;margin:0;min-width:0;display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:6px}
+  .field-combat .location>div:first-child{min-width:0}
+  .field-combat .location .subtitle,.field-combat .clock{display:none}
+  .field-combat .location h1{font-size:7px;line-height:1.5;margin:0;white-space:nowrap;text-overflow:ellipsis;overflow:hidden}
+  .field-combat .field-player-tools{font-size:15px;gap:5px;white-space:nowrap}
+  .field-combat .field-player-tools button{font-size:17px;min-height:44px;padding:4px 7px}
+  .field-combat .field-battle{display:contents}
+  .field-combat .field-enemy-summary{grid-row:2;grid-column:1/-1;margin:0;min-width:0;gap:8px}
+  .field-combat .field-enemy-summary>div{min-width:0}
+  .field-combat .field-enemy-summary h2{font-size:8px;line-height:1.5;margin:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .field-combat .field-enemy-summary .subtitle{font-size:6px;line-height:1.5}
+  .field-combat .field-enemy-summary>span{font-size:16px}
+  .field-combat .field-battle>.meter{grid-row:3;grid-column:1/-1;height:5px}
+  .field-combat .overworld{grid-row:4;grid-column:1/-1;min-height:0;max-height:none;display:flex;align-items:center;justify-content:center}
+  .field-combat #worldCanvas{width:100%;height:100%;max-width:100%;aspect-ratio:auto;object-fit:contain;margin:0}
+  .field-combat .map-prompt{font-size:14px;max-width:98%;padding:3px 4px;bottom:3px}
+  .field-combat #fieldHint{grid-row:5;grid-column:1/-1;font-size:17px;line-height:1.05;margin:0;min-height:18px}
+  .field-combat #fieldLog,.field-combat .field-instructions{display:none}
+  .field-combat .mobile-controls{grid-row:6;grid-column:1;position:static;transform:none;margin:0;padding:0;display:flex;flex-direction:column;justify-content:center;gap:5px;pointer-events:auto;align-self:end}
+  .field-combat .joystick{width:96px;height:96px;font-size:6px}
+  .field-combat .joystick-ring{width:80px;height:80px}
+  .field-combat .joystick-knob{width:38px;height:38px}
+  .field-combat .mobile-action{width:96px;min-height:44px;font-size:8px;padding:5px}
+  .field-combat .field-actions{grid-row:6;grid-column:2;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;align-self:end}
+  .field-combat .field-actions button{min-width:0;min-height:46px;height:46px;white-space:pre-line;font-size:17px;line-height:1;padding:3px;overflow:hidden;box-shadow:0 2px var(--edge)}
+}
+@media(any-pointer:coarse) and (orientation:landscape) and (max-height:600px){
+  .play.field-combat{grid-template-columns:minmax(0,1fr) 250px;grid-template-rows:auto 5px minmax(0,1fr) auto}
+  .field-combat .location{grid-row:1;grid-column:1}
+  .field-combat .field-enemy-summary{grid-row:1;grid-column:2;align-items:end}
+  .field-combat .field-enemy-summary .subtitle{font-size:5px}
+  .field-combat .field-enemy-summary h2{font-size:7px;max-width:165px}
+  .field-combat .field-enemy-summary>span{font-size:14px}
+  .field-combat .field-battle>.meter{grid-row:2;grid-column:2}
+  .field-combat .overworld{grid-row:2/-1;grid-column:1}
+  .field-combat #fieldHint{grid-row:3;grid-column:2;align-self:start;padding-top:5px}
+  .field-combat .field-actions{grid-row:4;grid-column:2;align-self:end}
+  .field-combat .mobile-controls{position:absolute;left:max(12px,env(safe-area-inset-left));bottom:max(12px,env(safe-area-inset-bottom));right:auto;top:auto;grid-row:auto;grid-column:auto;display:flex;gap:5px}
+  .field-combat .joystick{width:82px;height:78px}
+  .field-combat .joystick-ring{width:64px;height:64px}
+  .field-combat .joystick-knob{width:32px;height:32px}
+  .field-combat .mobile-action{width:82px;min-height:44px}
 }

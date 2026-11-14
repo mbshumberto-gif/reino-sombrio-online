@@ -42,6 +42,10 @@
   let activeRoom = null;
   let conversation = null;
   let currentPuzzle = null;
+  let currentGarden = null;
+  let gardenBusy = false;
+  let lastGardenTick = 0;
+  let lastFieldTick = 0;
   let cutscene = null;
   let inputId = 0;
   let lastInput = 0;
@@ -86,6 +90,7 @@
   const show = (id, on = true) => $(id).classList.toggle('hidden', !on);
   const text = (id, content) => { $(id).textContent = content; };
   const control = () => positions.get(state?.id);
+  const fieldCombat = () => state?.battle?.mode === 'field';
   const worldTime = () => Date.now() + clockOffset;
 
   function button(label, handler, className) {
@@ -149,7 +154,7 @@
     connectionPending = action;
     text('entryStatus', 'Abrindo aventura…');
     send('adventure', { action, ...credentials, name:$('playerName').value,
-      classKey:$('heroClass').value, code:$('roomCode').value.trim().toUpperCase() });
+      classKey:$('heroClass').value, code:$('roomCode').value.trim().toUpperCase(), combatMode:$('combatMode').value });
   }
 
   $('startAdventureBtn').addEventListener('click', displayEntry);
@@ -202,15 +207,88 @@
 
   $('dialogueNext').addEventListener('click', nextLine);
 
-  function showDialog(title, children) {
+  function showDialog(title, children, garden = false) {
     const dialog = $('worldDialog');
+    if (!garden) currentGarden = null;
     text('worldDialogTitle', title);
     $('worldDialogBody').replaceChildren(...children);
     resetMovement();
     if (!dialog.open) dialog.showModal();
   }
 
-  $('worldDialog').addEventListener('close', () => { currentPuzzle = null; });
+  $('worldDialog').addEventListener('close', () => {
+    currentPuzzle = null;
+    currentGarden = null;
+    gardenBusy = false;
+  });
+
+  function gardenAction(action, crop) {
+    if (!currentGarden || gardenBusy || !socket.connected) return;
+    gardenBusy = true;
+    send('farmAction', { action, plotId:currentGarden, crop });
+    updateGardenClock(worldTime());
+  }
+
+  function updateGardenClock(now) {
+    if (!currentGarden || !$('worldDialog').open) return;
+    const plot = state?.self.farm?.plots.find(item => item.id === currentGarden);
+    const seconds = plot?.crop ? Math.max(0, Math.ceil((plot.readyAt - now) / 1000)) : 0;
+    const ready = !!plot?.crop && seconds === 0;
+    const status = $('gardenStatus');
+    if (status) status.textContent = !plot?.crop ? 'Canteiro livre. Escolha o que plantar.'
+      : ready ? 'Pronto para colher!'
+      : 'Crescendo · ' + (seconds >= 60 ? Math.floor(seconds / 60) + ' min ' : '') + (seconds % 60) + ' s para colher.';
+    for (const control of $('worldDialogBody').querySelectorAll('[data-farm-action]')) {
+      const action = control.dataset.farmAction;
+      const crop = data.crops?.[control.dataset.crop];
+      control.disabled = gardenBusy || !socket.connected || !!state.battle ||
+        (action === 'plant' && (Boolean(plot?.crop) || state.self.gold < crop.seedPrice)) ||
+        (action === 'water' && (!plot?.crop || plot.watered || ready)) ||
+        (action === 'harvest' && !ready);
+    }
+  }
+
+  function renderGarden() {
+    if (!currentGarden || !state || state.zone !== 'orchard' || state.battle) return;
+    const plot = state.self.farm?.plots.find(item => item.id === currentGarden);
+    const focus = document.activeElement?.dataset.farmAction + ':' + document.activeElement?.dataset.crop;
+    const children = [paragraph('Seus canteiros são pessoais. As plantas crescem enquanto você explora ou está fora do jogo.', 'small'),
+      paragraph(state.self.gold + ' ouros')];
+    const status = paragraph('');
+    status.id = 'gardenStatus';
+    status.setAttribute('role', 'status');
+    children.push(status);
+    if (plot?.crop) {
+      children.push(paragraph(data.crops[plot.crop]?.name || 'Plantação'));
+      const actions = document.createElement('div');
+      actions.className = 'button-row garden-actions';
+      const water = button(plot.watered ? 'Já regado' : 'Regar · adianta a colheita', () => gardenAction('water'));
+      water.dataset.farmAction = 'water';
+      const harvest = button('Colher', () => gardenAction('harvest'), 'primary');
+      harvest.dataset.farmAction = 'harvest';
+      actions.append(water, harvest);
+      children.push(actions);
+    } else {
+      const choices = document.createElement('div');
+      choices.className = 'garden-choices';
+      for (const [id, crop] of Object.entries(data.crops || {})) {
+        const line = document.createElement('div');
+        line.className = 'entry-line';
+        const plant = button('Plantar ' + crop.name + ' · ' + crop.seedPrice + ' ouros', () => gardenAction('plant', id));
+        plant.dataset.farmAction = 'plant';
+        plant.dataset.crop = id;
+        line.append(plant, paragraph(Math.ceil(crop.growMs / 60000) + ' min · colheita de ' + crop.yield +
+          ' · recupera ' + crop.hp + ' PV' + (crop.mana ? ' e ' + crop.mana + ' MP' : ''), 'small'));
+        choices.append(line);
+      }
+      children.push(choices);
+    }
+    showDialog('Horta do Pomar · canteiro ' + currentGarden.split('-').pop(), children, true);
+    updateGardenClock(worldTime());
+    for (const control of $('worldDialogBody').querySelectorAll('[data-farm-action]')) {
+      if (control.dataset.farmAction + ':' + control.dataset.crop === focus) control.focus();
+    }
+  }
   function showPuzzle(payload) {
     currentPuzzle = payload;
     const form = document.createElement('form');
@@ -272,6 +350,18 @@
       paragraph(me.potions + ' poções · ' + me.apples + ' maçãs'),
       paragraph('Arma · ' + me.weapon), paragraph('Armadura · ' + me.armor)
     ];
+    const food = Object.entries(me.farm?.harvest || {}).filter(([, count]) => count > 0);
+    for (const [id, count] of food) {
+      const crop = data.crops?.[id];
+      if (!crop) continue;
+      const row = document.createElement('div');
+      row.className = 'entry-line';
+      const eat = button('Comer ' + crop.name + ' (' + count + ')', () => send('farmAction', { action:'eat', crop:id }));
+      eat.disabled = !!state.battle || !socket.connected || me.hp >= me.maxHp && (!crop.mana || me.mana >= me.maxMana);
+      row.append(eat, paragraph('Recupera ' + crop.hp + ' PV' + (crop.mana ? ' e ' + crop.mana + ' MP' : '') + ' fora do combate.', 'small'));
+      list.push(row);
+    }
+    list.push(paragraph('Horta · plante nos quatro canteiros do Pomar, regue e volte para colher.', 'small'));
     if (me.equipment.charm) list.push(paragraph('Acessório · ' + data.equipment[me.equipment.charm].name));
     for (const id of me.owned) {
       const item = data.equipment[id];
@@ -319,9 +409,13 @@
       state.world.cleared[map.region] ? 'Guardião derrotado' : enemies
         ? 'Criaturas restantes: ' + enemies + ' · O guardião ainda está oculto.'
         : 'Guardião revelado · Siga para o norte.', 'small')] : [];
-    $('questList').replaceChildren(main, ...guard, ...lume, ...quests);
+    const fragments = state.world.fragments || [];
+    const rescue = paragraph('Lanterna · ' + fragments.length + '/5 fragmentos · ' + (state.world.rescued || []).length + ' moradores resgatados', 'small');
+    if (fragments.length) rescue.append(document.createTextNode(' · ' + fragments.map(fragment => fragment.name).join(', ')));
+    $('questList').replaceChildren(main, rescue, ...guard, ...lume, ...quests);
     const routes = map.points.filter(p => p.kind === 'portal').map(p => {
       const blocked = p.shortcut && !state.world.orchardOpen || p.requires && !state.world.cleared[p.requires]
+        || p.requiresVoyage === 'deck' && !['deck-raider-0', 'deck-raider-1'].every(id => state.world.voyage?.defeated?.includes(id))
         || p.requiresRoom !== undefined && !state.world.rooms[map.region]?.includes(p.requiresRoom);
       return paragraph((blocked ? '◇ ' : '→ ') + p.label + (blocked ? ' · Fechado' : ''), 'small');
     });
@@ -351,9 +445,16 @@
 
   function renderBattle() {
     const battle = state.battle;
-    show('battle', !!battle);
-    show('overworld', !battle);
-    show('mobileExplore', !battle);
+    const field = fieldCombat();
+    show('battle', !!battle && !field);
+    show('fieldBattle', field);
+    show('fieldPlayerTools', field);
+    show('overworld', !battle || field);
+    show('mobileExplore', !battle || field);
+    $('fieldBattle').closest('.play').classList.toggle('field-combat', field);
+    text('mobileActionBtn', field ? 'ATACAR' : 'AÇÃO');
+    $('mobileActionBtn').disabled = field && (!socket.connected || !state.self.hp || !battle.heroes.includes(state.id));
+    if (field) return renderFieldBattle();
     if (!battle) return;
     const me = state.self;
     const animating = battle.lastAction && worldTime() - battleTime < 690;
@@ -388,6 +489,71 @@
     show('companionBtn', !!me.companions.lia);
     show('appleBtn', !!me.apples);
   }
+
+  function nearestTotem() {
+    if (!fieldCombat() || !control()) return null;
+    return (state.battle.totems || []).filter(totem => totem.hp > 0)
+      .sort((a, b) => World.distance(control(), a) - World.distance(control(), b))[0] || null;
+  }
+
+  function renderFieldBattle() {
+    if (!fieldCombat()) return;
+    const battle = state.battle;
+    const me = state.self;
+    const now = worldTime();
+    const compact = window.matchMedia('(any-pointer: coarse), (max-width:720px)').matches;
+    const ability = data.classes[me.classKey].skill;
+    const technique = data.techniques[me.classKey];
+    const cost = value => me.classKey === 'sorceress' ? Math.ceil(value * 0.8) : value;
+    const telegraph = battle.telegraphs?.filter(area => area.resolvesAt > now).sort((a, b) => a.resolvesAt - b.resolvesAt)[0];
+    text('fieldSelfVitals', me.hp + '/' + me.maxHp + ' PV · ' + me.mana + '/' + me.maxMana + ' MP');
+    text('fieldEnemyName', battle.name);
+    text('fieldPhase', battle.boss ? 'FASE ' + battle.phase + '/3 · EM TEMPO REAL' : 'COMBATE EM TEMPO REAL');
+    text('fieldEnemyHp', battle.hp + ' / ' + battle.maxHp + ' PV');
+    setBar('fieldEnemyBar', battle.hp, battle.maxHp);
+    text('fieldHint', !me.hp ? 'Você caiu. Aguarde a ajuda do grupo.' : telegraph
+      ? 'Perigo anunciado · saia da área marcada antes do golpe!'
+      : battle.totems?.some(totem => totem.hp > 0) ? 'O chefe está protegido. Aproxime-se dos totens para quebrá-los.'
+      : 'Aproxime-se, ataque e mantenha espaço para desviar.');
+    text('fieldLog', battle.lastAction?.text || 'O grupo luta junto, sem esperar turnos.');
+    const enabled = { attack:true, skill:me.mana >= cost(ability.cost), technique:me.mana >= cost(technique.cost),
+      defend:true, totem:!!nearestTotem(), potion:me.potions > 0 && me.hp < me.maxHp,
+      apple:me.apples > 0 && me.hp < me.maxHp,
+      companion:me.companions.lia && !battle.supportUsed, flee:!battle.boss };
+    const labels = { attack:'Atacar', skill:ability.name + ' · ' + cost(ability.cost) + ' MP',
+      technique:technique.name + ' · ' + cost(technique.cost) + ' MP', defend:'Defender', totem:'Quebrar totem',
+      potion:'Poção · ' + me.potions, apple:'Maçã · ' + me.apples, companion:'Chamar Lia', flee:'Recuar' };
+    const shortLabels = { attack:'Atacar', skill:'Habil.', technique:'Técnica', defend:'Defesa', totem:'Totem',
+      potion:'Poção', apple:'Maçã', companion:'Lia', flee:'Recuar' };
+    for (const button of document.querySelectorAll('[data-field-action]')) {
+      const action = button.dataset.fieldAction;
+      const cooldowns = battle.cooldowns?.[state.id] || {};
+      const remaining = Math.max(0, (cooldowns[action] || 0) - now, (cooldowns.global || 0) - now);
+      button.disabled = !socket.connected || !me.hp || !battle.heroes.includes(state.id) || !enabled[action] || remaining > 0 || !!battle.result;
+      const recovery = remaining > 0 ? (remaining / 1000).toFixed(1) + ' s' : '';
+      const label = compact ? shortLabels[action] + (recovery ? '\n' + recovery : ['skill','technique'].includes(action)
+        ? '\n' + cost(action === 'skill' ? ability.cost : technique.cost) + ' MP' : '')
+        : labels[action] + (recovery ? ' · ' + recovery : '');
+      if (button.textContent !== label) button.textContent = label;
+      button.setAttribute('aria-label', labels[action] + (recovery ? ' · disponível em ' + recovery : ''));
+      button.hidden = action === 'totem' && !enabled.totem || action === 'companion' && !me.companions.lia || action === 'flee' && battle.boss || action === 'apple' && !me.apples;
+    }
+    $('mobileActionBtn').disabled = $('fieldAttackBtn').disabled;
+    $('fieldSkillBtn').title = ability.description;
+    $('fieldTechniqueBtn').title = technique.description;
+    $('fieldDefendBtn').title = 'Prepare sua defesa antes do golpe anunciado.';
+  }
+
+  function fieldAction(action) {
+    if (!fieldCombat() || !socket.connected || !state.self.hp || !state.battle.heroes.includes(state.id) || cutscene || $('worldDialog').open) return;
+    const button = document.querySelector('[data-field-action="' + action + '"]');
+    if (!button || button.disabled || button.hidden) return;
+    const target = action === 'totem' ? nearestTotem()?.id : undefined;
+    send('fieldAction', { id:state.battle.id, action, target });
+  }
+
+  document.querySelectorAll('[data-field-action]').forEach(button => button.addEventListener('click', () => fieldAction(button.dataset.fieldAction)));
+  $('fieldLeaveBtn').addEventListener('click', () => send('leaveAdventure'));
 
   function battleAction(action) {
     const battle = state?.battle;
@@ -468,6 +634,7 @@
     renderJournal();
     renderInventory();
     if ($('worldDialog').open && $('worldDialog').dataset.shop && !state.battle) renderShop();
+    if ($('worldDialog').open && currentGarden && !state.battle) renderGarden();
     $('saveGameBtn').disabled = !socket.connected;
     $('recoveryBtn').disabled = !state.durable;
     text('connectionStatus', state.durable ? 'Conectado · progresso persistente' : 'Sessão temporária · progresso guardado enquanto o servidor estiver ligado');
@@ -476,6 +643,7 @@
   function acceptState(next) {
     const prior = state;
     state = next;
+    gardenBusy = false;
     clockOffset = state.now - Date.now();
     const movedZone = prior?.zone !== state.zone || prior?.campaignId !== state.campaignId;
     if (movedZone || prior?.battle?.id !== state.battle?.id) {
@@ -495,7 +663,9 @@
     for (const id of positions.keys()) if (!ids.has(id)) positions.delete(id);
     for (const entry of state.players) {
       const existing = positions.get(entry.id);
-      if (!existing || movedZone || !pending.length || entry.id !== state.id) {
+      if (existing && fieldCombat() && !movedZone) {
+        Object.assign(existing, { tx:entry.x, ty:entry.y, facing:entry.facing });
+      } else if (!existing || movedZone || !pending.length || entry.id !== state.id) {
         positions.set(entry.id, { x:entry.x, y:entry.y, tx:entry.x, ty:entry.y, facing:entry.facing, moving:false });
       }
     }
@@ -551,6 +721,7 @@
   socket.on('disconnect', () => {
     connectionPending = null;
     resetMovement();
+    updateGardenClock(worldTime());
     if (state) {
       text('connectionStatus', 'Conexão interrompida · tentando retomar a mesma sala…');
       $('saveGameBtn').disabled = true;
@@ -563,7 +734,7 @@
     if (state?.zone === zone && !state.battle) state.mobs = mobs;
   });
   socket.on('moved', packet => {
-    if (!state || state.zone !== packet.zone || state.battle) return;
+    if (!state || state.zone !== packet.zone || state.battle && !fieldCombat()) return;
     const position = positions.get(packet.id);
     if (!position) return;
     if (packet.id !== state.id) {
@@ -584,6 +755,8 @@
 
   socket.on('notice', message => say(message));
   socket.on('errorMessage', (message, info) => {
+    gardenBusy = false;
+    updateGardenClock(worldTime());
     if (currentPuzzle && $('puzzleStatus')) text('puzzleStatus', message);
     if (connectionPending === 'resume') {
       if (info?.retryable) {
@@ -616,6 +789,15 @@
   socket.on('shop', renderShop);
   socket.on('puzzle', showPuzzle);
   socket.on('puzzleSolved', () => $('worldDialog').close());
+  socket.on('garden', ({ plotId }) => {
+    if (!state || state.battle || state.zone !== 'orchard' || !/^garden-[1-4]$/.test(plotId)) return;
+    currentPuzzle = null;
+    delete $('worldDialog').dataset.shop;
+    currentGarden = plotId;
+    gardenBusy = false;
+    closeDialogue();
+    renderGarden();
+  });
   socket.on('recovery', code => {
     const value = document.createElement('input');
     value.value = code;
@@ -637,7 +819,7 @@
   });
 
   function focusable() {
-    return state && !state.battle && control() && !cutscene && !$('worldDialog').open && socket.connected;
+    return state && (!state.battle || fieldCombat() && state.self.hp > 0) && control() && !cutscene && !$('worldDialog').open && socket.connected;
   }
 
   function findInteraction(now) {
@@ -654,6 +836,7 @@
   function doInteract() {
     if (conversation) { nextLine(); return; }
     if (!focusable()) return;
+    if (fieldCombat()) return fieldAction('attack');
     const { point } = findInteraction(worldTime());
     if (point) send('interact', { id:point.id });
   }
@@ -701,7 +884,13 @@
     if (event.target.closest?.('input,select,textarea,dialog') || !state) return;
     if (event.code === 'Space' && state.battle && !event.repeat) {
       event.preventDefault();
-      battleAction('attack');
+      if (fieldCombat()) fieldAction('attack');
+      else battleAction('attack');
+    }
+    const fieldKeys = { KeyQ:'skill', KeyR:'technique', KeyF:'defend', KeyT:'totem' };
+    if (fieldCombat() && fieldKeys[event.code] && !event.repeat) {
+      event.preventDefault();
+      fieldAction(fieldKeys[event.code]);
     }
     if (event.code === 'KeyE' && !event.repeat) {
       event.preventDefault();
@@ -748,6 +937,10 @@
     const phase = Math.floor(Math.max(0, now - state.world.epoch) / 22000) % 4;
     const dayPhase = ['Manhã','Tarde','Entardecer','Noite'][phase];
     if ($('miniClock').textContent !== dayPhase) text('miniClock', dayPhase);
+    if (fieldCombat()) {
+      text('nearbyPrompt', 'Desvie das áreas marcadas · Aproxime-se e ataque');
+      return;
+    }
     if (!focusable()) return;
     const { point, npc } = findInteraction(now);
     const id = point?.id;
@@ -768,6 +961,14 @@
     const dt = Math.min(0.05, (t - (lastFrame || t)) / 1000);
     lastFrame = t;
     if (state && data && !document.hidden) {
+      if (currentGarden && t - lastGardenTick >= 1000) {
+        lastGardenTick = t;
+        updateGardenClock(worldTime());
+      }
+      if (fieldCombat() && t - lastFieldTick >= 100) {
+        lastFieldTick = t;
+        renderFieldBattle();
+      }
       if (focusable()) stepMovement(t, dt);
       if (cutscene) Pixel.drawChapter($('endingStage'), cutscene, state.self, t - cutscene.started, backdrop);
       if (!cutscene && t - lastDraw >= 16) {
@@ -779,7 +980,7 @@
           if (t - (position.movedAt || 0) > 170) position.moving = false;
         }
         const now = worldTime();
-        if (state.battle) Pixel.drawBattle($('battleSceneCanvas'), state, now, backdrop, battleTime);
+        if (state.battle && !fieldCombat()) Pixel.drawBattle($('battleSceneCanvas'), state, now, backdrop, battleTime);
         else Pixel.drawWorld($('worldCanvas'), state, positions, data, now);
         if (t - lastFocus > 180) {
           lastFocus = t;
