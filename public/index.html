@@ -5,11 +5,11 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#182131">
   <title>As Crônicas do Reino Sombrio</title>
-  <link rel="stylesheet" href="/style.css?v=15">
+  <link rel="stylesheet" href="/style.css?v=16">
   <script defer src="/socket.io/socket.io.js"></script>
   <script defer src="/world-data.js?v=3"></script>
-  <script defer src="/pixel.js?v=3"></script>
-  <script defer src="/game.js?v=16"></script>
+  <script defer src="/pixel.js?v=4"></script>
+  <script defer src="/game.js?v=17"></script>
 </head>
 <body>
   <main class="shell">
@@ -135,8 +135,9 @@
     <h2 id="worldDialogTitle"></h2>
     <div id="worldDialogBody"></div>
   </dialog>
-  <dialog id="transitionScreen">
-    <div id="endingStage" class="ending-art"></div>
+  <dialog id="transitionScreen" aria-labelledby="transitionTitle" aria-describedby="transitionMessage">
+    <canvas id="endingStage" class="ending-art" width="520" height="164" aria-hidden="true"></canvas>
+    <p id="transitionCaption" class="subtitle"></p>
     <h2 id="transitionTitle"></h2>
     <p id="transitionMessage"></p>
     <button id="continueCampaignBtn" class="primary" type="button">Continuar</button>

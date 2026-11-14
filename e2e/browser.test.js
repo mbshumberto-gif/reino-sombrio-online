@@ -14,13 +14,18 @@ const hash = key => createHash('sha256').update(key).digest('hex');
 async function launch(t, storage = createStorage()) {
   const game = createGame({ storage });
   const { port } = await game.listen(0, '127.0.0.1');
-  t.after(() => game.close());
   const executablePath = process.env.ELDORIA_CHROMIUM;
   const browser = await chromium.launch({
     executablePath,
     args: executablePath ? ['--no-sandbox','--disable-dev-shm-usage','--single-process','--no-zygote'] : []
+  }).catch(async error => {
+    await game.close();
+    throw error;
   });
-  t.after(() => browser.close());
+  t.after(async () => {
+    try { await browser.close(); }
+    finally { await game.close(); }
+  });
   return { browser, url:'http://127.0.0.1:' + port };
 }
 
@@ -110,6 +115,8 @@ test('Ent tem três fases, Espaço ataca e o herói volta a andar após a vitór
   await page.waitForFunction(() => !document.querySelector('#attackBtn').disabled);
   await page.keyboard.press('Space');
   await page.getByRole('dialog').getByText('Floresta Amaldiçoada conquistada').waitFor();
+  await page.getByRole('dialog').getByText('I · O ENT CORROMPIDO').waitFor();
+  assert.ok(await page.locator('#endingStage').isVisible());
   await page.locator('#continueCampaignBtn').click();
   await page.locator('#worldCanvas').waitFor();
   await page.locator('#worldCanvas').click({ position:{ x:5,y:5 } });
@@ -120,6 +127,7 @@ test('Ent tem três fases, Espaço ataca e o herói volta a andar após a vitór
   await page.reload({ waitUntil:'domcontentloaded' });
   await page.locator('#roomLabel').getByText('D1133A', { exact:true }).waitFor();
   assert.equal(await page.locator('#heroName').innerText(),'Beto');
+  assert.equal(await page.locator('#transitionScreen').isVisible(),false);
   if (process.env.ELDORIA_VILLAGE_SCREENSHOT) await page.screenshot({ path:process.env.ELDORIA_VILLAGE_SCREENSHOT });
 });
 

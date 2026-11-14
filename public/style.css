@@ -100,7 +100,8 @@ dialog{position:fixed;max-width:min(535px,calc(100vw - 22px));max-height:calc(10
 dialog::backdrop{background:#111827ca}
 dialog h2{margin:6px 0 12px}
 .close-dialog{float:right;min-height:31px;padding:0 8px}
-.ending-art{width:100%;aspect-ratio:16/6;background:#253849 url(/assets/eldoria-crepusculo.webp) center 54%/cover;border:2px solid #917f7e;margin-bottom:12px}
+.ending-art{display:block;width:100%;height:auto;max-height:30dvh;object-fit:cover;background:#253849;image-rendering:pixelated;border:2px solid #917f7e;margin-bottom:12px}
+#transitionCaption{color:var(--gold);margin:0 0 10px}
 #transitionScreen{width:min(550px,calc(100vw - 22px));text-align:center}
 #continueCampaignBtn{min-height:46px}
 .toast{position:fixed;bottom:max(12px,env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);max-width:calc(100vw - 30px);width:max-content;background:#18243b;border:2px solid #c59e70;color:#f6e3bd;z-index:20;text-align:center;padding:6px 12px;box-shadow:0 4px var(--edge);pointer-events:none}

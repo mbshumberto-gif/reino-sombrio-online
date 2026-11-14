@@ -692,7 +692,6 @@ function createGame({ storage = createStorage({
         won ? battle.name + ' foi derrotado. Recompensas guardadas.' :
         result.outcome === 'lost' ? 'O grupo recuou a um ponto seguro. Descanse antes de tentar de novo.' : result.text;
       send(player, 'notice', message);
-      if (won && kind === 'boss' && region !== 'shadow') send(player, 'chapter', { name: World.zone(zone).name });
     }
   }
 
