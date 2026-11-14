@@ -12,12 +12,27 @@
     ArrowUp:[0,-1], KeyW:[0,-1], ArrowDown:[0,1], KeyS:[0,1],
     ArrowLeft:[-1,0], KeyA:[-1,0], ArrowRight:[1,0], KeyD:[1,0]
   };
-  const finalScenes = [
-    ['O último grito de Malakar', 'Malakar tenta pronunciar uma última maldição. Sua voz se desfaz antes que os aventureiros possam ouvi-la.'],
-    ['As correntes se partem', 'Muito longe dali, as correntes se abrem. Os moradores que a escuridão manteve adormecidos voltam a respirar livres.'],
-    ['Eldoria desperta', 'Nas minas e fortalezas, as portas se abrem. Famílias se reencontram. Aderic acende a primeira lanterna.'],
-    ['O primeiro amanhecer', 'A névoa abandona os campos. Na praça, os sinos anunciam a volta dos moradores e recebem os aventureiros.']
-  ];
+  const chapters = {
+    forest: { region:'forest', caption:'I · O ENT CORROMPIDO', pages:[
+      ['Floresta Amaldiçoada conquistada', 'O Ent cai de joelhos. Entre suas raízes, um broto verde rompe a terra escura. É a primeira vez em anos que se ouve um pássaro nesta trilha.']
+    ] },
+    cave: { region:'cave', caption:'II · O TROLL REI', pages:[
+      ['Vozes sob a pedra', 'O último golpe do Troll Rei ecoa pela caverna. Quando o silêncio volta, alguém bate três vezes do outro lado da rocha. Há gente viva lá embaixo.']
+    ] },
+    fire: { region:'fire', caption:'III · O DRACO DE BRASAS', pages:[
+      ['A chama levada para casa', 'O Draco cai, e uma chuva de brasas cobre a trilha. A última centelha fica acesa na lanterna do grupo. Ao longe, uma janela responde com luz.']
+    ] },
+    castle: { region:'castle', caption:'IV · O GENERAL VHAROK', pages:[
+      ['O último toque do castelo', 'Vharok larga a espada. Na muralha, alguém arranca o estandarte de Malakar e toca o sino que anuncia o fim de um cerco.'],
+      ['Ainda falta uma porta', 'Pelas janelas, surgem rostos que o grupo já não esperava ver. Então o sino para no meio de uma badalada. Ao norte, a sombra de Malakar ainda cobre o caminho.']
+    ] },
+    shadow: { region:'shadow', final:true, caption:'V · MALAKAR', pages:[
+      ['O último grito de Malakar', 'Malakar tenta lançar sua última maldição. A voz falha. Por um instante, ninguém se mexe. Então a lanterna do grupo volta a queimar.'],
+      ['As correntes se partem', 'Nas profundezas da caverna, alguém bate três vezes na pedra. Desta vez, a porta se abre. Os moradores sobem em direção à luz.'],
+      ['Eldoria desperta', 'As janelas se acendem, uma por uma. Na praça, Aderic ergue a primeira das Sete Lanternas e vê as famílias se reencontrarem.'],
+      ['O primeiro amanhecer', 'O sino que se calou no castelo enfim termina a badalada. Na Vila, os moradores respondem. Pela primeira vez, os aventureiros podem voltar para casa.']
+    ] }
+  };
   const backdrop = new Image();
   backdrop.src = '/assets/eldoria-crepusculo.webp';
   let credentials;
@@ -382,17 +397,26 @@
 
   document.querySelectorAll('[data-action]').forEach(control => control.addEventListener('click', () => battleAction(control.dataset.action)));
 
-  function openScene(scene) {
+  function openScene(chapter) {
     if (cutscene) return;
     resetMovement();
     closeDialogue();
     if ($('worldDialog').open) $('worldDialog').close();
-    cutscene = scene;
-    show('endingStage', scene.final);
-    text('transitionTitle', scene.title);
-    text('transitionMessage', scene.description);
-    text('continueCampaignBtn', scene.final ? 'Próxima cena ▸' : 'Voltar ao mapa');
+    cutscene = { ...chapter, step:0 };
+    renderScene();
     $('transitionScreen').showModal();
+  }
+
+  function renderScene() {
+    const { step, pages, final, caption } = cutscene;
+    const [title, description] = pages[step];
+    cutscene.started = performance.now();
+    text('transitionCaption', caption);
+    text('transitionTitle', title);
+    text('transitionMessage', description);
+    const next = step < pages.length - 1;
+    text('continueCampaignBtn', next ? 'Próxima cena ▸' : final ? 'Voltar à Eldoria livre' : 'Voltar ao mapa');
+    $('continueCampaignBtn').focus();
   }
 
   function closeScene() {
@@ -402,6 +426,12 @@
     if (final) {
       state.endingPending = true;
       send('endingSeen');
+    } else showEndingIfReady();
+  }
+
+  function showEndingIfReady() {
+    if (state?.world.cleared.shadow && !state.seenEnding && !cutscene && !state.battle && !state.endingPending) {
+      openScene(chapters.shadow);
     }
   }
 
@@ -411,14 +441,12 @@
   });
 
   $('continueCampaignBtn').addEventListener('click', () => {
-    if (!cutscene?.final || ++cutscene.step >= finalScenes.length) {
+    if (!cutscene) return;
+    if (++cutscene.step >= cutscene.pages.length) {
       closeScene();
       return;
     }
-    const [title, description] = finalScenes[cutscene.step];
-    text('transitionTitle', title);
-    text('transitionMessage', description);
-    text('continueCampaignBtn', cutscene.step === finalScenes.length - 1 ? 'Voltar à Eldoria livre' : 'Próxima cena ▸');
+    renderScene();
   });
 
   function refresh() {
@@ -477,9 +505,11 @@
       if (state.battle?.lastAction) battleRefresh = setTimeout(() => { if (state) renderBattle(); }, 710);
     }
     refresh();
-    if (state.world.cleared.shadow && !state.seenEnding && !cutscene && !state.battle && !state.endingPending) {
-      openScene({ final:true, step:0, title:finalScenes[0][0], description:finalScenes[0][1] });
-    }
+    const battle = prior?.battle;
+    const region = battle?.target.region;
+    if (battle?.target.kind === 'boss' && prior.campaignId === state.campaignId &&
+      !prior.world.cleared[region] && state.world.cleared[region] && region !== 'shadow') openScene(chapters[region]);
+    showEndingIfReady();
   }
 
   function resumeRoom() {
@@ -586,7 +616,6 @@
   socket.on('shop', renderShop);
   socket.on('puzzle', showPuzzle);
   socket.on('puzzleSolved', () => $('worldDialog').close());
-  socket.on('chapter', chapter => openScene({ title:chapter.name + ' conquistada', description:'A passagem para a próxima região foi aberta.' }));
   socket.on('recovery', code => {
     const value = document.createElement('input');
     value.value = code;
@@ -740,6 +769,7 @@
     lastFrame = t;
     if (state && data && !document.hidden) {
       if (focusable()) stepMovement(t, dt);
+      if (cutscene) Pixel.drawChapter($('endingStage'), cutscene, state.self, t - cutscene.started, backdrop);
       if (!cutscene && t - lastDraw >= 16) {
         lastDraw = t;
         for (const [id, position] of positions) {

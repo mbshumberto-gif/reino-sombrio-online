@@ -733,6 +733,62 @@
     }
   }
 
+  function drawChapter(canvas, chapter, player, elapsed, backdrop) {
+    const ctx = canvas.getContext('2d');
+    const { width, height } = canvas;
+    const { region, step } = chapter;
+    const village = chapter.final && step >= 2;
+    const colors = village ? palettes.village : palettes[region];
+    const time = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 1200 : Math.max(0, elapsed);
+    const light = Math.min(1, time / 1200);
+    ctx.save();
+    ctx.imageSmoothingEnabled = false;
+    arenaBackdrop(ctx, W.zone(village ? 'village' : region), width, height, colors, backdrop, time);
+    rect(ctx, 0, 0, width, height, village ? '#ae754830' : '#121c3540');
+    rect(ctx, 0, 143, width, 21, colors[1]);
+    hero(ctx, { ...player, x:109, y:143, facing:'right' }, time, { nickname:false, scale:3 });
+    const gold = '#ffda8d';
+    if (region === 'forest') {
+      rect(ctx, 306, 143 - 24 * light, 4, 24 * light, '#a0c579');
+      rect(ctx, 296, 137 - 19 * light, 12 * light, 6, '#79ae6f');
+      rect(ctx, 309, 131 - 19 * light, 12 * light, 6, '#b1d87a');
+    } else if (region === 'cave' || region === 'shadow' && step === 1) {
+      const split = region === 'cave' ? 3 : 10 + 38 * light;
+      rect(ctx, 305 - split, 39, split * 2, 105, gold);
+      rect(ctx, 251 - split, 31, 54, 115, colors[2]);
+      rect(ctx, 305 + split, 31, 54, 115, colors[2]);
+      for (const x of [260 - split, 314 + split]) rect(ctx, x, 40, 9, 103, colors[3]);
+    } else if (region === 'castle') {
+      const swing = step === 0 ? Math.sin(time / 155) * 6 : 0;
+      rect(ctx, 294, 21, 6, 92, colors[3]);
+      shape(ctx, 281 + swing, 43, ['...tt...','..tbbt..','..tbbt..','.ttbbtt.','tttttttt','...bb...'],
+        { t:gold, b:'#bc804f' }, 4);
+    } else if (village) {
+      if (step === 3) {
+        const rise = 74 - 35 * light;
+        rect(ctx, 357, rise, 66, 27, '#d58c6170');
+        rect(ctx, 373, rise + 3, 35, 21, '#ffd193');
+        rect(ctx, 380, rise, 21, 27, '#ffd193');
+      }
+      for (let i = 0; i < 5; i++) {
+        const x = 211 + i * 55;
+        hero(ctx, { x, y:145 - i % 2 * 5, facing:'left', classKey:Object.keys(clothes)[i + 1] }, time,
+          { nickname:false, scale:2.5 });
+        if (light * 5 > i) rect(ctx, x - 3, 60 - i % 2 * 8, 7, 10, gold);
+      }
+    } else {
+      rect(ctx, 304, 116, 15, 22, '#674e54');
+      rect(ctx, 307, 120 - 9 * light, 9, 16 + 9 * light, gold);
+    }
+    const sparks = { forest:5, cave:9, fire:16, castle:19, shadow:26 }[region];
+    for (let i = 0; i < sparks; i++) {
+      const x = 188 + i * 71 % 292;
+      const y = 142 - (time / (18 + i % 5) + i * 31) % 113;
+      rect(ctx, x, y, i % 4 ? 2 : 4, i % 4 ? 2 : 4, i % 3 ? gold : '#fff5cc');
+    }
+    ctx.restore();
+  }
+
   function portrait(canvas, key, time = 0, equipment) {
     const ctx = canvas.getContext('2d');
     ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -740,5 +796,5 @@
     else hero(ctx, { x:canvas.width / 2, y:canvas.height * 0.83, classKey:key, equipment }, time, { nickname:false, scale:2.75 });
   }
 
-  window.EldoriaPixel = { drawWorld, drawBattle, portrait, visiblePoint };
+  window.EldoriaPixel = { drawWorld, drawBattle, drawChapter, portrait, visiblePoint };
 })();
