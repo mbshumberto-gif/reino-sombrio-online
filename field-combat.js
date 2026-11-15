@@ -8,7 +8,7 @@ const World = require('./public/world-data');
 const RANGED = new Set(['mage', 'sorceress', 'ranger', 'druid', 'bard']);
 const COOLDOWNS = { attack:650, skill:1800, technique:2400, defend:1400, potion:1200, apple:1200, companion:1800, totem:700, flee:1000 };
 const PATTERNS = {
-  forest:['Raízes à espreita', 'Círculo de seiva', 'Tempestade das copas'],
+  forest:['Runas da maldição', 'Totens do pacto sombrio', 'Tempestade de Morvath'],
   cave:['Pedras instáveis', 'Cristais da prisão', 'Ruptura sísmica'],
   fire:['Solo em brasa', 'Pilares da forja', 'Chuva de brasas'],
   castle:['Marca do general', 'Estandartes da guarda', 'Última ordem'],
@@ -209,7 +209,7 @@ function act(battle, entry, payload, entries, now = Date.now()) {
     text = TECHNIQUES[hero.classKey].name + '!';
   } else if (action === 'totem') {
     if (!breakTotem(battle, entry, payload?.target)) return { error:'Aproxime-se de um totem para quebrá-lo.' };
-    text = battle.totems.length ? 'O totem rachou.' : 'As raízes da prisão se partiram!';
+    text = battle.totems.length ? 'O totem rachou.' : 'O pacto da prisão se partiu!';
   } else if (action === 'companion') {
     if (!hero.companions?.lia || battle.supportUsed) return { error:'Lia já ajudou ou ainda não acompanha o grupo.' };
     battle.supportUsed = true;
@@ -325,7 +325,7 @@ function tick(battle, entries, now = Date.now()) {
     battle.hp = Math.min(Math.floor(battle.maxHp * 0.68), battle.hp + Math.ceil(battle.maxHp * 0.025 * battle.totems.length));
     battle.nextSeedPulse = now + 3000;
     if (battle.hp > before) {
-      battle.lastAction = { side:'enemy', action:'seed', at:now, text:'Os totens alimentaram o Ent. Quebre-os para cortar a seiva!' };
+      battle.lastAction = { side:'enemy', action:'seed', at:now, text:'Os totens restauraram o poder de Morvath. Quebre-os para desfazer o pacto!' };
       changed = true;
     }
   }

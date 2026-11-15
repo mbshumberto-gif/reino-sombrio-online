@@ -446,6 +446,7 @@
   }
 
   function hero(ctx, entry, time, { nickname = true, scale = 2, attacking = false } = {}) {
+    if (entry.classKey === 'princess') return princess(ctx, entry, time, { nickname, scale });
     const key = clothes[entry.classKey] ? entry.classKey : 'warrior';
     const palette = clothes[key];
     const [dark, main, light, accent] = palette;
@@ -502,30 +503,60 @@
 
   function monster(ctx, name, x, y, time, size = 2, boss = false, phase = 1) {
     const word = name.toLowerCase();
-    const creature = /lobo|javali|cão/.test(word) ? 'beast' : /aranha|escorpião/.test(word) ? 'spider'
+    const creature = /morvath|bruxo/.test(word) ? 'wizard' : /lobo|javali|cão/.test(word) ? 'beast' : /aranha|escorpião/.test(word) ? 'spider'
       : /corvo|harpia|morcego|draco/.test(word) ? 'wing' : /ent|raiz/.test(word) ? 'tree' : /vazio|espectro|malakar|sentinela/.test(word) ? 'ghost' : 'armor';
     const colors = {
       beast:['#37394f','#816b84','#cda1a1'], spider:['#423354','#755387','#ba7cad'],
       wing:['#503846','#995457','#e18c68'], tree:['#35473b','#63835b','#acc578'],
-      ghost:['#432b5b','#784d89','#b883ac'], armor:['#374257','#6a718e','#a2a9bd']
+      ghost:['#432b5b','#784d89','#b883ac'], armor:['#374257','#6a718e','#a2a9bd'],
+      wizard:['#1b172b','#43264f','#865189']
     }[creature];
     const scale = boss ? size * 1.6 : size;
     const cs = { o:'#172539', d:colors[0], b:colors[1], t:colors[2], e:phase > 1 ? '#f9a681' : '#ffdf8b', a:'#eee0af' };
+    if (creature === 'wizard') Object.assign(cs, { o:'#100f1d', e:'#ff5f65', a:'#cab6c2' });
     const sprites = {
       beast:['..o..o.........','..ototo........','.oottbto.......','oabbebto...oo..','..obbbto.oobto.','...obbbbobto...','...obbbbbbo....','....obdddbo....','....odooobo....','....oo..oo.....'],
       spider:['...o......o....','..obo....obo...','.obo..oo..obo..','obo.oottoo.obo.','oo.ottbbtto.oo.','..otebbbeto....','.oobbbbbbbboo..','odoobbdbboodo..','oo..ooodo..oo..'],
       wing:['o.............o','oto....o....oto','obto..oto..otbo','odbbottttobbdo.','.obbbteetbbbbo.','..oobbttbbboo..','....obttbbo....','.....ooboo.....','......ao.......'],
       tree:['..to.o.to......','.otbobotot..o..','..obttbto.oto..','ootootttooobo..','.obbbteetbboo..','..otbbtbbtoo...','..obbtbtbbto...','...obbbbooo....','..obtdbbto.....','..otodoooto....','.oooo...oooo...'],
       ghost:['......ooo......','....ootttbo....','...ottbbbtbo...','..ottbeebttbo..','.ottbttbbtbddo.','.otbbttbbttbbo.','..odbbddbbbdo..','...odbdddbdo...','....oo.do.o....','.......o.......'],
-      armor:['.....ooooo.....','....ottttto....','...ottbbttto...','...oeoddoeoo...','...obbtbbdoo...','..otttbbddboo..','..obtbttbbbo...','..oobbdddboo...','...oddooodo....','...ooo.oooo....']
+      armor:['.....ooooo.....','....ottttto....','...ottbbttto...','...oeoddoeoo...','...obbtbbdoo...','..otttbbddboo..','..obtbttbbbo...','..oobbdddboo...','...oddooodo....','...ooo.oooo....'],
+      wizard:['...........oo....','.........ootbo...','........otbbo....','.......otbbbo....','......otbbbbo....',
+        '.....otbbtbbbo...','..oootttttttbboo.','...oooaddddaooo..','.....odededo.....','.....odadddo.....',
+        '....obdaaabdo....','...otbbdddbbto...','..otbbbdtdbbbto..','.otbbbddtddbbbto.',
+        '.obbbdddtdddbbbo.','..odddddtdddddo..','..ooooooooooooo..']
     };
     const bob = Math.floor(Math.sin(time / 350) * 3);
     rect(ctx, x - 6 * scale, y - 2, 12 * scale, 3 * scale, '#13213292');
-    shape(ctx, x - 7 * scale, y - 10 * scale + bob, sprites[creature], cs, scale);
+    shape(ctx, x - (creature === 'wizard' ? 8 : 7) * scale,
+      y - (creature === 'wizard' ? 16 : 10) * scale + bob, sprites[creature], cs, scale);
+    if (creature === 'wizard') {
+      rect(ctx, x + 9 * scale, y - 11 * scale + bob, 1.5 * scale, 12 * scale, '#6d525f');
+      shape(ctx, x + 7 * scale, y - 14 * scale + bob,
+        ['.aaa.','addda','aedea','.ada.','..a..'], { a:'#d6c6bd', d:'#2c2034', e:'#e76575' }, scale);
+      if (phase >= 2) {
+        const pulse = 2 + Math.sin(time / 280);
+        rect(ctx, x - 10 * scale, y - 5 * scale + bob - pulse, 2 * scale, 2 * scale, '#b879bf');
+      }
+    }
     if (boss && phase === 3) {
       rect(ctx, x - 6 * scale, y - 10 * scale, 2 * scale, 2 * scale, '#f7ba79');
       rect(ctx, x + 5 * scale, y - 12 * scale, 2 * scale, 2 * scale, '#f7ba79');
     }
+  }
+
+  function princess(ctx, entry, time, { nickname = true, scale = 2 } = {}) {
+    const x = Math.round(entry.x), y = Math.round(entry.y);
+    rect(ctx, x - 6 * scale, y - 1, 12 * scale, 3 * scale, '#16263080');
+    shape(ctx, x - 7 * scale, y - 21 * scale, [
+      '....g..g..g....','....ggggggg....','.....gjjjg.....','....ohhhhho....','....ohsssho....',
+      '....ohesesho...','....ohsssho....','....ohhshho....','...olllglllo...',
+      '..ollplllpllo..','..oslllllllso..','...olllglllo...','...ollpgpllo...','..ollplllpllo..',
+      '..olplllllplo..','.ollplllllpllo.','.olplllllllplo.','olllllllllllllo',
+      '.ooooooooooooo.','....oo...oo....'
+    ], { o:ink, g:'#f2cb70', j:'#ce718f', h:'#714854', s:'#edaf91', e:'#3b2943',
+      p:'#ac72a5', l:'#e8bad2' }, scale);
+    if (nickname) label(ctx, entry.name || 'Maria Rita', x, y - 49, '#ffe2a1');
   }
 
   function visiblePoint(p, map, state) {
@@ -561,7 +592,7 @@
   function prison(ctx, x, y, time, open, names = ['Morador']) {
     rect(ctx, x - 35, y - 4, 70, 12, '#1c2c32');
     for (const [i, name] of names.entries()) {
-      hero(ctx, { name, classKey:i % 2 ? 'bard' : 'ranger', x:x - (names.length - 1) * 15 + i * 30,
+      hero(ctx, { name, classKey:name === 'Maria Rita' ? 'princess' : i % 2 ? 'bard' : 'ranger', x:x - (names.length - 1) * 15 + i * 30,
         y, facing:'down' }, time, { nickname:false, scale:1.5 });
     }
     if (open) {
@@ -730,7 +761,7 @@
       }
     }
     if (map.kind === 'surface' && W.REGIONS.includes(map.region)) {
-      const captives = { forest:['Tomás','Elara'], cave:['Borin'], fire:['Nilo'], castle:['Sera'], shadow:['Ivo'] };
+      const captives = { forest:['Tomás','Elara'], cave:['Borin'], fire:['Nilo'], castle:['Sera'], shadow:['Ivo','Maria Rita'] };
       actors.push({ y:153, draw: () => prison(ctx, 648, 153, time, !!state.world.cleared[map.region], captives[map.region]) });
     }
     for (const npc of W.npcPositions(map.id, time, state.world)) actors.push({ y:npc.y, draw: () => hero(ctx, npc, time) });
@@ -755,9 +786,13 @@
     }
     if (map.id === 'village') {
       const freed = state.world.rescued || (state.world.cleared.shadow ? ['Tomás','Elara','Borin','Nilo','Sera','Ivo'] : []);
-      for (const [i, name] of [...new Set(freed)].filter(Boolean).entries()) {
+      for (const [i, name] of [...new Set(freed)].filter(name => name && name !== 'Maria Rita').entries()) {
         const resident = { name, classKey:Object.keys(clothes)[i + 2], x:350 + i * 47, y:184 + i % 2 * 20, facing:'down' };
         actors.push({ y:resident.y, draw: () => hero(ctx, resident, time, { scale:1.6 }) });
+      }
+      if (state.world.royalty?.rescued || state.world.cleared.shadow) {
+        const royal = { name:'Maria Rita', x:480, y:225, classKey:'princess' };
+        actors.push({ y:royal.y, draw: () => princess(ctx, royal, time, { scale:2 }) });
       }
     }
     actors.sort((a, b) => a.y - b.y).forEach(actor => actor.draw());
@@ -836,8 +871,8 @@
     const foe = { x:602, y:151 };
     const enemyAction = action?.side === 'enemy';
     const heroColors = { warrior:'#ffc781', mage:'#ff7349', sorceress:'#ba8dfb', cleric:'#fff3a5',
-      rogue:'#b498db', bard:'#ffc2e2', paladin:'#f7d475', ranger:'#a2de79', monk:'#72f1ce' };
-    const enemyColors = { forest:'#aee16f', cave:'#7ad7f5', fire:'#ff7b4d', castle:'#f6cb8a', shadow:'#d19cff' };
+      rogue:'#b498db', bard:'#ffc2e2', paladin:'#f7d475', ranger:'#a2de79', monk:'#72f1ce', druid:'#b2d993' };
+    const enemyColors = { forest:'#c18cdd', cave:'#7ad7f5', fire:'#ff7b4d', castle:'#f6cb8a', shadow:'#d19cff' };
     const effects = [];
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     if (battle.move?.type === 'charge' || battle.move?.type === 'area') {
@@ -902,6 +937,56 @@
     }
   }
 
+  function drawBossIntro(canvas, battle, self, elapsedMs) {
+    const ctx = canvas.getContext('2d');
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const time = reduced ? 2400 : Math.max(0, Math.min(4500, elapsedMs));
+    const region = battle.target?.region || 'forest';
+    const palette = palettes[region] || palettes.shadow;
+    const reveal = Math.min(1, Math.max(0, (time - 400) / 850));
+    ctx.save();
+    ctx.imageSmoothingEnabled = false;
+    ctx.scale(canvas.width / 760, canvas.height / 296);
+    arenaBackdrop(ctx, W.zone(region), 760, 296, palette, { complete:false }, time);
+    rect(ctx, 0, 0, 760, 296, '#18112585');
+    const wizard = /morvath|bruxo/i.test(battle.name);
+    const bossX = reduced ? 560 : 590 - reveal * 30;
+    const ring = 83 + (reduced ? 0 : Math.sin(time / 350) * 4);
+    ctx.strokeStyle = wizard ? '#a273bd' : '#e2b38a';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.ellipse(bossX, 236, ring, 17, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    for (let i = 0; i < 7; i++) {
+      const angle = i * Math.PI * 2 / 7 + (reduced ? 0 : time / 6000);
+      const x = bossX + Math.cos(angle) * (ring + 5);
+      const y = 210 + Math.sin(angle) * 57;
+      rect(ctx, x, y, 4, 7, '#d3b4db');
+    }
+    ctx.save();
+    if (reveal < 0.8) ctx.filter = 'brightness(0.12)';
+    ctx.globalAlpha = 0.35 + reveal * 0.65;
+    monster(ctx, battle.name || 'Guardião', bossX, 228, time, wizard ? 6.3 : 7.4, true, 1);
+    ctx.restore();
+    hero(ctx, { ...self, x:137, y:237, facing:'right' }, time, { nickname:false, scale:4 });
+    if (self?.companions?.lume) lume(ctx, 92, 187, time, true);
+    if (self?.companions?.lia) hero(ctx, { classKey:'rogue', x:76, y:249, facing:'right' }, time,
+      { nickname:false, scale:2.7 });
+    if (!reduced && time > 650 && time < 1100) {
+      const glow = Math.sin((time - 650) / 450 * Math.PI) * 0.12;
+      ctx.fillStyle = 'rgba(233,211,248,' + glow + ')';
+      ctx.fillRect(0, 0, 760, 296);
+    }
+    // One gentle reveal, with a static full scene for reduced motion.
+    rect(ctx, 0, 0, 760, 28, '#0e111ee8');
+    rect(ctx, 0, 261, 760, 35, '#0e111eeb');
+    rect(ctx, 0, 28, 20, 233, '#0e111e65');
+    rect(ctx, 740, 28, 20, 233, '#0e111e65');
+    label(ctx, 'O GUARDIÃO DO SELO', 380, 15, '#c9b5d9');
+    label(ctx, battle.name || 'Guardião', 380, 279, '#f4d49d');
+    ctx.restore();
+  }
+
   function drawChapter(canvas, chapter, player, elapsed, backdrop) {
     const ctx = canvas.getContext('2d');
     const { width, height } = canvas;
@@ -918,9 +1003,13 @@
     hero(ctx, { ...player, x:109, y:143, facing:'right' }, time, { nickname:false, scale:3 });
     const gold = '#ffda8d';
     if (region === 'forest') {
-      rect(ctx, 306, 143 - 24 * light, 4, 24 * light, '#a0c579');
-      rect(ctx, 296, 137 - 19 * light, 12 * light, 6, '#79ae6f');
-      rect(ctx, 309, 131 - 19 * light, 12 * light, 6, '#b1d87a');
+      rect(ctx, 304, 109, 9, 35, '#59405f');
+      shape(ctx, 294, 101 + 16 * light, ['..aaa..','.addda.','aededa.','.addda.','..aaa..'],
+        { a:'#c7b6c9', d:'#4b2d55', e:'#bd6a98' }, 4);
+      const split = light * 24;
+      rect(ctx, 290 - split, 143, 18, 5, '#8a5c94');
+      rect(ctx, 312 + split, 140, 17, 5, '#8a5c94');
+      rect(ctx, 304, 89 - light * 18, 10, 14, gold);
     } else if (region === 'cave' || region === 'shadow' && step === 1) {
       const split = region === 'cave' ? 3 : 10 + 38 * light;
       rect(ctx, 305 - split, 39, split * 2, 105, gold);
@@ -945,6 +1034,7 @@
           { nickname:false, scale:2.5 });
         if (light * 5 > i) rect(ctx, x - 3, 60 - i % 2 * 8, 7, 10, gold);
       }
+      princess(ctx, { name:'Maria Rita', x:381, y:148 }, time, { nickname:false, scale:2.5 });
     } else {
       rect(ctx, 304, 116, 15, 22, '#674e54');
       rect(ctx, 307, 120 - 9 * light, 9, 16 + 9 * light, gold);
@@ -962,8 +1052,10 @@
     const ctx = canvas.getContext('2d');
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     if (key === 'lume') lume(ctx, canvas.width / 2, canvas.height * 0.69, time, true);
+    else if (key === 'princess' || key === 'mariaRita') princess(ctx,
+      { name:'Maria Rita', x:canvas.width / 2, y:canvas.height * 0.91 }, time, { nickname:false, scale:2.4 });
     else hero(ctx, { x:canvas.width / 2, y:canvas.height * 0.83, classKey:key, equipment }, time, { nickname:false, scale:2.75 });
   }
 
-  window.EldoriaPixel = { drawWorld, drawBattle, drawChapter, portrait, visiblePoint };
+  window.EldoriaPixel = { drawWorld, drawBattle, drawChapter, drawBossIntro, portrait, visiblePoint };
 })();

@@ -13,8 +13,8 @@
     ArrowLeft:[-1,0], KeyA:[-1,0], ArrowRight:[1,0], KeyD:[1,0]
   };
   const chapters = {
-    forest: { region:'forest', caption:'I · O ENT CORROMPIDO', pages:[
-      ['Floresta Amaldiçoada conquistada', 'O Ent cai de joelhos. Entre suas raízes, um broto verde rompe a terra escura. É a primeira vez em anos que se ouve um pássaro nesta trilha.']
+    forest: { region:'forest', caption:'I · MORVATH, O BRUXO DAS SOMBRAS', pages:[
+      ['O selo da Floresta se partiu', 'O cajado de Morvath se apaga. Tomás e Elara atravessam as grades abertas, e o fragmento da Raiz volta a brilhar na lanterna. Pela primeira vez em anos, um pássaro canta no bosque.']
     ] },
     cave: { region:'cave', caption:'II · O TROLL REI', pages:[
       ['Vozes sob a pedra', 'O último golpe do Troll Rei ecoa pela caverna. Quando o silêncio volta, alguém bate três vezes do outro lado da rocha. Há gente viva lá embaixo.']
@@ -28,8 +28,8 @@
     ] },
     shadow: { region:'shadow', final:true, caption:'V · MALAKAR', pages:[
       ['O último grito de Malakar', 'Malakar tenta lançar sua última maldição. A voz falha. Por um instante, ninguém se mexe. Então a lanterna do grupo volta a queimar.'],
-      ['As correntes se partem', 'Nas profundezas da caverna, alguém bate três vezes na pedra. Desta vez, a porta se abre. Os moradores sobem em direção à luz.'],
-      ['Eldoria desperta', 'As janelas se acendem, uma por uma. Na praça, Aderic ergue a primeira das Sete Lanternas e vê as famílias se reencontrarem.'],
+      ['Maria Rita está livre', 'A última corrente se desfaz diante da Princesa Maria Rita. Ela ergue a lanterna reconstruída e chama os moradores pelo nome. Juntos, deixam a prisão de Malakar e seguem em direção à luz.'],
+      ['Eldoria desperta', 'As janelas se acendem, uma por uma. Na praça, Aderic recebe Maria Rita e as famílias que voltaram. O povo responde ao brilho da lanterna com o primeiro canto de liberdade.'],
       ['O primeiro amanhecer', 'O sino que se calou no castelo enfim termina a badalada. Na Vila, os moradores respondem. Pela primeira vez, os aventureiros podem voltar para casa.']
     ] }
   };
@@ -48,6 +48,8 @@
   let lastGardenTick = 0;
   let lastFieldTick = 0;
   let cutscene = null;
+  let bossIntro = null;
+  const completedBossIntros = new Set();
   let inputId = 0;
   let lastInput = 0;
   let wasMoving = false;
@@ -93,6 +95,7 @@
   const control = () => positions.get(state?.id);
   const fieldCombat = () => state?.battle?.mode === 'field';
   const worldTime = () => Date.now() + clockOffset;
+  const bossIntroActive = () => state?.battle?.intro?.endsAt > worldTime();
 
   function button(label, handler, className) {
     const element = document.createElement('button');
@@ -459,7 +462,7 @@
     if (!battle) return;
     const me = state.self;
     const animating = battle.lastAction && worldTime() - battleTime < 690;
-    const myTurn = battle.active === state.id && me.hp > 0 && !battle.resolveAt && !animating;
+    const myTurn = battle.active === state.id && me.hp > 0 && !battle.resolveAt && !animating && !bossIntroActive();
     const active = state.heroes.find(hero => hero.id === battle.active);
     text('enemyName', battle.name);
     text('enemyPhase', battle.boss ? 'FASE ' + battle.phase + '/3' : 'RODADA ' + battle.round);
@@ -467,7 +470,7 @@
     setBar('enemyBar', battle.hp, battle.maxHp);
     const target = state.heroes.find(hero => hero.id === battle.move?.target);
     const warning = battle.move ? battle.move.name + (battle.move.type === 'area' ? ' → todo o grupo' : target ? ' → ' + target.name : '') : '';
-    const turn = battle.result ? 'Combate encerrado' : !active || animating && battle.lastAction?.side === 'enemy'
+    const turn = bossIntroActive() ? 'O guardião prepara a arena' : battle.result ? 'Combate encerrado' : !active || animating && battle.lastAction?.side === 'enemy'
       ? 'Vez do monstro' : active.id === state.id ? 'Sua vez' : 'Vez de ' + active.name;
     const riposte = battle.status?.[state.id]?.riposte;
     text('battleHint', turn + (warning ? ' · ' + warning : '') + (riposte ? ' · Revide pronto +35%' : ''));
@@ -558,14 +561,50 @@
 
   function battleAction(action) {
     const battle = state?.battle;
-    if (!battle || battle.active !== state.id || battle.resolveAt || (battle.lastAction && worldTime() - battleTime < 690)) return;
+    if (!battle || bossIntroActive() || battle.active !== state.id || battle.resolveAt || (battle.lastAction && worldTime() - battleTime < 690)) return;
     send('battleAction', { id:battle.id, turn:battle.turn, action });
   }
 
   document.querySelectorAll('[data-action]').forEach(control => control.addEventListener('click', () => battleAction(control.dataset.action)));
 
+  function closeBossIntro(completed = false) {
+    if (completed && bossIntro) {
+      completedBossIntros.add(bossIntro.id);
+      if (completedBossIntros.size > 40) completedBossIntros.delete(completedBossIntros.values().next().value);
+    }
+    bossIntro = null;
+    if ($('bossIntro').open) $('bossIntro').close();
+  }
+
+  function syncBossIntro() {
+    const battle = state?.battle;
+    const intro = battle?.intro;
+    if (!intro || fieldCombat() || intro.endsAt <= worldTime()) {
+      if (bossIntro) closeBossIntro(!!intro && bossIntro.id === intro.id);
+      return;
+    }
+    if (completedBossIntros.has(intro.id) || bossIntro?.id === intro.id) return;
+    closeBossIntro();
+    resetMovement();
+    closeDialogue();
+    if ($('worldDialog').open) $('worldDialog').close();
+    if ($('transitionScreen').open) $('transitionScreen').close();
+    cutscene = null;
+    bossIntro = { ...intro, battleId:battle.id };
+    text('bossIntroCaption', intro.caption || 'UM GUARDIÃO BLOQUEIA O CAMINHO');
+    text('bossIntroTitle', intro.title || battle.name);
+    text('bossIntroText', intro.text || 'Prepare sua equipe para enfrentar o guardião.');
+    $('bossIntroProgress').max = Math.max(1, intro.endsAt - intro.startedAt);
+    $('bossIntroProgress').value = Math.max(0, worldTime() - intro.startedAt);
+    $('bossIntro').showModal();
+    $('bossIntro').focus();
+  }
+
+  $('bossIntro').addEventListener('cancel', event => event.preventDefault());
+
   function openScene(chapter) {
     if (cutscene) return;
+    closeBossIntro();
     resetMovement();
     closeDialogue();
     if ($('worldDialog').open) $('worldDialog').close();
@@ -676,6 +715,7 @@
       if (state.battle?.lastAction) battleRefresh = setTimeout(() => { if (state) renderBattle(); }, 710);
     }
     refresh();
+    syncBossIntro();
     const battle = prior?.battle;
     const region = battle?.target.region;
     if (battle?.target.kind === 'boss' && prior.campaignId === state.campaignId &&
@@ -707,6 +747,7 @@
   });
 
   socket.on('left', () => {
+    closeBossIntro();
     closeDialogue();
     if ($('worldDialog').open) $('worldDialog').close();
     if ($('transitionScreen').open) $('transitionScreen').close();
@@ -721,6 +762,7 @@
   });
 
   socket.on('sessionReplaced', () => {
+    closeBossIntro();
     sessionReplaced = true;
     connectionPending = null;
     // Another tab owns the same browser storage. Keep its saved room intact.
@@ -739,6 +781,7 @@
   });
 
   socket.on('disconnect', () => {
+    closeBossIntro();
     connectionPending = null;
     resetMovement();
     updateGardenClock(worldTime());
@@ -788,6 +831,7 @@
       }
       rememberRoom(null);
       state = null;
+      closeBossIntro();
       closeDialogue();
       if ($('worldDialog').open) $('worldDialog').close();
       if ($('transitionScreen').open) $('transitionScreen').close();
@@ -982,6 +1026,20 @@
     const dt = Math.min(0.05, (t - (lastFrame || t)) / 1000);
     lastFrame = t;
     if (state && data && !document.hidden) {
+      if (bossIntro) {
+        const now = worldTime();
+        if (state.battle?.id !== bossIntro.battleId || now >= bossIntro.endsAt) {
+          closeBossIntro(now >= bossIntro.endsAt);
+          renderBattle();
+        } else {
+          const elapsed = Math.max(0, now - bossIntro.startedAt);
+          $('bossIntroProgress').value = elapsed;
+          const status = 'A arena abre em ' + Math.ceil((bossIntro.endsAt - now) / 1000) + ' s.';
+          if ($('bossIntroStatus').textContent !== status) text('bossIntroStatus', status);
+          if (typeof Pixel.drawBossIntro === 'function') Pixel.drawBossIntro($('bossIntroCanvas'), state.battle, state.self, elapsed);
+          else Pixel.drawBattle($('bossIntroCanvas'), state, now, backdrop, battleTime);
+        }
+      }
       if (currentGarden && t - lastGardenTick >= 1000) {
         lastGardenTick = t;
         updateGardenClock(worldTime());
@@ -992,7 +1050,7 @@
       }
       if (focusable()) stepMovement(t, dt);
       if (cutscene) Pixel.drawChapter($('endingStage'), cutscene, state.self, t - cutscene.started, backdrop);
-      if (!cutscene && t - lastDraw >= 16) {
+      if (!cutscene && !bossIntro && t - lastDraw >= 16) {
         lastDraw = t;
         for (const [id, position] of positions) {
           if (id === state.id) continue;

@@ -5,18 +5,18 @@ const { HERO_CLASSES, EQUIPMENT, QUESTS, REGIONS } = require('./game-data');
 const World = require('./public/world-data');
 
 const CAPTIVES = {
-  forest: ['Tomás', 'Elara'], cave: ['Borin'], fire: ['Nilo'], castle: ['Sera'], shadow: ['Ivo'],
+  forest: ['Tomás', 'Elara'], cave: ['Borin'], fire: ['Nilo'], castle: ['Sera'], shadow: ['Ivo', 'Maria Rita'],
   island: ['Marina', 'Caio']
 };
 const FRAGMENTS = { forest:'Raiz', cave:'Eco', fire:'Brasa', castle:'Vigília', shadow:'Memória' };
 
 const LORE = {
- village:"Há vinte anos, Malakar foi derrotado na Guerra das Sete Lanternas. Antes de desaparecer, lançou uma maldição sobre as famílias que guardavam os antigos selos. Agora, os sinos tocam sozinhos, a névoa avança e moradores desaparecem durante a noite. Aderic acredita que a maldição está despertando — e que o herói marcado pela estrela pode ser a última esperança.",
- forest:"A Floresta Amaldiçoada já foi o coração vivo de Eldoria. Os guardiões élficos protegiam a Árvore-Mãe, cujas raízes mantinham o equilíbrio entre os reinos. Malakar envenenou suas raízes para abrir uma passagem ao mundo das sombras. O Ent Corrompido não nasceu maligno: foi o último guardião a resistir, e sua memória ainda guarda o nome de quem traiu os antigos reis.",
+ village:"Há vinte anos, Malakar foi derrotado na Guerra das Sete Lanternas. Antes de desaparecer, lançou uma maldição sobre as famílias que guardavam os antigos selos. Agora, moradores desaparecem e os sinos tocam sozinhos. A princesa Maria Rita ajudou Aderic a esconder os fragmentos da lanterna e a retirar as famílias das estradas. Ela foi capturada quando voltou para buscar os últimos moradores. As pistas que deixou são a esperança de encontrar todos com vida.",
+ forest:"Morvath, o Bruxo das Sombras, tomou as ruínas da Floresta Amaldiçoada a serviço de Malakar. Com seu cajado de crânio, transformou as antigas inscrições élficas em armadilhas e aprisionou Tomás e Elara no primeiro selo. A vegetação adoece com a magia que ele rouba dos moradores. A princesa Maria Rita deixou sinais nas trilhas antes de ser levada ao Reino Sombrio. Quebrar os totens de Morvath interrompe o encantamento e recupera o primeiro fragmento da lanterna.",
  cave:"Sob as montanhas existe uma cidade mineradora construída em torno de um fragmento caído das estrelas. Os mineiros descobriram que o cristal não era uma fonte de energia, mas uma prisão. Quando tentaram removê-lo, libertaram ecos de pessoas desaparecidas há séculos. A cada corredor, as vozes repetem lembranças de famílias que ainda esperam por seus entes queridos na superfície.",
  fire:"As Terras do Fogo abrigam a Forja do Eclipse, onde Malakar fundiu sua armadura com o metal de uma estrela morta. O calor não vem apenas do vulcão: é alimentado pela esperança roubada dos prisioneiros. O Draco de Brasas protege a chama capaz de quebrar a armadura, mas esqueceu por que jurou proteger aquele lugar.",
- castle:"Vharok foi o mais respeitado comandante de Eldoria. Ele descobriu que o rei pretendia usar os selos para controlar a magia do povo e tentou impedir o ritual. Malakar ofereceu-lhe poder para salvar seus soldados, mas transformou sua lealdade em uma prisão. Nos arquivos do castelo, cartas escondidas revelam que Vharok deixou pistas para quem tivesse coragem de terminar o que ele começou.",
- shadow:"O Reino Sombrio é uma ferida aberta entre a memória e o esquecimento. Malakar alimenta o vazio com as lembranças dos moradores que aprisionou. Se vencer, ninguém se lembrará de Eldoria, nem mesmo aqueles que nascerem depois. Para derrotá-lo, os aventureiros precisarão reunir as histórias que o tirano tentou apagar — e devolver ao povo aquilo que nunca deveria ter sido roubado."
+ castle:"Vharok foi o mais respeitado comandante de Eldoria. Malakar ofereceu-lhe poder para salvar seus soldados, mas transformou sua lealdade em uma prisão. Nos arquivos do castelo, a princesa Maria Rita encontrou cartas nas quais Vharok revelou como reunir os selos. Ela escondeu cópias antes de ser capturada. Recuperar esses registros pode libertar o general da mentira que o mantém ao lado de Malakar.",
+ shadow:"No Reino Sombrio, Malakar aprisionou Ivo e a princesa Maria Rita no último selo. Ele tenta arrancar dela os nomes das famílias que guardam as Sete Lanternas. Maria Rita repete esses nomes aos demais prisioneiros para que ninguém esqueça quem é. Os fragmentos recuperados em cada região abrem o caminho até a prisão. Derrotar Malakar quebra as correntes, devolve as memórias roubadas e permite que a princesa e seu povo regressem juntos a Eldoria."
 };
 
 const QUESTS_BY_ID = {
@@ -66,8 +66,8 @@ const CLUES = {
   relic: ['lost_relic', 1, 'O relicário se abre. Dentro dele, uma folha de prata traz o símbolo dos primeiros reis.'],
   miners: ['deep_mines', 0, 'Você encontra uma saída estreita e o diário dos mineiros. Eles seguiram o curso da água.'],
   embers: ['ember_shards', 0, 'Um fragmento de brasa ainda pulsa na bigorna do Eclipse.'],
-  records: ['royal_records', 0, 'Uma carta confirma que Vharok tentou salvar seus soldados antes de servir a Malakar.'],
-  seals: ['void_seals', 0, 'Nomes das famílias de Eldoria brilham no altar. O vazio ainda guarda suas memórias.'],
+  records: ['royal_records', 0, 'Uma cópia escondida pela princesa Maria Rita confirma que Vharok tentou salvar seus soldados. Nas margens, ela anotou como reunir os selos.'],
+  seals: ['void_seals', 0, 'Os nomes das famílias brilham no altar. Entre eles estão Ivo e Maria Rita: os últimos prisioneiros de Malakar ainda resistem.'],
   'letters-grotto': ['home_letters', 0, 'A carta está endereçada a Sera. O filho dela escreveu que voltaria pela nascente.'],
   'letters-archive': ['home_letters', 1, 'Na segunda carta, Vharok deixa instruções para reconduzir as famílias à Vila.'],
   'lamp-village': ['lanterns', 0, 'A chama da praça ilumina o caminho de casa.'],
@@ -78,7 +78,7 @@ const CLUES = {
 const DIALOGUES = {
   chronicler: [
     'Há vinte anos, as Sete Lanternas se apagaram. Aderic guardou uma delas desde aquela noite.',
-    'Os selos da floresta foram feitos para proteger Eldoria. Se ouvir alguém sussurrar seu nome no bosque, siga as lanternas.'
+    'A princesa Maria Rita escondeu os fragmentos antes de ser levada por Malakar. Morvath guarda o primeiro na Floresta. Quebre os totens do bruxo e siga as pistas que ela deixou.'
   ],
   healer: [
     'A corrupção às vezes deixa marcas que a gente não vê. Sente um pouco antes de voltar para a estrada.',
@@ -90,7 +90,7 @@ const DIALOGUES = {
   ],
   villager: [
     'Meu irmão foi procurar as luzes do pomar. Ele dizia que elas conheciam um atalho para casa.',
-    'Quando os moradores voltarem, quero acender as lanternas para que ninguém se perca outra vez.'
+    'Maria Rita voltou à estrada para buscar quem ficou para trás. Quando todos voltarem, quero acender as lanternas para que ninguém se perca outra vez.'
   ],
   lia: [
     'Eu sou Lia. Cuido deste pomar desde antes de as árvores começarem a sussurrar.',
@@ -233,6 +233,7 @@ function publicCampaign(world) {
     epoch: world.epoch, cleared: world.cleared, defeated: world.defeated, opened: world.opened,
     rooms: world.rooms, orchardOpen: world.orchardOpen, lamps: world.lamps || [],
     voyage:world.voyage || { defeated:[], cleared:false }, rescued,
+    royalty:{ name:'Maria Rita', title:'Princesa de Eldoria', rescued:!!world.cleared.shadow },
     fragments:Object.entries(FRAGMENTS).filter(([region]) => world.cleared[region]).map(([region, name]) => ({region, name})),
     quests: QUESTS.map(quest => ({ title: quest.title, completed: Boolean(world.cleared[quest.region] || world.legacyMainQuests?.[quest.id]?.completed) }))
   };

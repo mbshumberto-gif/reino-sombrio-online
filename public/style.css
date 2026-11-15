@@ -122,6 +122,22 @@ dialog h2{margin:6px 0 12px}
 #transitionCaption{color:var(--gold);margin:0 0 10px}
 #transitionScreen{width:min(550px,calc(100vw - 22px));text-align:center}
 #continueCampaignBtn{min-height:46px}
+.boss-intro{width:min(700px,calc(100vw - 24px));max-width:calc(100vw - 24px);max-height:calc(100dvh - 24px);padding:16px;text-align:center;overflow:auto;border-color:#c8a77c;background:#172339}
+.boss-intro::backdrop{background:#080c18ed}
+.boss-intro .subtitle{color:var(--gold);font-size:7px;line-height:1.7;margin:0 0 8px}
+.boss-intro h2{font-size:clamp(9px,2.3vw,14px);line-height:1.65;margin:0 0 12px}
+#bossIntroCanvas{width:100%;height:auto;max-height:44dvh;object-fit:contain;background:#111b2a;border:2px solid #8f7c70}
+#bossIntroText{font-size:clamp(19px,3.6vw,23px);line-height:1.15;margin:12px 0}
+#bossIntroProgress{display:block;width:100%;height:8px;accent-color:var(--gold)}
+#bossIntroStatus{font-size:17px;color:var(--muted);margin:8px 0 0}
+@media(orientation:landscape) and (max-height:500px){
+  .boss-intro{width:min(760px,calc(100vw - 24px));padding:10px 14px;display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:6px 14px;align-items:center}
+  .boss-intro:not([open]){display:none}
+  .boss-intro .subtitle,.boss-intro h2{grid-column:1/-1;margin:0}
+  #bossIntroCanvas{grid-column:1;grid-row:3/6;max-height:54dvh}
+  #bossIntroText{grid-column:2;font-size:18px;margin:0}
+  #bossIntroProgress,#bossIntroStatus{grid-column:2}
+}
 .toast{position:fixed;bottom:max(12px,env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);max-width:calc(100vw - 30px);width:max-content;background:#18243b;border:2px solid #c59e70;color:#f6e3bd;z-index:20;text-align:center;padding:6px 12px;box-shadow:0 4px var(--edge);pointer-events:none}
 @media(max-width:920px){.layout{grid-template-columns:minmax(0,1fr)}.side{grid-template-columns:repeat(2,minmax(0,1fr))}.hero-panel{grid-column:1/-1}}
 @media(max-width:620px){.shell{padding:7px}.play{padding:7px}.title-screen{min-height:calc(100dvh - 14px);background-position:60% center}.title-copy h1{font-size:clamp(23px,9vw,43px)}.brand{display:none}.room-tools{width:100%;gap:5px}.location h1{font-size:10px}.clock{font-size:15px}.side{grid-template-columns:minmax(0,1fr)}.hero-panel{grid-column:auto}.enemy-hud{width:48%}.dialogue{gap:6px;padding:7px}.dialogue canvas{width:49px;height:auto}}

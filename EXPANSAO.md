@@ -7,18 +7,18 @@ Esta entrega amplia Vila, Floresta e Pomar como primeira região de referência.
 1. Crie uma aventura com combate **Na própria tela**. A Druida é uma nova opção de personagem; escolher outra classe na entrada não transforma um personagem já salvo.
 2. Colha uma maçã na Vila, encontre Lume no Pomar e convide Lia. Converse com ela para aceitar **Uma horta para o recomeço**.
 3. Use um dos quatro canteiros pessoais ao sul do Pomar, plante, regue e volte para colher. Entregue a notícia da colheita a Lia. Alimentos ficam na mochila e restauram energia fora da luta.
-4. Explore a Floresta e sua dungeon. O Ent aparece depois das cinco criaturas. Saia dos círculos anunciados, quebre os totens de seiva e enfrente sua tempestade final.
+4. Explore a Floresta e sua dungeon. Morvath, o Bruxo das Sombras, aparece depois das cinco criaturas. Após a vinheta, enfrente as três fases do feiticeiro em uma arena por turnos: leia os golpes anunciados, quebre os totens e prepare sua defesa.
 5. A vitória devolve o fragmento Raiz e liberta Tomás e Elara. A Vila passa a mostrar os moradores salvos.
 6. Aceite **Vozes além da margem** com Lia, embarque a leste do Pomar, defenda o convés e alcance a ilha. O Carcereiro protege Marina e Caio. Volte a Lia após o resgate.
-7. Continue a campanha pelos outros guardiões para recuperar os cinco fragmentos. Malakar mantém as últimas memórias aprisionadas e anuncia raios que drenam mana quando acertam.
+7. Continue a campanha pelos outros guardiões para recuperar os cinco fragmentos. Malakar mantém a princesa Maria Rita e as últimas memórias aprisionadas. Sua derrota liberta a princesa e devolve a memória ao reino.
 
 ## Escolhas de combate
 
-O modo é escolhido ao criar a campanha e compartilhado pelo grupo. Aventuras antigas continuam por turnos. Novas aventuras oferecem os dois modos para comparar a experiência. A expedição de barco e ilha sempre usa combate no mapa.
+O modo é escolhido ao criar a campanha e compartilhado pelo grupo. Aventuras antigas conservam o modo dos inimigos comuns. Novas aventuras oferecem os dois modos para explorar. Os inimigos comuns do barco usam combate no mapa. Todos os chefes, incluindo dungeons e ilha, têm vinheta e arena por turnos, independentemente do modo da campanha.
 
 No mapa, jogadores próximos ao início do encontro participam; jogadores distantes não são arrastados para a luta. Movimento continua livre, mas portais e interações ficam bloqueados durante o encontro. Dano, alcance, custo de mana e tempo entre ações são validados pelo servidor. Inimigos comuns permitem recuo; chefes exigem vitória ou derrota.
 
-Cada chefe tem três fases e uma identidade mecânica: seiva regeneradora na Floresta, fissuras na Caverna, brasas com novo impacto no Fogo, golpe em linha de Vharok e raios de Malakar. Os círculos mostram onde o golpe atingirá; defender reduz dano e não impede movimento. Todas as classes podem quebrar totens de perto.
+Cada chefe tem três fases, golpes anunciados e proteções que exigem decisões do grupo. Morvath usa maldições, totens sombrios e um eclipse arcano. Na arena, cada jogador escolhe sua ação na sua vez; defender, interromper e apoiar o grupo ajudam a enfrentar os golpes preparados. Todas as classes podem quebrar totens. A vinheta usa o relógio do servidor, não consome o tempo do primeiro turno e não permite ataques antecipados. A opção de reduzir movimento mantém a apresentação legível sem flashes.
 
 ## Persistência e limites desta entrega
 
@@ -30,7 +30,7 @@ Cada chefe tem três fases e uma identidade mecânica: seiva regeneradora na Flo
 
 ## Próximas etapas
 
-1. Testar o combate com jogadores reais em celulares e ajustar alcance, velocidade, dificuldade e posição dos botões. Definir qual modo será o principal a partir dessas sessões.
+1. Testar o combate com jogadores reais em celulares e ajustar alcance, velocidade, dificuldade e posição dos botões. Ajustar o ritmo entre a exploração no mapa, a vinheta e os turnos dos chefes a partir dessas sessões.
 2. Aprofundar a região com decisões em missões, rotinas reativas dos NPCs, especializações de companheiros e equipamentos que mudem estratégias.
 3. Separar encontros independentes e recompensas pessoais; definir como novos jogadores participam de uma campanha já avançada.
 4. Versionar saves, testar backups restauráveis, melhorar recuperação de identidade e medir latência, filas e carga antes de expandir a população.

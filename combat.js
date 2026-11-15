@@ -5,7 +5,7 @@ const { HERO_CLASSES, TECHNIQUES } = require('./game-data');
 const { heroStats } = require('./adventure');
 
 const BOSSES = {
-  forest: ['Investida das raízes', 'Totens de seiva', 'Coração da árvore'],
+  forest: ['Maldição do cajado', 'Totens do pacto sombrio', 'Eclipse de Morvath'],
   cave: ['Martelo de pedra', 'Cristais ressonantes', 'Eco sísmico'],
   fire: ['Mordida de brasa', 'Brasas em órbita', 'Fôlego vulcânico'],
   castle: ['Desafio do general', 'Estandartes da guarda', 'Última ordem'],
@@ -77,7 +77,7 @@ function announceMove(battle, alive) {
   }
   if (battle.boss && battle.phase === 2 && battle.totems) return { type: 'shield', name: moves[1], target };
   if (battle.round % (battle.boss ? 2 : 3) === 1) return { type: 'charge', name: battle.boss ? moves[0] : 'Investida feroz', target };
-  const names = { forest:'Garras da floresta', cave:'Estilhaço de cristal', fire:'Rajada de brasas',
+  const names = { forest:battle.boss ? 'Rajada de sombras' : 'Garras da floresta', cave:'Estilhaço de cristal', fire:'Rajada de brasas',
     castle:'Golpe espectral', shadow:'Pulso do vazio' };
   return { type: 'hit', name: names[battle.target.region], target };
 }

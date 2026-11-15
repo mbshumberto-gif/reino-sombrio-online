@@ -28,7 +28,7 @@ function incoming(socket, name, predicate = () => true, timeout = 5000) {
 }
 
 async function launch(t, storage, options = {}) {
-  const game = createGame({ storage, graceMs:4000, logger:{ error() {} }, ...options });
+  const game = createGame({ storage, graceMs:4000, bossIntroMs:40, actionMs:20, logger:{ error() {} }, ...options });
   const { port } = await game.listen(0, '127.0.0.1');
   const clients = [];
   t.after(async () => {
@@ -72,6 +72,14 @@ async function seed(storage, { room, name = 'Cultivador', zone = 'orchard', x = 
 const enter = (socket, hero, action = 'continue') => send(socket, 'adventure', {
   id:hero.id, key:hero.key, action, campaignId:hero.campaign.id, code:hero.campaign.code
 }, 'state', state => state.id === hero.id);
+
+async function bossTurn(socket, action) {
+  const introDelay = (socket.state.battle?.intro?.endsAt || 0) - Date.now();
+  if (introDelay >= 0) await wait(introDelay + 10);
+  const battle = socket.state.battle;
+  return send(socket, 'battleAction', { id:battle.id, turn:battle.turn, action }, 'state', state => !state.battle
+    || state.battle.id === battle.id && state.battle.turn > battle.turn && state.battle.active === socket.state.id && !state.battle.resolveAt);
+}
 
 test('o servidor exige proximidade para plantar e calcula o crescimento sem confiar no relógio do cliente', async t => {
   const storage = createStorage();
@@ -270,8 +278,8 @@ test('uma derrota na ilha respeita o checkpoint salvo na fogueira dos navegantes
   const socket = await f.connect();
   await enter(socket, hero);
   await wait(1850);
-  await send(socket, 'interact', { id:'island-warden' }, 'state', state => state.battle?.mode === 'field');
-  const restored = await incoming(socket, 'state', state => !state.battle, 5000);
+  await send(socket, 'interact', { id:'island-warden' }, 'state', state => state.battle?.mode === 'turn');
+  const restored = await bossTurn(socket, 'attack');
   assert.equal(restored.zone, 'island');
   const player = restored.players.find(player => player.id === hero.id);
   assert.equal(player.x, camp.x);
@@ -281,7 +289,7 @@ test('uma derrota na ilha respeita o checkpoint salvo na fogueira dos navegantes
   assert.deepEqual(persisted.data.checkpoint, { zone:'island', x:camp.x, y:camp.y });
 });
 
-test('derrotar o Ent nas três fases persiste o fragmento, os resgates e a recompensa juntos', { timeout:12000 }, async t => {
+test('derrotar Morvath na arena de turnos persiste o fragmento, os resgates e a recompensa juntos', { timeout:12000 }, async t => {
   const storage = createStorage();
   const hero = await seed(storage, { name:'Libertadora', zone:'forest', x:480, y:130,
     heroData:{ baseAttack:5000, baseDefense:1000 }, campaignData:{ combatMode:'field' } });
@@ -293,19 +301,18 @@ test('derrotar o Ent nas três fases persiste o fragmento, os resgates e a recom
   await wait(1850);
   const engaged = await send(socket, 'interact', { id:'boss-forest' }, 'state', state => state.battle?.boss);
   const battleId = engaged.battle.id;
-  await send(socket, 'fieldAction', { id:battleId, action:'attack' }, 'state', state => state.battle?.phase === 2);
-  assert.equal(socket.state.battle.totems.length, 2);
-  while (socket.state.battle.totems.length) {
-    const totem = socket.state.battle.totems[0];
-    const total = socket.state.battle.totems.reduce((sum, point) => sum + point.hp, 0);
-    await wait(730);
-    await send(socket, 'fieldAction', { id:battleId, action:'totem', target:totem.id }, 'state',
-      state => state.battle?.totems.reduce((sum, point) => sum + point.hp, 0) < total);
-  }
-  await wait(730);
-  await send(socket, 'fieldAction', { id:battleId, action:'attack' }, 'state', state => state.battle?.phase === 3);
-  await wait(730);
-  const won = await send(socket, 'fieldAction', { id:battleId, action:'attack' }, 'state', state => !state.battle);
+  assert.equal(engaged.battle.mode, 'turn');
+  assert.match(engaged.battle.name, /Morvath/);
+  await bossTurn(socket, 'attack');
+  assert.equal(socket.state.battle.phase, 2);
+  assert.equal(socket.state.battle.totems, 2);
+  await bossTurn(socket, 'totem');
+  assert.equal(socket.state.battle.totems, 1);
+  await bossTurn(socket, 'totem');
+  assert.equal(socket.state.battle.totems, 0);
+  await bossTurn(socket, 'attack');
+  assert.equal(socket.state.battle.phase, 3);
+  const won = await bossTurn(socket, 'attack');
   assert.ok(won.world.cleared.forest);
   assert.ok(won.world.fragments.some(fragment => fragment.region === 'forest' && fragment.name === 'Raiz'));
   assert.ok(CAPTIVES.forest.every(name => won.world.rescued.includes(name)));
@@ -370,3 +377,58 @@ test('retomar com a chave correta substitui uma conexão ainda aberta sem duplic
       && update.battle.lastAction.action === 'defend');
   assert.equal(resumed.state.battle.id, engaged.battle.id);
 });
+
+for (const scenario of [
+  { name:'guardião principal', zone:'forest', x:480, y:130, point:'boss-forest', prepare:world => { world.defeated.forest = [0, 1, 2, 3, 4]; } },
+  { name:'guardião da dungeon', zone:'dungeon-forest-3', x:480, y:265, point:'trial', prepare:world => { world.rooms.forest = [0, 1, 2]; } },
+  { name:'guardião da ilha', zone:'island', x:480, y:210, point:'island-warden', prepare:world => {
+    world.voyage = { defeated:['deck-raider-0', 'deck-raider-1'], cleared:false };
+  } }
+]) {
+  test(scenario.name + ' abre arena por turnos com introdução compartilhada e protegida pelo servidor', { timeout:8000 }, async t => {
+    const storage = createStorage();
+    const hero = await seed(storage, { name:'Líder', zone:scenario.zone, x:scenario.x, y:scenario.y,
+      heroData:{ baseDefense:1000 }, campaignData:{ combatMode:'field' } });
+    scenario.prepare(hero.campaign.data);
+    await storage.save({ campaign:hero.campaign });
+    const friend = await seed(storage, { room:hero.campaign, name:'Companheira', zone:scenario.zone,
+      x:scenario.x + 20, y:scenario.y, heroData:{ baseDefense:1000 } });
+    const f = await launch(t, storage, { bossIntroMs:800, turnMs:70 });
+    const original = await f.connect();
+    await enter(original, hero);
+    const ally = await f.connect();
+    await enter(ally, friend);
+    await wait(1850);
+    const engaged = await send(original, 'interact', { id:scenario.point }, 'state', state => state.battle?.boss);
+    const battle = engaged.battle;
+    assert.equal(engaged.combatMode, 'field', 'A preferência por campo permanece para os encontros comuns.');
+    assert.equal(battle.mode, 'turn');
+    assert.ok(battle.heroes.includes(hero.id) && battle.heroes.includes(friend.id));
+    for (const key of ['id', 'title', 'text', 'caption']) assert.equal(typeof battle.intro[key], 'string');
+    assert.equal(battle.intro.endsAt - battle.intro.startedAt, 800);
+    assert.equal(battle.expires, battle.intro.endsAt + 70);
+    const friendState = ally.state.battle?.id === battle.id ? ally.state
+      : await incoming(ally, 'state', state => state.battle?.id === battle.id);
+    assert.deepEqual(friendState.battle.intro, battle.intro);
+
+    await send(original, 'battleAction', { id:battle.id, turn:battle.turn, action:'attack' }, 'errorMessage');
+    await send(original, 'fieldAction', { id:battle.id, action:'attack' }, 'errorMessage');
+    await wait(160);
+    assert.equal(original.state.battle.turn, battle.turn, 'O prazo curto de turno não deve executar defesa automática durante a vinheta.');
+    assert.equal(original.state.battle.hp, battle.hp);
+    assert.equal(original.state.self.hp, engaged.self.hp);
+
+    const resumed = await f.connect();
+    const restored = await enter(resumed, hero, 'resume');
+    assert.equal(restored.battle.id, battle.id);
+    assert.deepEqual(restored.battle.intro, battle.intro, 'Reconectar não reinicia nem pula a introdução do grupo.');
+    assert.equal(restored.battle.turn, battle.turn);
+    await send(resumed, 'battleAction', { id:battle.id, turn:battle.turn, action:'attack' }, 'errorMessage');
+    await wait(Math.max(0, battle.intro.endsAt - Date.now()) + 10);
+    const acted = await send(resumed, 'battleAction', { id:battle.id, turn:battle.turn, action:'defend' }, 'state',
+      state => state.battle?.lastAction?.side === 'party' && state.battle.lastAction.heroId === hero.id
+        && state.battle.lastAction.action === 'defend');
+    assert.ok(acted.battle.turn > battle.turn);
+    assert.equal(acted.battle.hp, battle.hp);
+  });
+}
