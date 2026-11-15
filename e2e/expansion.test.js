@@ -57,6 +57,26 @@ async function keyboard(page, key, duration) {
   await page.waitForTimeout(90);
 }
 
+test('outra aba retoma o personagem e atualizar mantém a sala salva no navegador', { timeout:30000 }, async t => {
+  const { page, context, room, errors } = await fixture(t, { zone:'village', x:480, y:458 });
+  const resumed = await context.newPage();
+  resumed.on('pageerror', error => errors.push(error.message));
+  await resumed.goto(page.url(), { waitUntil:'domcontentloaded' });
+  await resumed.waitForFunction(() => !document.querySelector('#game').classList.contains('hidden') &&
+    document.querySelector('#heroName').textContent === 'Jade');
+  await page.waitForFunction(() => document.querySelector('#game').classList.contains('hidden') &&
+    document.querySelector('#entryStatus').textContent.includes('outra aba'));
+  assert.equal(await resumed.evaluate(() => JSON.parse(localStorage.getItem('eldoriaActiveRoom')).campaignId), room.id);
+  await resumed.reload({ waitUntil:'domcontentloaded' });
+  await resumed.waitForFunction(() => !document.querySelector('#game').classList.contains('hidden') &&
+    document.querySelector('#roomLabel').textContent === 'FA4D01');
+  assert.equal(await resumed.locator('#heroName').textContent(), 'Jade');
+  assert.equal(await page.locator('#game').isHidden(), true);
+  assert.deepEqual(errors, []);
+  await resumed.locator('#leaveAdventureBtn').click();
+  await resumed.waitForFunction(() => document.querySelector('#game').classList.contains('hidden'));
+});
+
 async function position(page) {
   return page.evaluate(() => {
     const state = window.__e2eState;

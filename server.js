@@ -214,13 +214,18 @@ function createGame({ storage = createStorage({
       const canResume = event === 'resume' && payload.campaignId === active.id;
       const canContinue = event === 'continue' && entry.data.homeCampaign === active.id;
       const canJoin = event === 'join' && payload.code === active.code;
-      if (entry.socketId || !(canResume || canContinue || canJoin)) {
+      if ((entry.socketId && !canResume) || !(canResume || canContinue || canJoin)) {
         throw fail('Esse herói tem uma sessão aberta. Retome a mesma aventura para continuar.');
       }
       return queue(active, () => {
         if (!socket.connected) return;
         if (active.players.get(id) !== entry) throw fail('A sessão expirou. Entre na aventura novamente.');
+        const previousSocket = io.sockets.sockets.get(entry.socketId);
         rememberSocket(active, entry, socket);
+        if (previousSocket && previousSocket.id !== socket.id) {
+          previousSocket.emit('sessionReplaced');
+          previousSocket.disconnect(true);
+        }
         publish(active);
       });
     }
