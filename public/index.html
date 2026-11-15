@@ -9,7 +9,7 @@
   <script defer src="/socket.io/socket.io.js"></script>
   <script defer src="/world-data.js?v=7"></script>
   <script defer src="/pixel.js?v=9"></script>
-  <script defer src="/game.js?v=23"></script>
+  <script defer src="/game.js?v=24"></script>
 </head>
 <body>
   <main class="shell">
@@ -31,11 +31,7 @@
         <label for="heroClass">Classe</label>
         <select id="heroClass" name="heroClass"><option value="warrior">Guerreiro</option></select>
         <p id="classRole" class="muted"></p>
-        <label for="combatMode">Combate da nova aventura</label>
-        <select id="combatMode" name="combatMode">
-          <option value="field">Exploração em tempo real · chefes por turnos</option>
-          <option value="turn">Por turnos · arena clássica</option>
-        </select>
+        <p id="combatModeSummary"><strong>Exploração em tempo real · Chefes por turnos</strong></p>
         <p class="muted entry-help">Chefes se revelam em uma cena e enfrentam o grupo na arena por turnos. Continuar mantém o modo da aventura.</p>
         <div class="button-row">
           <button id="createBtn" class="primary" type="submit">Criar aventura</button>

@@ -265,7 +265,7 @@ function createGame({ storage = createStorage({
     }
     if (event === 'create' || (event === 'continue' && importedRoom)) {
       newRoom = event === 'continue' ? importedRoom : Story.newCampaign(await reserveCode(importedRoom?.code), id);
-      if (event === 'create') newRoom.data.combatMode = payload.combatMode === 'field' ? 'field' : 'turn';
+      if (event === 'create') newRoom.data.combatMode = 'field';
       selected = newRoom;
     } else if (event === 'join') {
       if (!ROOM_CODE_PATTERN.test(payload.code || '')) throw fail('Digite o código de seis caracteres da sala.');

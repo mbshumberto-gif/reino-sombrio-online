@@ -158,7 +158,7 @@
     connectionPending = action;
     text('entryStatus', 'Abrindo aventura…');
     send('adventure', { action, ...credentials, name:$('playerName').value,
-      classKey:$('heroClass').value, code:$('roomCode').value.trim().toUpperCase(), combatMode:$('combatMode').value });
+      classKey:$('heroClass').value, code:$('roomCode').value.trim().toUpperCase() });
   }
 
   $('startAdventureBtn').addEventListener('click', displayEntry);

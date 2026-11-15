@@ -4,7 +4,7 @@ Esta entrega amplia Vila, Floresta e Pomar como primeira região de referência.
 
 ## Roteiro para jogar
 
-1. Crie uma aventura com combate **Na própria tela**. A Druida é uma nova opção de personagem; escolher outra classe na entrada não transforma um personagem já salvo.
+1. Crie uma aventura. O padrão é **Exploração em tempo real · Chefes por turnos**, sem seletor de combate. A Druida é uma nova opção de personagem; escolher outra classe na entrada não transforma um personagem já salvo.
 2. Colha uma maçã na Vila, encontre Lume no Pomar e peça a Lia para criar um Eco que acompanhe você. Converse com ela para aceitar **Uma horta para o recomeço**.
 3. Use um dos quatro canteiros pessoais ao sul do Pomar, plante, regue e volte para colher. Entregue a notícia da colheita a Lia. Alimentos ficam na mochila e restauram energia fora da luta.
 4. Explore a Floresta e sua dungeon. Morvath, o Bruxo das Sombras, aparece depois das cinco criaturas. Após a vinheta, enfrente as três fases do feiticeiro em uma arena por turnos: leia os golpes anunciados, quebre os totens e prepare sua defesa.
@@ -13,9 +13,9 @@ Esta entrega amplia Vila, Floresta e Pomar como primeira região de referência.
 7. Continue a campanha pelos outros guardiões para recuperar os cinco fragmentos. Malakar mantém a princesa Maria Rita e as últimas memórias aprisionadas. Sua derrota liberta a princesa e devolve a memória ao reino.
 8. Volte à Vila: o castelinho de Maria Rita, ao norte da praça, estará aberto. Entre pelo portão e leia as memórias no salão. A abertura acompanha o resgate salvo na campanha e vale para o grupo inteiro.
 
-## Escolhas de combate
+## Combate
 
-O modo é escolhido ao criar a campanha e compartilhado pelo grupo. Aventuras antigas conservam o modo dos inimigos comuns. Novas aventuras oferecem os dois modos para explorar. Os inimigos comuns do barco usam combate no mapa. Todos os chefes, incluindo dungeons e ilha, têm vinheta e arena por turnos, independentemente do modo da campanha.
+Novas aventuras usam exploração e combates comuns em tempo real, com chefes por turnos, sem escolha de modo na entrada. Aventuras antigas conservam o modo salvo dos inimigos comuns. Os inimigos comuns do barco usam combate no mapa. Todos os chefes, incluindo dungeons e ilha, têm vinheta e arena por turnos.
 
 No mapa, jogadores próximos ao início do encontro participam; jogadores distantes não são arrastados para a luta. Movimento continua livre, mas portais e interações ficam bloqueados durante o encontro. Dano, alcance, custo de mana e tempo entre ações são validados pelo servidor. Inimigos comuns permitem recuo; chefes exigem vitória ou derrota.
 
