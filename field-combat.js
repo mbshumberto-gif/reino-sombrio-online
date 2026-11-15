@@ -1,5 +1,7 @@
 'use strict';
 
+const Lia = require('./lia-companion');
+
 const { randomUUID } = require('node:crypto');
 const { HERO_CLASSES, TECHNIQUES } = require('./game-data');
 const { heroStats } = require('./adventure');
@@ -211,10 +213,10 @@ function act(battle, entry, payload, entries, now = Date.now()) {
     if (!breakTotem(battle, entry, payload?.target)) return { error:'Aproxime-se de um totem para quebrá-lo.' };
     text = battle.totems.length ? 'O totem rachou.' : 'O pacto da prisão se partiu!';
   } else if (action === 'companion') {
-    if (!hero.companions?.lia || battle.supportUsed) return { error:'Lia já ajudou ou ainda não acompanha o grupo.' };
+    if (!hero.companions?.lia || battle.supportUsed) return { error:'O Eco de Lia já ajudou ou ainda não acompanha o grupo.' };
     battle.supportUsed = true;
     allies.forEach(ally => restore(ally.data, 25, 9));
-    text = 'Lia socorreu o grupo.';
+    text = 'O Eco de Lia socorreu o grupo.';
   } else if (action === 'flee') {
     if (battle.boss) return { error:'O guardião bloqueia a passagem.' };
     battle.ended = 'fled';
@@ -294,6 +296,7 @@ function tick(battle, entries, now = Date.now()) {
       const damage = status.evadeUntil >= now ? 0 : Math.max(1, Math.floor((battle.attack * strength - heroStats(entry.data).defense * 0.55) * guard * passive * (battle.weakenedUntil >= now ? 0.7 : 1)));
       const before = entry.data.hp;
       entry.data.hp = Math.max(0, before - damage);
+      Lia.recordKnockout(battle, entry, before, now);
       if (damage && battle.boss && battle.target.region === 'shadow' && mark.type === 'lightning') {
         entry.data.mana = Math.max(0, entry.data.mana - 6);
       }

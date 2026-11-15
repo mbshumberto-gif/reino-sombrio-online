@@ -13,6 +13,7 @@ const Story = require('./adventure');
 const Combat = require('./combat');
 const Field = require('./field-combat');
 const Farming = require('./farming');
+const Lia = require('./lia-companion');
 
 const GRACE_MS = 45000;
 const ROOM_LIMIT = 8;
@@ -154,7 +155,8 @@ function createGame({ storage = createStorage({
     const oldBattles = structuredClone(room.battles);
     const oldFruit = structuredClone(room.fruit);
     const oldPlayers = [...room.players.values()].map(entry => ({
-      entry, hero: structuredClone(entry.data), member: structuredClone(entry.member.data), encounterAt: entry.encounterAt, baseline: entry.battleBaseline
+      entry, hero: structuredClone(entry.data), member: structuredClone(entry.member.data), encounterAt: entry.encounterAt,
+      baseline:entry.battleBaseline ? structuredClone(entry.battleBaseline) : null
     }));
     const messages = [];
     try {
@@ -234,6 +236,7 @@ function createGame({ storage = createStorage({
     if (hero && !sameKey(hero.keyHash, key)) throw fail('Use o navegador original ou recupere seu personagem.');
     const legacy = hero ? null : await storage.readLegacy(id);
     if (!hero) hero = { id, keyHash: hash(key), revision: 0, data: Story.makeHero(cleanName(payload.name) || 'Aventureiro', payload.classKey, legacy || {}) };
+    Lia.ensure(hero.data);
     let newRoom;
     let selected;
     let importedRoom;
@@ -306,7 +309,13 @@ function createGame({ storage = createStorage({
     if (npc.indoors) lines.unshift('Já estou em casa por esta noite, mas posso ajudar você aqui na porta.');
     if (world.cleared.shadow && npc.id === 'villager') lines.push('Malakar caiu. Meu irmão voltou na primeira manhã. Vamos acender as lanternas para celebrar?');
     if (npc.id === 'lia' && entry.data.companions.lume) lines.push('Lume gosta de você. Se quiser, eu conheço caminhos que a luz dele consegue revelar.');
-    if (npc.id === 'lia') lines.push('Os quatro canteiros ao sul são seus: plante, regue e leve comida à viagem. Depois de libertar a Floresta, o barco a leste leva à Ilha das Raízes.');
+    if (npc.id === 'lia') {
+      const echo = Lia.ensure(entry.data);
+      lines.push('Eu permaneço no Pomar. Quem viaja ao seu lado é um clone meu, feito da luz de Lume.');
+      if (echo.needsRescue) lines.push('Seu clone caiu quando você tombou em batalha. Guarde sua memória na lápide e desperte um novo clone no Broto de Lia, ao sul.');
+      else if (entry.data.companions.lia) lines.push('O clone ' + echo.generation + ' acompanha você. Minha presença original continua aqui para cuidar do Pomar.');
+      lines.push('Os quatro canteiros ao sul são seus: plante, regue e leve comida à viagem. Depois de libertar a Floresta, o barco a leste leva à Ilha das Raízes.');
+    }
     if (npc.id === 'chronicler') lines.push('Cada guardião aprisiona moradores e um fragmento da Lanterna. Recupere os cinco para devolver a memória a Eldoria.');
     const options = Object.entries(Story.quests).flatMap(([id, quest]) => {
       if (quest.npc !== npc.id || !Story.canOffer(id, world) || member.quests[id]?.completed) return [];
@@ -318,8 +327,8 @@ function createGame({ storage = createStorage({
     });
     if (npc.id === 'blacksmith') options.push({ id: 'shop', label: 'Ver equipamentos' });
     if (npc.id === 'healer') options.push({ id:'rest', label:world.cleared.forest ? 'Descansar · 10 ouros' : 'Descansar com Mira' });
-    if (npc.id === 'lia' && entry.data.companions.lume && !entry.data.companions.lia) {
-      options.push({ id: 'recruit', label: 'Convidar Lia para viajar' });
+    if (npc.id === 'lia' && entry.data.companions.lume && !entry.data.companions.lia && !Lia.ensure(entry.data).needsRescue) {
+      options.push({ id:'recruit', label:'Criar clone de Lia' });
     }
     send(entry, 'dialogue', { id: npc.id, title: npc.label, portrait: npc.classKey,
       appearance:npc.appearance || World.NPCS[npc.id]?.appearance, lines, options });
@@ -485,6 +494,25 @@ function createGame({ storage = createStorage({
     const position = room.mobs.get(member.zone)?.[point.id] || point;
     const range = point.kind === 'portal' ? 69 : 64;
     if (World.distance(member, position) > range) throw fail('Chegue mais perto.');
+    if (point.kind === 'liaRescue') {
+      const echo = Lia.rescue(entry.data);
+      send(entry, 'dialogue', { title:'Lia · novo clone', portrait:'liaEcho', appearance:World.NPCS.lia.appearance,
+        lines:['Lume ilumina o broto. Um novo clone de Lia desperta: clone ' + echo.generation + '.',
+          'A Lia original permanece no Pomar. As memórias dos clones anteriores continuam na lápide.'], options:[] });
+      return;
+    }
+    if (point.kind === 'memorial') {
+      const world = Story.publicCampaign(room.data);
+      const lines = ['Lia cuida deste memorial em homenagem aos clones que acompanharam os aventureiros.',
+        world.liaMemorialCount === 1 ? 'Um clone é lembrado no Pomar.' : world.liaMemorialCount + ' clones são lembrados no Pomar.'];
+      for (const grave of world.liaMemorials.slice(-12).reverse()) {
+        lines.push(grave.heroName + ' · clone ' + grave.generation + ' de Lia · ' + World.zone(grave.zone).name + '.');
+      }
+      if (!world.liaMemorials.length) lines.push('Nenhum clone de Lia caiu nesta campanha.');
+      send(entry, 'dialogue', { title:'Memorial dos Ecos de Lia', portrait:World.NPCS.lia.look,
+        appearance:World.NPCS.lia.appearance, lines, options:[] });
+      return;
+    }
     if (point.kind === 'home') {
       const resident = World.npcPositions(member.zone, Date.now(), room.data).find(person => person.id === point.npcId);
       if (resident && (resident.indoors || World.distance(member, resident) <= 91)) return showNpc(room, entry, resident, send);
@@ -658,9 +686,8 @@ function createGame({ storage = createStorage({
       return;
     }
     if (npc.id === 'lia' && payload.action === 'recruit') {
-      if (!hero.companions.lume || hero.companions.lia) throw fail('Lia precisa saber que o espírito está livre.');
-      hero.companions.lia = true;
-      send(entry, 'notice', 'Lia juntou-se à sua jornada.');
+      const echo = Lia.recruit(hero);
+      send(entry, 'notice', 'O clone ' + echo.generation + ' de Lia juntou-se à sua jornada. A Lia original fica no Pomar.');
     }
   }
 
@@ -766,6 +793,7 @@ function createGame({ storage = createStorage({
     const bards = group.some(player => player.data.classKey === 'bard' && player.data.hp > 0);
     for (const [i, player] of group.entries()) {
       player.battleBaseline = null;
+      const falls = Lia.settleFalls(world, battle, player);
       if (won) {
         if (kind === 'voyageBoss' && player.member.data.quests.island_rescue?.step === 0) player.member.data.quests.island_rescue.step = 1;
         const mission = kind === 'boss' ? Story.mainQuest(region)?.reward : null;
@@ -795,8 +823,10 @@ function createGame({ storage = createStorage({
       const message = revealed ? 'A última criatura caiu. ' + regionById[region].boss.name + ' apareceu ao norte!' :
         won ? battle.name + ' foi derrotado. Recompensas guardadas.' :
         result.outcome === 'lost' ? 'O grupo recuou a um ponto seguro. Descanse antes de tentar de novo.' : result.text;
-      send(player, 'notice', message);
-      if (rescued?.length) send(player, 'notice', rescued.join(' e ') + ' foram libertados! ' + (kind === 'boss' ? 'Mais um fragmento da Lanterna voltou à Vila.' : 'A rota da ilha está segura.'));
+      const rescueMessage = rescued?.length ? ' ' + rescued.join(' e ') + ' foram libertados! ' +
+        (kind === 'boss' ? 'Mais um fragmento da Lanterna voltou à Vila.' : 'A rota da ilha está segura.') : '';
+      const echoMessage = falls.length ? ' Seu Eco de Lia caiu; Lia guardou uma homenagem no Pomar. Resgate um novo clone no broto.' : '';
+      send(player, 'notice', message + rescueMessage + echoMessage);
     }
   }
 
@@ -1036,8 +1066,9 @@ function createGame({ storage = createStorage({
   function removeFromBattle(room, entry, send) {
     const battle = room.battles.get(entry.member.data.zone);
     if (!battle || !battle.heroes.includes(entry.id)) return;
-    if (entry.battleBaseline) entry.data = entry.battleBaseline;
+    if (entry.battleBaseline) entry.data = structuredClone(entry.battleBaseline);
     entry.battleBaseline = null;
+    Lia.settleFalls(room.data, battle, entry);
     if (battle.mode === 'field') {
       Field.remove(battle, entry.id);
       if (!battle.heroes.length) room.battles.delete(battle.zone);
@@ -1048,8 +1079,9 @@ function createGame({ storage = createStorage({
       for (const id of battle.heroes) {
         const other = room.players.get(id);
         if (other?.battleBaseline) {
-          other.data = other.battleBaseline;
+          other.data = structuredClone(other.battleBaseline);
           other.battleBaseline = null;
+          Lia.settleFalls(room.data, battle, other);
         }
       }
       room.battles.delete(battle.zone);
@@ -1121,7 +1153,9 @@ function createGame({ storage = createStorage({
     for (const room of rooms.values()) {
       await room.tail;
       const force = [...room.players.values()].filter(entry => entry.positionDirty).map(entry => entry.id);
-      if (force.length) await change(room, () => {}, { force, announce: false }).catch(error => logger.error(error));
+      if (force.length || room.battles.size) await change(room, send => {
+        for (const entry of room.players.values()) removeFromBattle(room, entry, send);
+      }, { force, announce:false }).catch(error => logger.error(error));
     }
     await new Promise(resolve => io.close(resolve));
     await storage.close();

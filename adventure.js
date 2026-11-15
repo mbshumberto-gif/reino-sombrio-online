@@ -117,7 +117,8 @@ function newCampaign(code, ownerId, legacy = {}) {
   return {
     id: randomUUID(), code, revision: 0,
     data: { version: 2, ownerId, epoch: Date.now(), cleared, defeated, opened, rooms, orchardOpen: false,
-      lamps: [], voyage:{ defeated:[], cleared:false }, rescued:[], legacyMainQuests: legacy.quests || {} }
+      lamps: [], voyage:{ defeated:[], cleared:false }, rescued:[], liaMemorials:[], liaMemorialCount:0,
+      legacyMainQuests: legacy.quests || {} }
   };
 }
 
@@ -139,7 +140,8 @@ function makeHero(name, classKey, saved = {}) {
     baseWeapon: !equipment.weapon && typeof saved.weapon === 'string' ? saved.weapon.slice(0, 60) : spec.weapon,
     baseArmor: !equipment.armor && typeof saved.armor === 'string' ? saved.armor.slice(0, 60) : 'Vestuário de aventureiro',
     potions: integer(saved.potions, 2), apples: 0, skillPoints: integer(saved.skillPoints, 0),
-    skillLevel: Math.max(1, integer(saved.skillLevel, 1)), equipment, owned, companions: { lume: 0, lia: false },
+    skillLevel: Math.max(1, integer(saved.skillLevel, 1)), equipment, owned,
+    companions: { lume:0, lia:false, liaEcho:{ generation:1, fallen:0, needsRescue:false } },
     homeCampaign: null
   };
 }
@@ -233,6 +235,9 @@ function publicCampaign(world) {
     epoch: world.epoch, cleared: world.cleared, defeated: world.defeated, opened: world.opened,
     rooms: world.rooms, orchardOpen: world.orchardOpen, lamps: world.lamps || [],
     voyage:world.voyage || { defeated:[], cleared:false }, rescued,
+    liaMemorials:Array.isArray(world.liaMemorials) ? world.liaMemorials.slice(-48) : [],
+    liaMemorialCount:Math.max(Number.isSafeInteger(world.liaMemorialCount) && world.liaMemorialCount >= 0
+      ? world.liaMemorialCount : 0, Array.isArray(world.liaMemorials) ? world.liaMemorials.length : 0),
     royalty:{ name:'Maria Rita', title:'Princesa de Eldoria', rescued:!!world.cleared.shadow },
     fragments:Object.entries(FRAGMENTS).filter(([region]) => world.cleared[region]).map(([region, name]) => ({region, name})),
     quests: QUESTS.map(quest => ({ title: quest.title, completed: Boolean(world.cleared[quest.region] || world.legacyMainQuests?.[quest.id]?.completed) }))

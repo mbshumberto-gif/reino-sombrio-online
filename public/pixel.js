@@ -271,6 +271,28 @@
 
   function prop(ctx, p, map, state, time) {
     const { x, y } = p;
+    if (p.kind === 'liaRescue') {
+      liaEcho(ctx, { x, y, classKey:'rogue', facing:'down', appearance:W.NPCS.lia?.appearance }, time,
+        { nickname:false, scale:1.9 });
+      for (const [dx, dy, width] of [[-25,-4,49],[-19,-18,38],[-13,-31,27]]) {
+        rect(ctx, x + dx, y + dy, width, 3, '#5d879e');
+        rect(ctx, x + dx + 5, y + dy - 3, Math.max(3,width - 10), 2, '#a3cee0');
+      }
+      shape(ctx, x - 8, y - 7, ['..ll....','..lll...','.lllll..','...t....','...t....'],
+        { l:'#b6dba7', t:'#659d95' }, 2);
+      label(ctx, 'Libertar Eco de Lia', x, y - 58, '#c1dfd9');
+      return;
+    }
+    if (p.kind === 'memorial') {
+      rect(ctx, x - 20, y - 2, 40, 9, '#42515a');
+      rect(ctx, x - 14, y - 24, 28, 27, '#7c8790');
+      rect(ctx, x - 11, y - 28, 22, 6, '#a5b2ac');
+      shape(ctx, x - 7, y - 22, ['...ll..','..lll..','.lll...','..t....'],
+        { l:'#c1d7a0', t:'#e4d5a1' }, 2);
+      for (const side of [-1,1]) flower(ctx, x + side * 23, y + 2, 2);
+      label(ctx, 'Memorial dos Ecos', x, y - 43, '#d7d7b9');
+      return;
+    }
     if (p.kind === 'tree') {
       tree(ctx, x, y, mapPalette(map), true);
       const fruit = state.fruit.find(candidate => candidate.id === p.id && !candidate.claimed && candidate.expires > time);
@@ -451,7 +473,7 @@
   function hero(ctx, entry, time, { nickname = true, scale = 2, attacking = false } = {}) {
     if (entry.classKey === 'princess') return princess(ctx, entry, time, { nickname, scale });
     const key = clothes[entry.classKey] ? entry.classKey : 'warrior';
-    const palette = clothes[key];
+    const palette = entry.appearance?.echo ? ['#253f43','#4c7973','#a5c8a3','#e3e8b6'] : clothes[key];
     const [dark, main, light, accent] = palette;
     const step = entry.moving ? Math.floor(time / 125) % 4 : 0;
     const x = Math.round(entry.x);
@@ -507,20 +529,45 @@
     if (Math.floor(time / 270) % 3) rect(ctx, x + 9, y - 15 + bob, scale, scale, '#f6e4a3');
   }
 
+  function liaEcho(ctx, entry, time, { nickname = true, scale = 2 } = {}) {
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const orbit = reduced ? 0 : time / 1800;
+    ctx.save();
+    ctx.strokeStyle = '#b7d9b9';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.ellipse(entry.x, entry.y - 4, 11 * scale, 3 * scale, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.globalAlpha = 0.86;
+    hero(ctx, { ...entry, appearance:{ ...(entry.appearance || W.NPCS.lia?.appearance), echo:true } }, time,
+      { nickname:false, scale });
+    ctx.restore();
+    for (let i = 0; i < 4; i++) {
+      const angle = orbit + i * Math.PI / 2;
+      const x = entry.x + Math.cos(angle) * 12 * scale;
+      const y = entry.y - 18 * scale + Math.sin(angle) * 5 * scale;
+      shape(ctx, x, y, ['..l.','.ll.','ll..'], { l:i % 2 ? '#d7e9b4' : '#93c6a1' }, Math.max(1, scale * 0.6));
+    }
+    if (nickname) label(ctx, 'Eco de Lia', entry.x, entry.y - 44, '#d6e9bb');
+  }
+
   function monster(ctx, name, x, y, time, size = 2, boss = false, phase = 1) {
     const word = name.toLowerCase();
-    const creature = /morvath|bruxo/.test(word) ? 'wizard' : /goblin/.test(word) ? 'goblin' : /lobo|javali|cão/.test(word) ? 'beast' : /aranha|escorpião/.test(word) ? 'spider'
+    const creature = /morvath|bruxo/.test(word) ? 'wizard' : /goblin/.test(word) ? 'goblin' : /troll/.test(word) ? 'troll' : /lobo|javali|cão/.test(word) ? 'beast' : /aranha|escorpião/.test(word) ? 'spider'
       : /corvo|harpia|morcego|draco/.test(word) ? 'wing' : /ent|raiz/.test(word) ? 'tree' : /vazio|espectro|malakar|sentinela/.test(word) ? 'ghost' : 'armor';
     const colors = {
       beast:['#37394f','#816b84','#cda1a1'], spider:['#423354','#755387','#ba7cad'],
       wing:['#503846','#995457','#e18c68'], tree:['#35473b','#63835b','#acc578'],
       ghost:['#432b5b','#784d89','#b883ac'], armor:['#374257','#6a718e','#a2a9bd'],
-      wizard:['#1b172b','#43264f','#865189'], goblin:['#244737','#588748','#a5c56f']
+      wizard:['#1b172b','#43264f','#865189'], goblin:['#244737','#588748','#a5c56f'],
+      troll:boss ? ['#343d4e','#63717b','#9ba99e'] : ['#3b473f','#657c62','#9aa580']
     }[creature];
     const scale = (boss ? size * 1.6 : size) * (creature === 'goblin' ? 0.78 : 1);
     const cs = { o:'#172539', d:colors[0], b:colors[1], t:colors[2], e:phase > 1 ? '#f9a681' : '#ffdf8b', a:'#eee0af' };
     if (creature === 'wizard') Object.assign(cs, { o:'#100f1d', e:'#ff5f65', a:'#cab6c2' });
     if (creature === 'goblin') Object.assign(cs, { c:'#835942', a:'#eee1a8', e:'#f4cc77' });
+    if (creature === 'troll') Object.assign(cs, { o:'#17232e', a:'#dfceac', e:phase >= 3 ? '#ffb65b' : '#e9ba66',
+      c:phase >= 2 ? '#a6dbdd' : '#6c9ca7', v:'#514c51' });
     const sprites = {
       beast:['..o..o.........','..ototo........','.oottbto.......','oabbebto...oo..','..obbbto.oobto.','...obbbbobto...','...obbbbbbo....','....obdddbo....','....odooobo....','....oo..oo.....'],
       spider:['...o......o....','..obo....obo...','.obo..oo..obo..','obo.oottoo.obo.','oo.ottbbtto.oo.','..otebbbeto....','.oobbbbbbbboo..','odoobbdbboodo..','oo..ooodo..oo..'],
@@ -534,12 +581,32 @@
         '.obbbdddtdddbbbo.','..odddddtdddddo..','..ooooooooooooo..'],
       goblin:['tto.........ott','tttooooooooottt','.otttbbbbbttto.','..otbeooebto...',
         '...otbaaato....','....obbbbo.....','..obccccccbo...','.tobccaccbott..','...occccco.....',
-        '...oddoddo.....','...odo.odo.....','...oo...oo.....']
+        '...oddoddo.....','...odo.odo.....','...oo...oo.....'],
+      troll:['.........oooo........','.......ootttboo......','......otttbbbttbo....',
+        '.....otbeodetbbto....','....otbbbdddbbbtbo...','...ootbdooooodbttbo..',
+        '..otbbtdbbbbbdbbttbo.','.otbbbbbvvvvbbbbttbo.',
+        'otbbbttbbvvbbbccttbo.','obbbttbbdddbbcctbtbo.',
+        'obbdtbbbddbbbctbbtbo.','obddtbbddddbbbtbbdoo.',
+        '.oootbbddoddbbtooo...','...otdddo.oddto......','...ooooo..ooooo......']
     };
     const bob = Math.floor(Math.sin(time / 350) * 3);
     rect(ctx, x - 6 * scale, y - 2, 12 * scale, 3 * scale, '#13213292');
-    shape(ctx, x - (creature === 'wizard' ? 8 : 7) * scale,
-      y - (creature === 'wizard' ? 16 : creature === 'goblin' ? 11 : 10) * scale + bob, sprites[creature], cs, scale);
+    shape(ctx, x - (creature === 'wizard' ? 8 : creature === 'troll' ? 10 : 7) * scale,
+      y - (creature === 'wizard' ? 16 : creature === 'troll' ? 14 : creature === 'goblin' ? 11 : 10) * scale + bob, sprites[creature], cs, scale);
+    if (creature === 'troll') {
+      const crown = boss ? ['..c......c...','..tc....ct...','c.ttc..ctt..c','cttttcttttctc','..ttttttttt..'] : ['..c...','..tc..','.cttc.','cttttc'];
+      shape(ctx, x + (boss ? -4 : 5) * scale, y - (boss ? 17 : 12) * scale + bob,
+        crown, { c:cs.c, t:boss ? '#7d959c' : '#8a9b83' }, scale);
+      shape(ctx, x - 4 * scale, y - 9 * scale + bob,
+        ['.ooooooo.','oaaoooaao','oaoooooao','.ovvvvvo.','..bbbbb..'],
+        { o:'#202936', a:'#daccb2', v:'#665451', b:cs.b }, scale);
+      rect(ctx, x - 3 * scale, y - 12 * scale + bob, 3 * scale, scale, '#25313c');
+      rect(ctx, x + scale, y - 12 * scale + bob, 3 * scale, scale, '#25313c');
+      if (boss && phase >= 2) {
+        shape(ctx, x + 6 * scale, y - 9 * scale + bob, ['..c..','.ctc.','.ctc.','ctttc'],
+          { c:cs.c, t:'#d7ece0' }, scale);
+      }
+    }
     if (creature === 'goblin') {
       shape(ctx, x + 6 * scale, y - 5 * scale + bob, ['...w.','..ww.','.ww..','cc...','.c...'],
         { w:'#d9d9bd', c:'#674631' }, scale);
@@ -579,6 +646,7 @@
   }
 
   function visiblePoint(p, map, state) {
+    if (p.kind === 'liaRescue') return !!state.self.companions.liaEcho?.needsRescue;
     if (p.kind === 'enemy') return !state.world.cleared[map.region] && !state.world.defeated[map.region]?.includes(p.enemyIndex);
     if (p.kind === 'boss') return W.bossVisible(map, state.world);
     if (p.kind === 'dungeonEnemy' || p.kind === 'puzzle') return !state.world.rooms[map.region]?.includes(map.dungeonIndex);
@@ -666,6 +734,22 @@
       }
     }
     if (progress >= 1) label(ctx, (data.crops?.[crop.crop]?.name || 'Colheita') + ' · pronta', x, y - 32, '#e1db91');
+  }
+
+  function echoMemorial(ctx, memorial, slot) {
+    const x = slot.x ?? slot[0], y = slot.y ?? slot[1];
+    rect(ctx, x - 12, y, 24, 5, '#293d3e');
+    rect(ctx, x - 10, y - 14, 20, 17, '#718280');
+    rect(ctx, x - 7, y - 17, 14, 4, '#9daea1');
+    shape(ctx, x - 3, y - 13, ['..ll.','.lll.','ll...','..t..'],
+      { l:'#c2d8b3', t:'#d6d5ae' }, 1.2);
+    flower(ctx, x + 13, y + 1, 2);
+    ctx.save();
+    ctx.fillStyle = '#e4dfc5';
+    ctx.font = '12px VT323, monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(String(memorial.generation), x, y + 1);
+    ctx.restore();
   }
 
   function dangerZones(ctx, battle, time) {
@@ -769,6 +853,13 @@
     for (const home of (W.HOUSES || []).filter(home => home.zone === map.id)) {
       actors.push({ y:home.y + home.height, draw: () => house(ctx, home, cycle.isNight) });
     }
+    if (map.id === 'orchard') {
+      const memorials = (state.world.liaMemorials || []).slice(-8);
+      for (const [i, memorial] of memorials.entries()) {
+        const slot = W.LIA_MEMORIAL_SLOTS?.[i];
+        if (slot) actors.push({ y:slot.y ?? slot[1], draw: () => echoMemorial(ctx, memorial, slot) });
+      }
+    }
     const field = state.battle?.mode === 'field' ? state.battle : null;
     if (field) dangerZones(ctx, field, time);
     const region = data.regions.find(entry => entry.id === map.region);
@@ -834,8 +925,9 @@
       }
       if (p.companions.lia) {
         const location = follow('lia:' + p.id, p.x + (p.facing === 'right' ? -38 : 37), p.y + 9);
-        const ally = { ...p, ...location, classKey:'rogue', equipment:{}, name:'Lia' };
-        actors.push({ y:ally.y, draw: () => hero(ctx, ally, time, { scale:1.75 }) });
+        const ally = { ...p, ...location, classKey:'rogue', equipment:{}, name:'Eco de Lia',
+          appearance:{ ...(W.NPCS.lia?.appearance || {}), echo:true } };
+        actors.push({ y:ally.y, draw: () => liaEcho(ctx, ally, time, { scale:1.75, nickname:p.self }) });
       }
     }
     if (W.residentPositions) {
@@ -971,6 +1063,8 @@
       });
     }
     const recoil = !reducedMotion && action?.damage && progress > 0.61 ? Math.sin(progress * 86) * (1 - progress) * 22 : 0;
+    if (action?.action === 'companion') liaEcho(ctx,
+      { x:382, y:246, classKey:'rogue', facing:'right', appearance:W.NPCS.lia?.appearance }, time, { scale:2.7 });
     monster(ctx, battle.name, foe.x + recoil - (enemyAction ? Math.sin(progress * Math.PI) * 34 : 0), 224, time,
       battle.boss ? 8.1 : 9, battle.boss, battle.phase);
     for (let i = 0; i < battle.totems; i++) {
@@ -1028,7 +1122,8 @@
     ctx.restore();
     hero(ctx, { ...self, x:137, y:237, facing:'right' }, time, { nickname:false, scale:4 });
     if (self?.companions?.lume) lume(ctx, 92, 187, time, true);
-    if (self?.companions?.lia) hero(ctx, { classKey:'rogue', x:76, y:249, facing:'right' }, time,
+    if (self?.companions?.lia) liaEcho(ctx,
+      { classKey:'rogue', x:76, y:249, facing:'right', appearance:W.NPCS.lia?.appearance }, time,
       { nickname:false, scale:2.7 });
     if (!reduced && time > 650 && time < 1100) {
       const glow = Math.sin((time - 650) / 450 * Math.PI) * 0.12;
@@ -1110,6 +1205,9 @@
     const ctx = canvas.getContext('2d');
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     if (key === 'lume') lume(ctx, canvas.width / 2, canvas.height * 0.69, time, true);
+    else if (key === 'liaEcho') liaEcho(ctx,
+      { x:canvas.width / 2, y:canvas.height * 0.83, classKey:'rogue', appearance:W.NPCS.lia?.appearance }, time,
+      { nickname:false, scale:2.4 });
     else if (key === 'princess' || key === 'mariaRita') princess(ctx,
       { name:'Maria Rita', x:canvas.width / 2, y:canvas.height * 0.91 }, time, { nickname:false, scale:2.4 });
     else hero(ctx, { x:canvas.width / 2, y:canvas.height * 0.83, classKey:key, equipment, appearance }, time, { nickname:false, scale:2.75 });

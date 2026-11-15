@@ -5,7 +5,7 @@ Esta entrega amplia Vila, Floresta e Pomar como primeira região de referência.
 ## Roteiro para jogar
 
 1. Crie uma aventura com combate **Na própria tela**. A Druida é uma nova opção de personagem; escolher outra classe na entrada não transforma um personagem já salvo.
-2. Colha uma maçã na Vila, encontre Lume no Pomar e convide Lia. Converse com ela para aceitar **Uma horta para o recomeço**.
+2. Colha uma maçã na Vila, encontre Lume no Pomar e peça a Lia para criar um Eco que acompanhe você. Converse com ela para aceitar **Uma horta para o recomeço**.
 3. Use um dos quatro canteiros pessoais ao sul do Pomar, plante, regue e volte para colher. Entregue a notícia da colheita a Lia. Alimentos ficam na mochila e restauram energia fora da luta.
 4. Explore a Floresta e sua dungeon. Morvath, o Bruxo das Sombras, aparece depois das cinco criaturas. Após a vinheta, enfrente as três fases do feiticeiro em uma arena por turnos: leia os golpes anunciados, quebre os totens e prepare sua defesa.
 5. A vitória devolve o fragmento Raiz e liberta Tomás e Elara. A Vila passa a mostrar os moradores salvos.
@@ -25,6 +25,14 @@ Cada chefe tem três fases, golpes anunciados e proteções que exigem decisões
 Mira, Eldrin e Nara têm pele negra e penteados próprios, preservando seus serviços e histórias. Maria Rita aparece com cabelos cacheados em seus retratos, no cativeiro e após o resgate. Os goblins usam um desenho verde próprio, com orelhas pontudas e adaga.
 
 As quatro casas da Vila e a casa de Lia no Pomar têm colisão e portas acessíveis. NPCs e moradores resgatados percorrem caminhos transitáveis ao entardecer e ficam dentro de casa durante a noite. As portas mantêm cura, loja e missões disponíveis; os moradores saem pela manhã. O relógio do servidor orienta essas rotinas, as janelas iluminadas e a troca de pássaros por morcegos nas áreas ao ar livre. A preferência por movimento reduzido diminui a animação dos animais.
+
+## Ecos de Lia e o memorial
+
+A Lia original cuida do Pomar. Seu companheiro é um clone chamado Eco de Lia, identificado por folhas luminosas. Quando o aventureiro cai em uma batalha, o clone ativo morre, mesmo que o grupo depois vença ou reanime o aventureiro. Cada clone pode morrer uma vez. Fugir com vida, sair da sala ou desconectar não causa uma morte por si só.
+
+Lia homenageia cada Eco perdido no Memorial dos Ecos, ao sul do Pomar dos Sussurros. Volte ao broto luminoso próximo ao memorial e use AÇÃO para resgatar o próximo clone. O memorial da campanha guarda o total de homenagens e os 48 registros mais recentes; as oito lápides mais recentes aparecem no mapa. O contador e a geração do companheiro pertencem ao personagem. As quedas são confirmadas com o resultado persistido do encontro, usando a mesma transação de personagens e campanha.
+
+O Troll Rei das Profundezas preserva sua progressão e combate por turnos. Seu novo desenho usa uma silhueta assimétrica, mandíbula com presas, placas rochosas e uma coroa de estalagmites. Os cristais no corpo se acendem nas fases seguintes, tanto na vinheta quanto na arena.
 
 ## Persistência e limites desta entrega
 
