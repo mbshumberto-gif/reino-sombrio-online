@@ -11,6 +11,7 @@ Esta entrega amplia Vila, Floresta e Pomar como primeira região de referência.
 5. A vitória devolve o fragmento Raiz e liberta Tomás e Elara. A Vila passa a mostrar os moradores salvos.
 6. Aceite **Vozes além da margem** com Lia, embarque a leste do Pomar, defenda o convés e alcance a ilha. O Carcereiro protege Marina e Caio. Volte a Lia após o resgate.
 7. Continue a campanha pelos outros guardiões para recuperar os cinco fragmentos. Malakar mantém a princesa Maria Rita e as últimas memórias aprisionadas. Sua derrota liberta a princesa e devolve a memória ao reino.
+8. Volte à Vila: o castelinho de Maria Rita, ao norte da praça, estará aberto. Entre pelo portão e leia as memórias no salão. A abertura acompanha o resgate salvo na campanha e vale para o grupo inteiro.
 
 ## Escolhas de combate
 

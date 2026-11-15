@@ -34,7 +34,7 @@ test('o relógio compartilhado respeita as quatro fases, épocas zero e limites 
 
 test('as cinco casas têm corpos sólidos e portas alcançáveis a partir da entrada do mapa', () => {
   assert.equal(World.HOUSES.length, 5);
-  assert.equal(Object.keys(World.zones).length, 33);
+  assert.equal(Object.keys(World.zones).length, 34);
   const reachable = zoneId => {
     const map = World.zone(zoneId);
     const todo = [{ x:Math.round(map.spawn[0] / 16) * 16, y:Math.round(map.spawn[1] / 16) * 16 }];

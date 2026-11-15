@@ -42,8 +42,8 @@ function reachable(map) {
   };
 }
 
-test('todas as 33 áreas têm interações alcançáveis e portais com destino válido', () => {
-  assert.equal(Object.keys(World.zones).length, 33);
+test('todas as 34 áreas têm interações alcançáveis e portais com destino válido', () => {
+  assert.equal(Object.keys(World.zones).length, 34);
   for (const map of Object.values(World.zones)) {
     const canReach = reachable(map);
     for (const point of map.points) {

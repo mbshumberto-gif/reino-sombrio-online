@@ -25,6 +25,8 @@ Para encontrar Lume, balance a macieira da Vila, colha a maçã após a queda e 
 
 A Vila tem quatro casas, e Lia mora no Pomar. Ao entardecer, NPCs e moradores resgatados caminham para suas casas; à noite, recolhem-se e as janelas ficam iluminadas. Interaja na porta para conversar, entregar missões, comprar equipamentos ou descansar. Pela manhã, eles voltam às atividades. O ciclo compartilhado dura 88 segundos. Pássaros cruzam as áreas ao ar livre durante o dia e o entardecer; à noite, aparecem morcegos. Mira, Eldrin e Nara são NPCs negros com aparências próprias, Maria Rita tem cabelos cacheados e os goblins têm pele verde e orelhas pontudas.
 
+O castelinho fica ao norte da praça da Vila, com o portão fechado até o resgate da princesa Maria Rita. Depois de derrotar Malakar, volte à Vila e use AÇÃO diante do portão para conhecer o salão e o livro de memórias da princesa. O resgate libera a entrada para todos os aventureiros daquela campanha. Os caminhos laterais mantêm o atalho do Pomar acessível antes de o castelo abrir.
+
 Quem viaja com você é o **Eco de Lia**, um clone; a Lia original permanece no Pomar. Se você cair em combate enquanto um Eco acompanha a jornada, ele morre. Lia ergue uma lápide em sua homenagem no **Memorial dos Ecos**, ao sul do Pomar. Resgate o próximo clone no broto luminoso próximo ao memorial. Fugir com vida ou perder a conexão não sacrifica o Eco. As homenagens são compartilhadas pela campanha, e o estado do companheiro acompanha o personagem. O Troll Rei das Profundezas também tem uma aparência própria: corpo rochoso assimétrico, presas e uma coroa de estalagmites, com cristais que despertam conforme suas fases.
 
 ## Progresso persistente
