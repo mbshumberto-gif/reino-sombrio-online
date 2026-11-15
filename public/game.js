@@ -389,7 +389,10 @@
       feed.disabled = !!state.battle || !me.apples || me.companions.lume >= 5;
       list.push(feed);
     } else list.push(paragraph(lumeHint(), 'small'));
-    if (me.companions.lia) list.push(paragraph('Lia acompanha sua jornada. Chame-a durante o combate para apoiar o grupo.', 'small'));
+    const echo = me.companions.liaEcho;
+    if (me.companions.lia) list.push(paragraph('Eco de Lia · clone ' + (echo?.generation || 1) + '. Chame-o durante o combate para apoiar o grupo. A Lia original cuida do Pomar.', 'small'));
+    else if (echo?.needsRescue) list.push(paragraph('O Eco de Lia caiu protegendo você. Volte ao broto luminoso no sul do Pomar dos Sussurros para resgatar um novo clone.', 'small'));
+    if (echo?.fallen) list.push(paragraph('Lia homenageou ' + echo.fallen + (echo.fallen === 1 ? ' clone no Memorial dos Ecos.' : ' clones no Memorial dos Ecos.'), 'small'));
     $('inventoryPanel').replaceChildren(...list);
   }
 
@@ -416,7 +419,9 @@
     const fragments = state.world.fragments || [];
     const rescue = paragraph('Lanterna · ' + fragments.length + '/5 fragmentos · ' + (state.world.rescued || []).length + ' moradores resgatados', 'small');
     if (fragments.length) rescue.append(document.createTextNode(' · ' + fragments.map(fragment => fragment.name).join(', ')));
-    $('questList').replaceChildren(main, rescue, ...guard, ...lume, ...quests);
+    const echoQuest = state.self.companions.liaEcho?.needsRescue ? [paragraph('Resgate um novo Eco de Lia', 'summary'),
+      paragraph('A Lia original aguarda no Pomar. Liberte o clone no broto luminoso ao sul, perto do Memorial dos Ecos.', 'small')] : [];
+    $('questList').replaceChildren(main, rescue, ...guard, ...lume, ...echoQuest, ...quests);
     const routes = map.points.filter(p => p.kind === 'portal').map(p => {
       const blocked = p.shortcut && !state.world.orchardOpen || p.requires && !state.world.cleared[p.requires]
         || p.requiresVoyage === 'deck' && !['deck-raider-0', 'deck-raider-1'].every(id => state.world.voyage?.defeated?.includes(id))
@@ -526,9 +531,9 @@
       companion:me.companions.lia && !battle.supportUsed, flee:!battle.boss };
     const labels = { attack:'Atacar', skill:ability.name + ' · ' + cost(ability.cost) + ' MP',
       technique:technique.name + ' · ' + cost(technique.cost) + ' MP', defend:'Defender', totem:'Quebrar totem',
-      potion:'Poção · ' + me.potions, apple:'Maçã · ' + me.apples, companion:'Chamar Lia', flee:'Recuar' };
+      potion:'Poção · ' + me.potions, apple:'Maçã · ' + me.apples, companion:'Eco de Lia', flee:'Recuar' };
     const shortLabels = { attack:'Atacar', skill:'Habil.', technique:'Técnica', defend:'Defesa', totem:'Totem',
-      potion:'Poção', apple:'Maçã', companion:'Lia', flee:'Recuar' };
+      potion:'Poção', apple:'Maçã', companion:'Eco', flee:'Recuar' };
     for (const button of document.querySelectorAll('[data-field-action]')) {
       const action = button.dataset.fieldAction;
       const cooldowns = battle.cooldowns?.[state.id] || {};

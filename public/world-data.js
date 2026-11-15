@@ -63,6 +63,10 @@
     { id:'resident-caio', name:'Caio', look:'rogue', unlock:'island', homeId:'house-nara', at:[590,300], appearance:{ skinTone:'light', skin:'#d4a17b', hair:'short' } },
     { id:'resident-maria-rita', name:'Maria Rita', look:'princess', unlock:'shadow', homeId:'house-aderic', at:[480,205], appearance:{ skinTone:'medium', skin:'#bc805c', hair:'curly' } }
   ];
+  const LIA_MEMORIAL_SLOTS = [
+    { x:584, y:448 }, { x:616, y:448 }, { x:648, y:448 }, { x:680, y:448 },
+    { x:584, y:480 }, { x:616, y:480 }, { x:648, y:480 }, { x:680, y:480 }
+  ];
   const point = (id, kind, x, y, label, extra = {}) => ({ id, kind, x, y, label, ...extra });
   const returnLabel = region => 'Voltar ' + (['cave','forest','village'].includes(region) ? 'à ' : region === 'fire' ? 'às ' : 'ao ') + NAMES[region];
   const portal = (id, x, y, label, to, spawn, extra) => point(id, 'portal', x, y, label, { to, spawn, ...extra });
@@ -219,6 +223,8 @@
       branchPoints.push(portal('lume-village', 480, 492, 'Trilha de volta à Vila', 'village', [702, 448]));
       branchPoints.push(point('apple-orchard', 'tree', 343, 319, 'Macieira antiga'));
       branchPoints.push(point('lamp-orchard', 'lamp', 684, 120, 'Lanterna do pomar'));
+      branchPoints.push(point('lia-echo', 'liaRescue', 570, 370, 'Resgatar o Eco de Lia'));
+      branchPoints.push(point('lia-memorial', 'memorial', 650, 420, 'Memorial dos Ecos de Lia'));
       for (const [i, [x, y]] of [[350,390],[420,390],[350,450],[420,450]].entries()) {
         branchPoints.push(point('garden-' + (i + 1), 'plot', x, y, 'Seu canteiro ' + (i + 1)));
       }
@@ -445,6 +451,6 @@
   const facing = (dx, dy, current) => Math.abs(dx) > Math.abs(dy)
     ? (dx < 0 ? 'left' : 'right') : dy ? (dy < 0 ? 'up' : 'down') : current;
 
-  return { TILE, COLS, ROWS, WIDTH, HEIGHT, SPEED, REGIONS, BRANCHES, NAMES, DUNGEONS, NPCS, HOUSES, RESIDENTS, zones, zone,
+  return { TILE, COLS, ROWS, WIDTH, HEIGHT, SPEED, REGIONS, BRANCHES, NAMES, DUNGEONS, NPCS, HOUSES, RESIDENTS, LIA_MEMORIAL_SLOTS, zones, zone,
     dungeonId, canStand, walk, safePosition, npcPositions, residentPositions, dayCycle, distance, facing, remainingEnemies, bossVisible };
 });
