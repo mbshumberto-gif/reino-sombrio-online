@@ -63,7 +63,7 @@ function createGame({ storage = createStorage({
       res.status(503).json({ ok: false, database: false, mode: 'unavailable' });
     }
   });
-  app.get('/game-data', (_req, res) => res.json({ classes: HERO_CLASSES, regions: REGIONS, equipment: EQUIPMENT, techniques: TECHNIQUES, crops: Farming.CROPS }));
+  app.get('/game-data', (_req, res) => res.json({ classes: HERO_CLASSES, regions: REGIONS, equipment: EQUIPMENT, techniques: TECHNIQUES, crops: Farming.CROPS, npcs:World.NPCS }));
   app.get('/campaign-data', (_req, res) => res.json({
     lore: Story.lore,
     dungeons: Object.fromEntries(Object.entries(DUNGEONS).map(([key, list]) => [key, list.map(
@@ -303,6 +303,7 @@ function createGame({ storage = createStorage({
     const member = entry.member.data;
     if (member.quests.island_rescue?.step === 0 && world.voyage?.cleared) member.quests.island_rescue.step = 1;
     const lines = Story.dialogues[npc.id].slice();
+    if (npc.indoors) lines.unshift('Já estou em casa por esta noite, mas posso ajudar você aqui na porta.');
     if (world.cleared.shadow && npc.id === 'villager') lines.push('Malakar caiu. Meu irmão voltou na primeira manhã. Vamos acender as lanternas para celebrar?');
     if (npc.id === 'lia' && entry.data.companions.lume) lines.push('Lume gosta de você. Se quiser, eu conheço caminhos que a luz dele consegue revelar.');
     if (npc.id === 'lia') lines.push('Os quatro canteiros ao sul são seus: plante, regue e leve comida à viagem. Depois de libertar a Floresta, o barco a leste leva à Ilha das Raízes.');
@@ -320,7 +321,8 @@ function createGame({ storage = createStorage({
     if (npc.id === 'lia' && entry.data.companions.lume && !entry.data.companions.lia) {
       options.push({ id: 'recruit', label: 'Convidar Lia para viajar' });
     }
-    send(entry, 'dialogue', { id: npc.id, title: npc.label, portrait: npc.classKey, lines, options });
+    send(entry, 'dialogue', { id: npc.id, title: npc.label, portrait: npc.classKey,
+      appearance:npc.appearance || World.NPCS[npc.id]?.appearance, lines, options });
   }
 
   function nearbyNpc(room, entry, id) {
@@ -483,6 +485,14 @@ function createGame({ storage = createStorage({
     const position = room.mobs.get(member.zone)?.[point.id] || point;
     const range = point.kind === 'portal' ? 69 : 64;
     if (World.distance(member, position) > range) throw fail('Chegue mais perto.');
+    if (point.kind === 'home') {
+      const resident = World.npcPositions(member.zone, Date.now(), room.data).find(person => person.id === point.npcId);
+      if (resident && (resident.indoors || World.distance(member, resident) <= 91)) return showNpc(room, entry, resident, send);
+      const owner = World.NPCS[point.npcId];
+      send(entry, 'dialogue', { title:point.label, portrait:owner?.look, appearance:owner?.appearance,
+        lines:[(owner?.name || 'O morador') + ' está pela ' + (member.zone === 'orchard' ? 'região do Pomar' : 'Vila') + '. Ao anoitecer, você pode conversar aqui na porta.'], options:[] });
+      return;
+    }
     if (point.kind === 'portal') return portalTravel(room, entry, point, send);
     if (point.kind === 'tree') return treeAction(room, entry, point, send);
     if (point.kind === 'plot') {

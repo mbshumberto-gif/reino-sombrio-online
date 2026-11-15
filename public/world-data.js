@@ -39,12 +39,30 @@
     shadow: [[212, 232], [750, 245], [560, 340], [262, 390], [760, 420]]
   };
   const NPCS = {
-    chronicler: { name: 'Aderic', fullName: 'Cronista Aderic', look: 'mage', route: [[480, 273], [416, 272], [416, 211], [480, 222]] },
-    healer: { name: 'Mira', fullName: 'Mira, a Curandeira', look: 'cleric', route: [[338, 356], [299, 356], [299, 288], [336, 302]] },
-    blacksmith: { name: 'Eldrin', fullName: 'Eldrin, o Ferreiro', look: 'warrior', route: [[628, 357], [651, 357], [651, 284], [628, 300]] },
-    villager: { name: 'Nara', fullName: 'Nara de Eldoria', look: 'ranger', route: [[550, 204], [581, 239], [548, 272], [519, 229]] },
-    lia: { name: 'Lia', fullName: 'Lia, a Guardiã do Pomar', look: 'rogue', route: [[476, 251], [531, 246], [535, 293], [475, 297]] }
+    chronicler: { name: 'Aderic', fullName: 'Cronista Aderic', look: 'mage', appearance:{ skinTone:'light', skin:'#d4a17b', hair:'short' }, route: [[480, 273], [416, 272], [416, 211], [480, 222]] },
+    healer: { name: 'Mira', fullName: 'Mira, a Curandeira', look: 'cleric', appearance:{ skinTone:'deep', skin:'#8f573f', hair:'curly' }, route: [[338, 356], [299, 356], [299, 288], [336, 302]] },
+    blacksmith: { name: 'Eldrin', fullName: 'Eldrin, o Ferreiro', look: 'warrior', appearance:{ skinTone:'deep', skin:'#754532', hair:'short' }, route: [[628, 357], [651, 357], [651, 284], [628, 300]] },
+    villager: { name: 'Nara', fullName: 'Nara de Eldoria', look: 'ranger', appearance:{ skinTone:'deep', skin:'#69402f', hair:'braids' }, route: [[550, 204], [581, 239], [548, 272], [519, 229]] },
+    lia: { name: 'Lia', fullName: 'Lia, a Guardiã do Pomar', look: 'rogue', appearance:{ skinTone:'medium', skin:'#c88d64', hair:'braids' }, route: [[476, 251], [531, 246], [535, 293], [475, 297]] }
   };
+  const HOUSES = [
+    { id:'house-aderic', zone:'village', npcId:'chronicler', label:'Casa de Aderic', x:128, y:96, width:192, height:96, door:{ x:224, y:208 } },
+    { id:'house-eldrin', zone:'village', npcId:'blacksmith', label:'Casa e forja de Eldrin', x:640, y:96, width:192, height:64, door:{ x:736, y:176 } },
+    { id:'house-mira', zone:'village', npcId:'healer', label:'Casa de Mira', x:128, y:352, width:128, height:64, door:{ x:192, y:432 } },
+    { id:'house-nara', zone:'village', npcId:'villager', label:'Casa de Nara', x:736, y:352, width:128, height:64, door:{ x:800, y:432 } },
+    { id:'house-lia', zone:'orchard', npcId:'lia', label:'Casa de Lia', x:736, y:64, width:128, height:64, door:{ x:800, y:144 } }
+  ];
+  const RESIDENTS = [
+    { id:'resident-tomas', name:'Tomás', look:'warrior', unlock:'forest', homeId:'house-aderic', at:[350,208], appearance:{ skinTone:'medium', skin:'#bc805c', hair:'short' } },
+    { id:'resident-elara', name:'Elara', look:'sorceress', unlock:'forest', homeId:'house-mira', at:[390,220], appearance:{ skinTone:'deep', skin:'#80503a', hair:'curly' } },
+    { id:'resident-borin', name:'Borin', look:'monk', unlock:'cave', homeId:'house-eldrin', at:[590,250], appearance:{ skinTone:'light', skin:'#d4a17b', hair:'short' } },
+    { id:'resident-nilo', name:'Nilo', look:'mage', unlock:'fire', homeId:'house-eldrin', at:[620,220], appearance:{ skinTone:'deep', skin:'#754532', hair:'curly' } },
+    { id:'resident-sera', name:'Sera', look:'bard', unlock:'castle', homeId:'house-nara', at:[550,190], appearance:{ skinTone:'medium', skin:'#bc805c', hair:'braids' } },
+    { id:'resident-ivo', name:'Ivo', look:'ranger', unlock:'shadow', homeId:'house-aderic', at:[365,265], appearance:{ skinTone:'deep', skin:'#69402f', hair:'short' } },
+    { id:'resident-marina', name:'Marina', look:'cleric', unlock:'island', homeId:'house-mira', at:[550,300], appearance:{ skinTone:'deep', skin:'#80503a', hair:'braids' } },
+    { id:'resident-caio', name:'Caio', look:'rogue', unlock:'island', homeId:'house-nara', at:[590,300], appearance:{ skinTone:'light', skin:'#d4a17b', hair:'short' } },
+    { id:'resident-maria-rita', name:'Maria Rita', look:'princess', unlock:'shadow', homeId:'house-aderic', at:[480,205], appearance:{ skinTone:'medium', skin:'#bc805c', hair:'curly' } }
+  ];
   const point = (id, kind, x, y, label, extra = {}) => ({ id, kind, x, y, label, ...extra });
   const returnLabel = region => 'Voltar ' + (['cave','forest','village'].includes(region) ? 'à ' : region === 'fire' ? 'às ' : 'ao ') + NAMES[region];
   const portal = (id, x, y, label, to, spawn, extra) => point(id, 'portal', x, y, label, { to, spawn, ...extra });
@@ -99,8 +117,6 @@
       paint(13, 3, 5, 14, 2);
       paint(4, 7, 22, 2, 2);
       paint(6, 11, 18, 2, 2);
-      paint(4, 3, 6, 3, 4);
-      paint(20, 3, 6, 3, 4);
       paint(6, 10, 3, 2, 3);
       paint(22, 10, 3, 2, 3);
       paint(3, 14, 3, 2, 1);
@@ -243,6 +259,24 @@
     point('island-camp', 'camp', 340, 440, 'Fogueira dos navegantes')
   ]);
 
+  // Houses use the same footprint for collision and art. A broad forecourt
+  // keeps their doors connected to the roads and available for night services.
+  for (const house of HOUSES) {
+    const map = zones[house.zone];
+    for (let y = house.y / TILE; y < (house.y + house.height) / TILE; y++) {
+      for (let x = house.x / TILE; x < (house.x + house.width) / TILE; x++) map.grid[y][x] = 4;
+    }
+    const tx = Math.floor(house.door.x / TILE);
+    const ty = Math.floor(house.door.y / TILE);
+    for (let y = ty; y <= Math.min(ROWS - 2, ty + 1); y++) {
+      for (let x = Math.max(1, tx - 1); x <= Math.min(COLS - 2, tx + 1); x++) {
+        if (map.grid[y][x] !== 2) map.grid[y][x] = 0;
+      }
+    }
+    map.points.push(point(house.id, 'home', house.door.x, house.door.y, house.label,
+      { homeId:house.id, npcId:house.npcId }));
+  }
+
   const zone = id => Object.hasOwn(zones, id) ? zones[id] : zones.village;
 
   function remainingEnemies(map, world) {
@@ -278,19 +312,132 @@
     return { x: sx, y: sy };
   }
 
+  function dayCycle(now, world = {}) {
+    const current = Number.isFinite(now) ? now : 0;
+    const epoch = Number.isFinite(world.epoch) ? world.epoch : current;
+    const elapsed = Math.max(0, current - epoch);
+    const phaseMs = 22000;
+    const dayMs = phaseMs * 4;
+    const day = Math.floor(elapsed / dayMs);
+    const withinDay = elapsed % dayMs;
+    const index = Math.floor(withinDay / phaseMs);
+    return { phase:['morning', 'afternoon', 'dusk', 'night'][index], index,
+      label:['Manhã', 'Tarde', 'Entardecer', 'Noite'][index], progress:(withinDay % phaseMs) / phaseMs,
+      elapsed, day, phaseMs, dayMs, isNight:index === 3, startsAt:epoch + day * dayMs + index * phaseMs };
+  }
+
+  const walkingGraphs = new Map();
+  const routinePaths = new Map();
+  const pathKey = (x, y) => x + ',' + y;
+
+  function segmentClear(zoneId, from, to) {
+    const steps = Math.max(1, Math.ceil(Math.hypot(to.x - from.x, to.y - from.y) / 4));
+    for (let i = 0; i <= steps; i++) {
+      const amount = i / steps;
+      if (!canStand(zoneId, from.x + (to.x - from.x) * amount, from.y + (to.y - from.y) * amount)) return false;
+    }
+    return true;
+  }
+
+  function walkingGraph(zoneId) {
+    if (walkingGraphs.has(zoneId)) return walkingGraphs.get(zoneId);
+    const graph = new Map();
+    for (let y = 16; y < HEIGHT; y += 16) for (let x = 16; x < WIDTH; x += 16) {
+      if (canStand(zoneId, x, y)) graph.set(pathKey(x, y), { x, y });
+    }
+    walkingGraphs.set(zoneId, graph);
+    return graph;
+  }
+
+  function routinePath(zoneId, from, to) {
+    const key = zoneId + ':' + pathKey(from.x, from.y) + ':' + pathKey(to.x, to.y);
+    if (routinePaths.has(key)) return routinePaths.get(key);
+    const graph = walkingGraph(zoneId);
+    const nearest = endpoint => [...graph.values()]
+      .sort((a, b) => Math.hypot(a.x - endpoint.x, a.y - endpoint.y) - Math.hypot(b.x - endpoint.x, b.y - endpoint.y))
+      .find(candidate => segmentClear(zoneId, endpoint, candidate));
+    const start = nearest(from);
+    const finish = nearest(to);
+    if (!start || !finish) throw new Error('Rotina sem caminho transitável em ' + zoneId);
+    const startKey = pathKey(start.x, start.y);
+    const finishKey = pathKey(finish.x, finish.y);
+    const parents = new Map([[startKey, null]]);
+    const todo = [startKey];
+    for (let i = 0; i < todo.length && !parents.has(finishKey); i++) {
+      const currentKey = todo[i];
+      const current = graph.get(currentKey);
+      for (const [dx, dy] of [[16,0],[0,16],[-16,0],[0,-16]]) {
+        const nextKey = pathKey(current.x + dx, current.y + dy);
+        const next = graph.get(nextKey);
+        if (!next || parents.has(nextKey) || !segmentClear(zoneId, current, next)) continue;
+        parents.set(nextKey, currentKey);
+        todo.push(nextKey);
+      }
+    }
+    if (!parents.has(finishKey)) throw new Error('A casa não possui acesso em ' + zoneId);
+    const nodes = [];
+    for (let cursor = finishKey; cursor !== null; cursor = parents.get(cursor)) nodes.push(graph.get(cursor));
+    const points = [from, ...nodes.reverse(), to].filter((value, index, list) => index === 0
+      || value.x !== list[index - 1].x || value.y !== list[index - 1].y);
+    const lengths = points.slice(1).map((value, index) => Math.hypot(value.x - points[index].x, value.y - points[index].y));
+    const path = { points, lengths, total:lengths.reduce((sum, length) => sum + length, 0) };
+    routinePaths.set(key, path);
+    return path;
+  }
+
+  function alongPath(zoneId, from, to, progress) {
+    if (from.x === to.x && from.y === to.y) return { ...from, moving:false, facing:'down' };
+    const path = routinePath(zoneId, from, to);
+    let remaining = path.total * Math.max(0, Math.min(1, progress));
+    for (let i = 0; i < path.lengths.length; i++) {
+      const length = path.lengths[i];
+      if (remaining > length && i < path.lengths.length - 1) { remaining -= length; continue; }
+      const start = path.points[i];
+      const end = path.points[i + 1];
+      const amount = length ? Math.min(1, remaining / length) : 0;
+      return { x:start.x + (end.x - start.x) * amount, y:start.y + (end.y - start.y) * amount,
+        moving:progress > 0 && progress < 1, facing:facing(end.x - start.x, end.y - start.y, 'down') };
+    }
+    return { ...to, moving:false, facing:'down' };
+  }
+
+  function dailyPosition(zoneId, route, house, cycle) {
+    const from = index => ({ x:route[index][0], y:route[index][1] });
+    if (cycle.phase === 'night') return { ...house.door, moving:false, facing:'up', indoors:true, activity:'home' };
+    if (cycle.phase === 'dusk') return { ...alongPath(zoneId, from(2), house.door, cycle.progress), indoors:false, activity:'returning' };
+    const elapsed = cycle.progress * cycle.phaseMs;
+    // A new campaign opens with the village awake. Subsequent mornings begin
+    // at home, preserving continuity with the end of the previous night.
+    if (cycle.phase === 'morning' && cycle.day > 0 && elapsed < 6500) {
+      return { ...alongPath(zoneId, house.door, from(0), elapsed / 6500), indoors:false, activity:'working' };
+    }
+    const index = cycle.phase === 'morning' ? 0 : 1;
+    return { ...alongPath(zoneId, from(index), from(index + 1), Math.max(0, (elapsed - 15500) / 6500)),
+      indoors:false, activity:'working' };
+  }
+
   function npcPositions(zoneId, now, world = {}) {
-    const keys = zoneId === 'village'
-      ? ['chronicler', 'healer', 'blacksmith', 'villager']
-      : zoneId === 'orchard' ? ['lia'] : [];
-    return keys.map(id => {
+    const cycle = dayCycle(now, world);
+    return HOUSES.filter(house => house.zone === zoneId).map(house => {
+      const id = house.npcId;
       const npc = NPCS[id];
-      const elapsed = Math.max(0, now - (world.epoch || now));
-      const segment = Math.floor(elapsed / 22000) % npc.route.length;
-      const fraction = Math.max(0, (elapsed % 22000 - 15500) / 6500);
-      const [x, y] = npc.route[segment];
-      const [nx, ny] = npc.route[(segment + 1) % npc.route.length];
-      return { ...point(id, 'npc', x + (nx - x) * fraction, y + (ny - y) * fraction, npc.fullName),
-        name: npc.name, classKey: npc.look, moving: fraction > 0, facing: nx > x ? 'right' : nx < x ? 'left' : ny < y ? 'up' : 'down' };
+      const location = dailyPosition(zoneId, npc.route, house, cycle);
+      return { ...point(id, 'npc', location.x, location.y, npc.fullName), ...location,
+        name:npc.name, classKey:npc.look, homeId:house.id, appearance:{ ...npc.appearance } };
+    });
+  }
+
+  function residentPositions(zoneId, now, world = {}) {
+    if (zoneId !== 'village') return [];
+    const cycle = dayCycle(now, world);
+    return RESIDENTS.filter(resident => world.rescued?.includes(resident.name)
+      || (resident.unlock === 'island' ? world.voyage?.cleared : world.cleared?.[resident.unlock])).map(resident => {
+      const house = HOUSES.find(house => house.id === resident.homeId);
+      const [x, y] = resident.at;
+      const route = [[x,y], [x,y + 16], [x + 16,y + 16]];
+      const location = dailyPosition(zoneId, route, house, cycle);
+      return { ...point(resident.id, 'resident', location.x, location.y, resident.name), ...location,
+        name:resident.name, classKey:resident.look, homeId:house.id, appearance:{ ...resident.appearance } };
     });
   }
 
@@ -298,6 +445,6 @@
   const facing = (dx, dy, current) => Math.abs(dx) > Math.abs(dy)
     ? (dx < 0 ? 'left' : 'right') : dy ? (dy < 0 ? 'up' : 'down') : current;
 
-  return { TILE, COLS, ROWS, WIDTH, HEIGHT, SPEED, REGIONS, BRANCHES, NAMES, DUNGEONS, NPCS, zones, zone,
-    dungeonId, canStand, walk, safePosition, npcPositions, distance, facing, remainingEnemies, bossVisible };
+  return { TILE, COLS, ROWS, WIDTH, HEIGHT, SPEED, REGIONS, BRANCHES, NAMES, DUNGEONS, NPCS, HOUSES, RESIDENTS, zones, zone,
+    dungeonId, canStand, walk, safePosition, npcPositions, residentPositions, dayCycle, distance, facing, remainingEnemies, bossVisible };
 });
