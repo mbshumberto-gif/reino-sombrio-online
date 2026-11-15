@@ -21,7 +21,8 @@
     bard: ['#562b4c','#9a4d72','#dc8b86','#f8cb7f'],
     paladin: ['#4d4255','#777b9d','#c8cad2','#ffd976'],
     ranger: ['#263e3c','#456549','#86a16a','#d6d78c'],
-    monk: ['#5a3743','#9e5350','#d98160','#a3ded0']
+    monk: ['#5a3743','#9e5350','#d98160','#a3ded0'],
+    druid: ['#243e36','#49764c','#9bbf70','#e7d394']
   };
   const cache = new Map();
   const followerPositions = new Map();
@@ -183,6 +184,29 @@
     canvas.height = W.HEIGHT;
     const ctx = canvas.getContext('2d');
     const palette = mapPalette(map);
+    if (map.id === 'boat') {
+      rect(ctx, 0, 0, W.WIDTH, W.HEIGHT, '#183e58');
+      for (let i = 0; i < 22; i++) rect(ctx, i * 47 % W.WIDTH, 18 + i * 83 % W.HEIGHT, 44, 3, '#2d657b');
+      rect(ctx, 112, 116, 736, 405, '#382d35');
+      rect(ctx, 122, 124, 716, 389, '#684a3f');
+      rect(ctx, 128, 128, 704, 384, '#ae8054');
+      for (let y = 128; y < 512; y += 24) {
+        rect(ctx, 128, y, 704, 3, '#6a4c43');
+        for (let x = 142 + (y / 24 % 2) * 40; x < 820; x += 94) rect(ctx, x, y + 3, 2, 20, '#886242');
+      }
+      for (const y of [118,515]) {
+        rect(ctx, 112, y, 736, 6, '#d8b77d');
+        for (let x = 118; x < 849; x += 55) rect(ctx, x, y - 8, 5, 19, '#735144');
+      }
+      rect(ctx, 506, 137, 10, 103, '#513b3a');
+      rect(ctx, 486, 135, 50, 6, '#d7be8c');
+      shape(ctx, 521, 145, ['tttttttttttt','ttttttttttt.','tbbbbbbbbt..','tbbbbbbbt...','tbbbbbbt....','ttttttt.....'],
+        { t:'#ead9ad', b:'#bba984' }, 7);
+      rect(ctx, 728, 405, 65, 42, '#594446');
+      rect(ctx, 732, 402, 57, 5, '#d2a86e');
+      label(ctx, 'AS SETE LANTERNAS', 481, 489, '#f4d49b');
+      return { canvas, animatedWater:[] };
+    }
     const meadow = ['village', 'forest'].includes(map.region) && map.kind !== 'dungeon';
     const obstacles = [];
     const animatedWater = [];
@@ -191,7 +215,8 @@
         const px = x * W.TILE;
         const py = y * W.TILE;
         const seed = (x * 79 + y * 51 + x * y * 13) % 37;
-        rect(ctx, px, py, 32, 32, tile === 2 ? palette[5] : tile === 3 ? palette[8] : palette[1]);
+        rect(ctx, px, py, 32, 32, tile === 2 ? palette[5] : tile === 3 ? palette[8]
+          : map.id === 'island' && (x < 5 || x > 24 || y < 4 || y > 14) ? '#b9a376' : palette[1]);
         if (tile === 0 && seed % 8 < 3) {
           rect(ctx, px + 1 + seed % 6, py + 3, 15, 11, palette[2] + '58');
           rect(ctx, px + 9, py + 10, 17, 8, palette[2] + '45');
@@ -303,6 +328,7 @@
     }
     if (p.kind === 'portal') {
       const shut = p.requires && !state.world.cleared[p.requires] || p.shortcut && !state.world.orchardOpen
+        || p.requiresVoyage && !['deck-raider-0','deck-raider-1'].every(id => state.world.voyage?.defeated?.includes(id))
         || p.requiresRoom !== undefined && !state.world.rooms[map.region]?.includes(p.requiresRoom);
       const wall = map.kind === 'dungeon' || p.dungeon || p.shortcut ? '#8a8b9f' : '#ab9775';
       rect(ctx, x - 23, y - 5, 46, 16, '#152537');
@@ -326,6 +352,10 @@
         rect(ctx, x - 9, y - 9 + Math.floor(time / 180) % 6, 18, 2, '#91b9b3');
         rect(ctx, x - 12, y + 6, 24, 4, '#bcb391');
       }
+      return;
+    }
+    if (p.kind === 'captive') {
+      prison(ctx, x, y, time, !!state.world.voyage?.cleared, ['Marina', 'Caio']);
       return;
     }
     if (p.kind === 'chest') {
@@ -389,7 +419,8 @@
     bard:['......aa.......','.....aao.......','....oabbo......','..oobbbbboo....','...ooooooo.....'],
     paladin:['...a......a....','...oa.oo.ao....','....oaaaao.....','....oattao.....','....odddoo.....'],
     ranger:['.......a.......','......aa.......','.....aooo......','...ooobbooo....','..oobbbbbboo...','...oooooooo....'],
-    monk:['...............','......oo.......','....oooooo.....','....ohhhho.....','...aataata.....','...o......a....']
+    monk:['...............','......oo.......','....oooooo.....','....ohhhho.....','...aataata.....','...o......a....'],
+    druid:['...a.....a.....','...oa...ao.....','....oaaao......','...obtttbo.....','..oobbbbboo....','...ooooooo.....']
   };
 
   function weapon(ctx, id, key, x, y, palette, scale, swinging) {
@@ -401,6 +432,7 @@
       eclipse:['...ea','..ata','.atao','atao.','tao..','ao...','b....'],
       staff:['.ao..','aea..','.ato.','..bo.','..bo.','..bo.','..bo.','..bo.'],
       mage:['.ao..','aea..','.ato.','..bo.','..bo.','..bo.','..bo.','..bo.'],
+      druid:['aa.aa','ataat','.aba.','..bo.','..bo.','..bo.','..bo.','..bo.'],
       sorceress:['.aa..','aeea.','aeta.','.aa..','..o..'],
       warrior:['...oe','..oet','..oto','.oto.','oao..','.bo..','bo...'],
       cleric:['.odo.','otato','.ota.','..bo.','..bo.','..bo.'],
@@ -436,7 +468,7 @@
       rect(ctx, -6 * scale, -8 * scale, 4 * scale, 3 * scale, light);
       rect(ctx, 4 * scale, -8 * scale, 3 * scale, 3 * scale, light);
     }
-    if (key === 'mage' || key === 'sorceress') {
+    if (key === 'mage' || key === 'sorceress' || key === 'druid') {
       rect(ctx, -5 * scale, -4 * scale, 11 * scale, 3 * scale, dark);
       rect(ctx, -2 * scale, -5 * scale, 4 * scale, 4 * scale, main);
     }
@@ -500,6 +532,8 @@
     if (p.kind === 'enemy') return !state.world.cleared[map.region] && !state.world.defeated[map.region]?.includes(p.enemyIndex);
     if (p.kind === 'boss') return W.bossVisible(map, state.world);
     if (p.kind === 'dungeonEnemy' || p.kind === 'puzzle') return !state.world.rooms[map.region]?.includes(map.dungeonIndex);
+    if (p.kind === 'voyageEnemy') return !state.world.voyage?.defeated?.includes(p.id);
+    if (p.kind === 'voyageBoss') return !state.world.voyage?.cleared;
     return true;
   }
 
@@ -524,6 +558,94 @@
     return position;
   }
 
+  function prison(ctx, x, y, time, open, names = ['Morador']) {
+    rect(ctx, x - 35, y - 4, 70, 12, '#1c2c32');
+    for (const [i, name] of names.entries()) {
+      hero(ctx, { name, classKey:i % 2 ? 'bard' : 'ranger', x:x - (names.length - 1) * 15 + i * 30,
+        y, facing:'down' }, time, { nickname:false, scale:1.5 });
+    }
+    if (open) {
+      rect(ctx, x - 40, y - 4, 15, 5, '#718255');
+      rect(ctx, x + 27, y - 8, 15, 5, '#718255');
+      label(ctx, 'Caminho de volta', x, y - 49, '#c9e0ac');
+      return;
+    }
+    for (const dx of [-36,-18,0,18,36]) {
+      rect(ctx, x + dx, y - 45, 5, 50, '#435747');
+      rect(ctx, x + dx + 2, y - 43, 2, 45, '#9ba572');
+    }
+    rect(ctx, x - 38, y - 45, 79, 6, '#8c9a64');
+    rect(ctx, x - 37, y - 14, 77, 4, '#70845a');
+    const pulse = Math.floor(time / 220) % 4;
+    rect(ctx, x - 5, y - 25, 12, 10, pulse < 2 ? '#b57580' : '#8c6576');
+    label(ctx, 'Memórias aprisionadas', x, y - 59, '#f1c0a2');
+  }
+
+  function gardenPlot(ctx, point, state, data, time) {
+    const { x,y } = point;
+    const crop = state.self.farm?.plots?.find(plot => plot.id === point.id);
+    rect(ctx, x - 26, y - 16, 52, 32, '#382c31');
+    rect(ctx, x - 24, y - 14, 48, 28, crop?.watered ? '#554339' : '#75513c');
+    for (let row = -10; row <= 10; row += 7) rect(ctx, x - 23, y + row, 46, 2, '#3b3030');
+    if (!crop?.crop) {
+      rect(ctx, x + 21, y - 26, 3, 24, '#b99a6b');
+      rect(ctx, x + 14, y - 28, 17, 9, '#e0c28a');
+      return;
+    }
+    const progress = Math.max(0, Math.min(1, (time - crop.plantedAt) / Math.max(1, crop.readyAt - crop.plantedAt)));
+    for (const dx of [-14,0,14]) {
+      rect(ctx, x + dx - 1, y - 3, 3, 10, '#81a567');
+      rect(ctx, x + dx - 5, y - 5, 5, 4, '#4d8c58');
+      rect(ctx, x + dx + 2, y - 7, 5, 4, '#a9c371');
+      if (progress < 0.4) continue;
+      const size = progress >= 1 ? 9 : 5;
+      if (crop.crop === 'melon') {
+        rect(ctx, x + dx - size / 2, y - 3, size + 2, size, '#6cac58');
+        for (const offset of [-2,2]) rect(ctx, x + dx + offset, y - 3, 2, size, '#315c41');
+      } else if (crop.crop === 'pumpkin') {
+        rect(ctx, x + dx - size / 2, y - 2, size + 2, size - 1, '#de9351');
+        rect(ctx, x + dx, y - 1, 2, size - 3, '#ad613e');
+        rect(ctx, x + dx, y - 5, 2, 4, '#53784b');
+      } else if (crop.crop === 'corn') {
+        rect(ctx, x + dx, y - size, 3, size + 11, '#4e8853');
+        rect(ctx, x + dx - 4, y - size + 2, 5, size, '#ecd080');
+        rect(ctx, x + dx - 3, y - size + 4, 2, size - 2, '#d39550');
+      } else {
+        rect(ctx, x + dx - 2, y + 1, 5, size - 1, '#e6a16a');
+        rect(ctx, x + dx - 1, y + size - 1, 2, 3, '#c87746');
+      }
+    }
+    if (progress >= 1) label(ctx, (data.crops?.[crop.crop]?.name || 'Colheita') + ' · pronta', x, y - 32, '#e1db91');
+  }
+
+  function dangerZones(ctx, battle, time) {
+    for (const warning of battle.telegraphs || []) {
+      const remaining = warning.resolvesAt - time;
+      const lightning = warning.type === 'lightning';
+      const color = lightning ? '#eacb82' : '#e7987d';
+      ctx.beginPath();
+      ctx.arc(warning.x, warning.y, warning.radius, 0, Math.PI * 2);
+      ctx.fillStyle = lightning ? '#e7c77a38' : '#d9786240';
+      ctx.fill();
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 3;
+      ctx.setLineDash([7,4]);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      if (remaining <= 250) {
+        ctx.beginPath();
+        ctx.moveTo(warning.x + 13, warning.y - 100);
+        ctx.lineTo(warning.x - 9, warning.y - 52);
+        ctx.lineTo(warning.x + 9, warning.y - 55);
+        ctx.lineTo(warning.x, warning.y);
+        ctx.strokeStyle = lightning ? '#fff3be' : '#a5be7b';
+        ctx.lineWidth = 4;
+        ctx.stroke();
+      }
+      label(ctx, remaining > 0 ? (remaining / 1000).toFixed(1) + 's · SAIA' : '!', warning.x, warning.y + 5, color);
+    }
+  }
+
   function drawWorld(canvas, state, positions, data, time) {
     const ctx = canvas.getContext('2d');
     const map = W.zone(state.zone);
@@ -544,6 +666,16 @@
     const base = cache.get(map.id);
     ctx.drawImage(base.canvas, 0, 0);
     for (const [x,y] of base.animatedWater) water(ctx, x, y, time, palette, map.region === 'fire');
+    if (map.id === 'boat') {
+      for (let i = 0; i < 23; i++) {
+        const x = (i * 157 + time / 22) % W.WIDTH;
+        const y = (i * 79) % W.HEIGHT;
+        if (x < 104 || x > 854 || y < 103 || y > 533) {
+          rect(ctx, x, y, 31, 3, '#6ca1ac');
+          rect(ctx, x + 8, y + 5, 30, 2, '#397388');
+        }
+      }
+    }
     if (map.id === 'village') fountain(ctx, 493, 325, time);
     if (map.id === 'cave' || map.id === 'grotto') {
       for (let i = 0; i < 14; i++) {
@@ -554,23 +686,59 @@
       }
     }
     const actors = [];
+    const field = state.battle?.mode === 'field' ? state.battle : null;
+    if (field) dangerZones(ctx, field, time);
     const region = data.regions.find(entry => entry.id === map.region);
     for (const p of map.points.filter(point => visiblePoint(point, map, state))) {
+      if (p.kind === 'plot') {
+        gardenPlot(ctx, p, state, data, time);
+        continue;
+      }
+      if (field && (field.target.pointId === p.id || field.target.kind === p.kind &&
+          (p.kind === 'boss' || p.kind === 'voyageBoss' || p.kind === 'dungeonEnemy' || field.target.index === p.enemyIndex))) continue;
       const enemy = p.kind === 'enemy' ? region.enemies[p.enemyIndex] : p.kind === 'boss' ? region.boss
-        : p.kind === 'dungeonEnemy' ? data.dungeons[map.region]?.[map.dungeonIndex] : null;
+        : p.kind === 'dungeonEnemy' ? data.dungeons[map.region]?.[map.dungeonIndex]
+        : p.kind === 'voyageEnemy' ? { name:p.label } : p.kind === 'voyageBoss' ? { name:'Carcereiro das Raízes' } : null;
       if (enemy) {
         const mob = state.mobs?.[p.id];
         const { x, y } = mob ? follow('mob:' + p.id, mob.x, mob.y) : p;
         actors.push({ y, draw: () => {
-          monster(ctx, enemy.name || enemy.enemy, x, y, time, 3, p.kind === 'boss' || map.dungeonIndex === 3);
+          monster(ctx, enemy.name || enemy.enemy, x, y, time, 3, p.kind === 'boss' || p.kind === 'voyageBoss' || map.dungeonIndex === 3);
           if (mob?.alert) label(ctx, '!', x, y - 50);
         } });
       } else actors.push({ y:p.y, draw: () => prop(ctx, p, map, state, time) });
     }
+    if (field) {
+      const boss = field.position;
+      actors.push({ y:boss.y, draw: () => {
+        monster(ctx, field.name, boss.x, boss.y, time, 3, field.boss, field.phase);
+        const width = field.boss ? 135 : 80;
+        const barY = Math.max(30, boss.y - (field.boss ? 92 : 57));
+        rect(ctx, boss.x - width / 2, barY, width, 8, '#342d3a');
+        rect(ctx, boss.x - width / 2, barY, width * field.hp / field.maxHp, 8, '#e3957e');
+        label(ctx, field.name + (field.boss ? ' · Fase ' + field.phase + '/3' : ''), boss.x,
+          barY - 14, '#f0d7a4');
+      } });
+      for (const totem of field.totems || []) {
+        if (totem.hp <= 0) continue;
+        actors.push({ y:totem.y, draw: () => {
+          rect(ctx, totem.x - 10, totem.y - 28, 20, 31, '#536745');
+          rect(ctx, totem.x - 13, totem.y - 32, 26, 7, '#92af6d');
+          rect(ctx, totem.x - 5, totem.y - 22, 11, 9, '#eed589');
+          label(ctx, 'Totem · QUEBRAR', totem.x, totem.y - 46, '#dbe59f');
+        } });
+      }
+    }
+    if (map.kind === 'surface' && W.REGIONS.includes(map.region)) {
+      const captives = { forest:['Tomás','Elara'], cave:['Borin'], fire:['Nilo'], castle:['Sera'], shadow:['Ivo'] };
+      actors.push({ y:153, draw: () => prison(ctx, 648, 153, time, !!state.world.cleared[map.region], captives[map.region]) });
+    }
     for (const npc of W.npcPositions(map.id, time, state.world)) actors.push({ y:npc.y, draw: () => hero(ctx, npc, time) });
     for (const entry of state.players) {
       const p = { ...entry, ...positions.get(entry.id), self: entry.id === state.id };
-      actors.push({ y:p.y, draw: () => hero(ctx, p, time) });
+      const action = field?.lastAction;
+      const attacking = action?.heroId === entry.id && time - (action.at || 0) < 350;
+      actors.push({ y:p.y, draw: () => hero(ctx, p, time, { attacking }) });
       if (p.companions.lume) {
         const side = p.facing === 'right' ? -1 : 1;
         const pet = follow('lume:' + p.id, p.x + side * 25, p.y - 6);
@@ -585,8 +753,9 @@
         actors.push({ y:ally.y, draw: () => hero(ctx, ally, time, { scale:1.75 }) });
       }
     }
-    if (state.world.cleared.shadow && map.id === 'village') {
-      for (const [i, name] of ['Tomás','Elara','Borin','Nilo','Sera','Ivo'].entries()) {
+    if (map.id === 'village') {
+      const freed = state.world.rescued || (state.world.cleared.shadow ? ['Tomás','Elara','Borin','Nilo','Sera','Ivo'] : []);
+      for (const [i, name] of [...new Set(freed)].filter(Boolean).entries()) {
         const resident = { name, classKey:Object.keys(clothes)[i + 2], x:350 + i * 47, y:184 + i % 2 * 20, facing:'down' };
         actors.push({ y:resident.y, draw: () => hero(ctx, resident, time, { scale:1.6 }) });
       }

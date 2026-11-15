@@ -50,12 +50,26 @@
   const portal = (id, x, y, label, to, spawn, extra) => point(id, 'portal', x, y, label, { to, spawn, ...extra });
   const dungeonId = (region, index) => 'dungeon-' + region + '-' + index;
 
-  function mapGrid(kind, region, dungeonIndex) {
+  function mapGrid(kind, region, dungeonIndex, id) {
     const grid = Array.from({ length: ROWS }, (_, y) => Array.from({ length: COLS }, (_, x) =>
       x === 0 || y === 0 || x === COLS - 1 || y === ROWS - 1 ? 1 : 0));
     const paint = (x, y, w, h, value) => {
       for (let j = y; j < y + h; j++) for (let i = x; i < x + w; i++) grid[j][i] = value;
     };
+    if (id === 'boat') {
+      paint(1, 1, 28, 16, 3);
+      paint(4, 4, 22, 12, 2);
+      return grid;
+    }
+    if (id === 'island') {
+      paint(1, 1, 28, 16, 3);
+      paint(3, 3, 24, 13, 0);
+      paint(4, 4, 22, 11, 0);
+      paint(13, 4, 5, 12, 2);
+      paint(4, 13, 22, 2, 2);
+      for (const [x,y] of [[4,4],[7,5],[22,5],[24,8],[5,9],[20,10],[8,11]]) paint(x,y,2,2,1);
+      return grid;
+    }
     if (kind === 'dungeon') {
       paint(1, 1, 28, 16, 5);
       paint(3, 2, 24, 14, 0);
@@ -140,7 +154,7 @@
 
   const zones = {};
   function addZone(id, name, region, kind, points, dungeonIndex) {
-    const grid = mapGrid(kind, region, dungeonIndex);
+    const grid = mapGrid(kind, region, dungeonIndex, id);
     for (const p of points) {
       const tx = Math.floor(p.x / TILE);
       const ty = Math.floor(p.y / TILE);
@@ -189,6 +203,10 @@
       branchPoints.push(portal('lume-village', 480, 492, 'Trilha de volta à Vila', 'village', [702, 448]));
       branchPoints.push(point('apple-orchard', 'tree', 343, 319, 'Macieira antiga'));
       branchPoints.push(point('lamp-orchard', 'lamp', 684, 120, 'Lanterna do pomar'));
+      for (const [i, [x, y]] of [[350,390],[420,390],[350,450],[420,450]].entries()) {
+        branchPoints.push(point('garden-' + (i + 1), 'plot', x, y, 'Seu canteiro ' + (i + 1)));
+      }
+      branchPoints.push(portal('lantern-boat', 780, 440, 'Embarcar para a Ilha das Raízes', 'boat', [190, 440], { requires:'forest' }));
       branchPoints.push(portal('orchard-shortcut', 480, 52, 'Atalho para a Vila', 'village', [480, 425], { shortcut: true }));
       zones.village.points.push(portal('village-shortcut', 480, 54, 'Atalho do Pomar', 'orchard', [480, 106], { shortcut: true }));
     }
@@ -211,6 +229,19 @@
       addZone(dungeonId(region, i), name, region, 'dungeon', points, i);
     });
   });
+
+  addZone('boat', 'Travessia das Lanternas', 'forest', 'voyage', [
+    portal('boat-return', 160, 440, 'Desembarcar no Pomar', 'orchard', [760, 440]),
+    point('deck-raider-0', 'voyageEnemy', 380, 330, 'Saqueador do convés', { enemyIndex:0 }),
+    point('deck-raider-1', 'voyageEnemy', 620, 280, 'Arauto da tempestade', { enemyIndex:1 }),
+    portal('island-shore', 800, 180, 'Chegar à Ilha das Raízes', 'island', [190, 458], { requiresVoyage:'deck' })
+  ]);
+  addZone('island', 'Ilha das Raízes', 'forest', 'voyage', [
+    portal('island-return', 160, 458, 'Voltar ao barco', 'boat', [750, 180]),
+    point('island-warden', 'voyageBoss', 480, 180, 'Carcereiro das Raízes'),
+    point('island-captives', 'captive', 620, 180, 'Libertar os moradores'),
+    point('island-camp', 'camp', 340, 440, 'Fogueira dos navegantes')
+  ]);
 
   const zone = id => Object.hasOwn(zones, id) ? zones[id] : zones.village;
 

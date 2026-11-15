@@ -32,7 +32,7 @@ async function launch(t, storage = createStorage()) {
 async function start(page, url, action = 'create') {
   await page.goto(url, { waitUntil:'domcontentloaded' });
   await page.locator('#startAdventureBtn').click();
-  await page.waitForFunction(() => document.querySelector('#heroClass').options.length === 9);
+  await page.waitForFunction(() => document.querySelector('#heroClass').options.length === 10);
   await page.waitForFunction(() => document.querySelector('#entryStatus').textContent === 'Pronto para entrar.');
   await page.locator('#playerName').fill('Beto');
   await page.locator(action === 'create' ? '#createBtn' : '#continueSaveBtn').click();

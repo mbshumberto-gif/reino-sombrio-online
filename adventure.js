@@ -4,6 +4,12 @@ const { randomUUID } = require('node:crypto');
 const { HERO_CLASSES, EQUIPMENT, QUESTS, REGIONS } = require('./game-data');
 const World = require('./public/world-data');
 
+const CAPTIVES = {
+  forest: ['Tomás', 'Elara'], cave: ['Borin'], fire: ['Nilo'], castle: ['Sera'], shadow: ['Ivo'],
+  island: ['Marina', 'Caio']
+};
+const FRAGMENTS = { forest:'Raiz', cave:'Eco', fire:'Brasa', castle:'Vigília', shadow:'Memória' };
+
 const LORE = {
  village:"Há vinte anos, Malakar foi derrotado na Guerra das Sete Lanternas. Antes de desaparecer, lançou uma maldição sobre as famílias que guardavam os antigos selos. Agora, os sinos tocam sozinhos, a névoa avança e moradores desaparecem durante a noite. Aderic acredita que a maldição está despertando — e que o herói marcado pela estrela pode ser a última esperança.",
  forest:"A Floresta Amaldiçoada já foi o coração vivo de Eldoria. Os guardiões élficos protegiam a Árvore-Mãe, cujas raízes mantinham o equilíbrio entre os reinos. Malakar envenenou suas raízes para abrir uma passagem ao mundo das sombras. O Ent Corrompido não nasceu maligno: foi o último guardião a resistir, e sua memória ainda guarda o nome de quem traiu os antigos reis.",
@@ -14,6 +20,14 @@ const LORE = {
 };
 
 const QUESTS_BY_ID = {
+  harvest_home: {
+    title:'Uma horta para o recomeço', npc:'lia', reward:[35, 60],
+    steps:['Plante e colha um alimento nos canteiros ao sul do Pomar.', 'Conte a Lia sobre sua primeira colheita.']
+  },
+  island_rescue: {
+    title:'Vozes além da margem', npc:'lia', requires:'forest', reward:[70, 100],
+    steps:['Proteja o barco e liberte os prisioneiros na Ilha das Raízes.', 'Volte ao Pomar e converse com Lia.']
+  },
   lost_relic: {
     title: 'A Relíquia dos Primeiros Reis', npc: 'chronicler', reward: [85, 110],
     steps: ['Leia a inscrição no Santuário Partido.', 'Abra o relicário na última sala da masmorra.', 'Leve a relíquia ao Cronista Aderic.']
@@ -103,7 +117,7 @@ function newCampaign(code, ownerId, legacy = {}) {
   return {
     id: randomUUID(), code, revision: 0,
     data: { version: 2, ownerId, epoch: Date.now(), cleared, defeated, opened, rooms, orchardOpen: false,
-      lamps: [], legacyMainQuests: legacy.quests || {} }
+      lamps: [], voyage:{ defeated:[], cleared:false }, rescued:[], legacyMainQuests: legacy.quests || {} }
   };
 }
 
@@ -212,12 +226,17 @@ function questJournal(member, world) {
 const mainQuest = region => QUESTS.find(quest => quest.region === region);
 
 function publicCampaign(world) {
+  const rescued = [...new Set([...(world.rescued || []),
+    ...Object.keys(FRAGMENTS).filter(region => world.cleared[region]).flatMap(region => CAPTIVES[region]),
+    ...(world.voyage?.cleared ? CAPTIVES.island : [])])];
   return {
     epoch: world.epoch, cleared: world.cleared, defeated: world.defeated, opened: world.opened,
     rooms: world.rooms, orchardOpen: world.orchardOpen, lamps: world.lamps || [],
+    voyage:world.voyage || { defeated:[], cleared:false }, rescued,
+    fragments:Object.entries(FRAGMENTS).filter(([region]) => world.cleared[region]).map(([region, name]) => ({region, name})),
     quests: QUESTS.map(quest => ({ title: quest.title, completed: Boolean(world.cleared[quest.region] || world.legacyMainQuests?.[quest.id]?.completed) }))
   };
 }
 
 module.exports = { own, newCampaign, makeHero, makeMember, heroStats, forgeOffer, reward, xpForNext, canOffer,
-  questJournal, publicCampaign, mainQuest, quests: QUESTS_BY_ID, clues: CLUES, dialogues: DIALOGUES, lore: LORE };
+  questJournal, publicCampaign, mainQuest, CAPTIVES, quests: QUESTS_BY_ID, clues: CLUES, dialogues: DIALOGUES, lore: LORE };

@@ -5,11 +5,11 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#182131">
   <title>As Crônicas do Reino Sombrio</title>
-  <link rel="stylesheet" href="/style.css?v=16">
+  <link rel="stylesheet" href="/style.css?v=17">
   <script defer src="/socket.io/socket.io.js"></script>
-  <script defer src="/world-data.js?v=3"></script>
-  <script defer src="/pixel.js?v=4"></script>
-  <script defer src="/game.js?v=17"></script>
+  <script defer src="/world-data.js?v=4"></script>
+  <script defer src="/pixel.js?v=5"></script>
+  <script defer src="/game.js?v=18"></script>
 </head>
 <body>
   <main class="shell">
@@ -31,6 +31,12 @@
         <label for="heroClass">Classe</label>
         <select id="heroClass" name="heroClass"><option value="warrior">Guerreiro</option></select>
         <p id="classRole" class="muted"></p>
+        <label for="combatMode">Combate da nova aventura</label>
+        <select id="combatMode" name="combatMode">
+          <option value="field">Na própria tela · tempo real</option>
+          <option value="turn">Por turnos · arena clássica</option>
+        </select>
+        <p class="muted entry-help">Continuar ou entrar em uma sala mantém o modo daquela aventura.</p>
         <div class="button-row">
           <button id="createBtn" class="primary" type="submit">Criar aventura</button>
           <button id="continueSaveBtn" type="button">Continuar aventura</button>
@@ -70,7 +76,9 @@
 
       <div class="layout">
         <section class="play panel" aria-label="Mundo de Eldoria">
-          <header class="location"><div><span id="zoneTag" class="subtitle">ELDORIA</span><h1 id="areaTitle">Vila de Eldoria</h1></div><div id="miniClock" class="clock"></div></header>
+          <header class="location"><div><span id="zoneTag" class="subtitle">ELDORIA</span><h1 id="areaTitle">Vila de Eldoria</h1></div><div id="miniClock" class="clock"></div>
+            <div id="fieldPlayerTools" class="field-player-tools hidden"><span id="fieldSelfVitals"></span><button id="fieldLeaveBtn" type="button" aria-label="Sair da sala">Sair</button></div>
+          </header>
           <div id="overworld" class="overworld">
             <canvas id="worldCanvas" width="960" height="576" aria-label="Mapa pixel art de Eldoria"></canvas>
             <div id="nearbyPrompt" class="map-prompt">WASD ou setas para andar · E para interagir</div>
@@ -89,6 +97,27 @@
             </div>
             <button id="mobileActionBtn" class="primary mobile-action" type="button">AÇÃO</button>
           </div>
+          <section id="fieldBattle" class="field-battle hidden" aria-label="Combate na própria tela">
+            <div class="field-enemy-summary">
+              <div><span id="fieldPhase" class="subtitle"></span><h2 id="fieldEnemyName"></h2></div>
+              <span id="fieldEnemyHp"></span>
+            </div>
+            <div class="meter"><i id="fieldEnemyBar"></i></div>
+            <p id="fieldHint" role="status"></p>
+            <p id="fieldLog" class="muted"></p>
+            <div id="fieldActions" class="field-actions">
+              <button id="fieldAttackBtn" data-field-action="attack" class="primary" type="button">Atacar</button>
+              <button id="fieldSkillBtn" data-field-action="skill" type="button">Habilidade</button>
+              <button id="fieldTechniqueBtn" data-field-action="technique" type="button">Técnica</button>
+              <button id="fieldDefendBtn" data-field-action="defend" type="button">Defender</button>
+              <button id="fieldTotemBtn" data-field-action="totem" type="button">Quebrar totem</button>
+              <button id="fieldPotionBtn" data-field-action="potion" type="button">Poção</button>
+              <button id="fieldAppleBtn" data-field-action="apple" type="button">Maçã</button>
+              <button id="fieldCompanionBtn" data-field-action="companion" type="button">Chamar Lia</button>
+              <button id="fieldFleeBtn" data-field-action="flee" type="button">Recuar</button>
+            </div>
+            <p class="field-instructions">Mova-se para sair dos círculos de perigo. Aproxime-se do inimigo para atacar. <kbd>Espaço: atacar · Q: habilidade · R: técnica · F: defender · T: totem</kbd></p>
+          </section>
           <section id="battle" class="battle hidden" aria-label="Combate por turnos">
             <div class="arena"><canvas id="battleSceneCanvas" width="760" height="296" aria-label="Equipe e criatura"></canvas>
               <div class="enemy-hud"><span id="enemyPhase" class="subtitle"></span><h2 id="enemyName"></h2>
@@ -121,7 +150,7 @@
           </section>
           <details class="panel drawer" open><summary>Grupo</summary><ul id="players" class="list"></ul></details>
           <details class="panel drawer"><summary>Missões e mapa</summary><div id="questList"></div><div id="routeList"></div></details>
-          <details class="panel drawer"><summary>Mochila e companheiros</summary><div id="inventoryPanel"></div></details>
+          <details class="panel drawer"><summary>Mochila, alimentos e companheiros</summary><div id="inventoryPanel"></div></details>
           <details class="panel drawer"><summary>Histórico</summary><div id="log" class="history" aria-live="polite"></div>
             <button id="recoveryBtn" type="button">Gerar código de recuperação</button>
           </details>
