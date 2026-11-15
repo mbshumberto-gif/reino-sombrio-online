@@ -847,7 +847,8 @@
   socket.on('dialogue', payload => {
     if (!state || state.battle) return;
     conversation = { payload, step:0 };
-    Pixel.portrait($('dialoguePortrait'), payload.portrait, worldTime());
+    Pixel.portrait($('dialoguePortrait'), payload.portrait, worldTime(), undefined,
+      payload.appearance || data.npcs?.[payload.id]?.appearance);
     show('dialoguePanel');
     renderDialogue();
   });
@@ -891,7 +892,7 @@
     const map = World.zone(state.zone);
     const player = control();
     const points = map.points.filter(p => Pixel.visiblePoint(p, map, state));
-    const npcs = World.npcPositions(map.id, now, state.world);
+    const npcs = World.npcPositions(map.id, now, state.world).filter(npc => !npc.indoors);
     const candidates = [...points, ...npcs].map(p => p.kind === 'enemy' ? { ...p, ...state.mobs?.[p.id] } : p)
       .filter(p => World.distance(player, p) <= (p.kind === 'npc' ? 77 : p.kind === 'portal' ? 62 : 56));
     candidates.sort((a,b) => World.distance(player,a) - World.distance(player,b));
@@ -999,7 +1000,7 @@
   }
 
   function renderFocus(now) {
-    const phase = Math.floor(Math.max(0, now - state.world.epoch) / 22000) % 4;
+    const phase = World.dayCycle(now, state.world).index;
     const dayPhase = ['Manhã','Tarde','Entardecer','Noite'][phase];
     if ($('miniClock').textContent !== dayPhase) text('miniClock', dayPhase);
     if (fieldCombat()) {

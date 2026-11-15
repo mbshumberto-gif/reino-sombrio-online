@@ -105,34 +105,35 @@
     rect(ctx, x, y, 2, 2, '#f9df91');
   }
 
-  function house(ctx, x, y, roof, sign) {
-    rect(ctx, x - 7, y + 12, 168, 88, '#1a2e34');
-    rect(ctx, x + 1, y + 14, 150, 79, '#684a48');
-    rect(ctx, x + 7, y + 26, 138, 60, '#be9b73');
-    rect(ctx, x + 7, y + 66, 138, 20, '#93715e');
-    for (let i = 0; i < 19; i++) {
-      rect(ctx, x + 11 + (i * 31) % 127, y + 33 + (i * 17) % 44, 3 + i % 4, 2, i % 3 ? '#aa8869' : '#cdaa7d');
+  function house(ctx, home, night) {
+    const { x, y, width, height, door } = home;
+    const roof = { chronicler:['#715479','#957394'], blacksmith:['#526382','#7f8a9c'],
+      healer:['#a46d5c','#c59578'], villager:['#637b62','#93a174'], lia:['#8b6859','#b28d6c'] }[home.npcId] || ['#87514e','#ce8465'];
+    const roofHeight = Math.round(height * 0.5);
+    rect(ctx, x + 3, y + height - 2, width - 6, 5, '#1a2e34');
+    rect(ctx, x + 4, y + roofHeight - 5, width - 8, height - roofHeight + 5, '#b39473');
+    rect(ctx, x + 4, y + height - 10, width - 8, 10, '#836757');
+    for (let k = 0; k < 6; k++) {
+      const inset = Math.round((5 - k) * width / 19);
+      const yy = y + Math.round(k * roofHeight / 6);
+      rect(ctx, x + inset, yy, width - inset * 2, Math.ceil(roofHeight / 6) + 1, roof[k % 2]);
+      for (let xx = x + inset + 6; xx < x + width - inset - 4; xx += 17) rect(ctx, xx, yy + 2, 10, 2, roof[1]);
     }
-    for (let xx = 15; xx < 150; xx += 33) rect(ctx, x + xx, y + 33, 4, 55, '#71534f');
-    for (let k = 0; k < 8; k++) {
-      const offset = Math.abs(6 - k) * 8;
-      rect(ctx, x + offset - 12, y - 25 + k * 7, 175 - 2 * offset, 8, k % 2 ? roof[1] : roof[0]);
-      for (let xx = offset - 6; xx < 156 - offset; xx += 13) rect(ctx, x + xx, y - 21 + k * 7, 8, 2, roof[2]);
+    rect(ctx, x, y + roofHeight - 2, width, 5, '#51414a');
+    for (const xx of [x + 10, x + width - 15]) rect(ctx, xx, y + roofHeight + 3, 4, height - roofHeight - 4, '#72594d');
+    const doorHeight = Math.min(32, height - roofHeight - 2);
+    rect(ctx, door.x - 13, y + height - doorHeight, 26, doorHeight, '#352a37');
+    rect(ctx, door.x - 9, y + height - doorHeight + 2, 18, doorHeight - 2, '#725244');
+    rect(ctx, door.x + 5, y + height - 14, 3, 4, '#e4bd76');
+    rect(ctx, door.x - 17, y + height + 1, 34, 6, '#b29b7b');
+    for (const xx of [x + 25, x + width - 41]) {
+      if (night) rect(ctx, xx - 7, y + height - 32, 30, 29, '#f2c1741d');
+      rect(ctx, xx - 2, y + height - 27, 20, 18, '#51434c');
+      rect(ctx, xx + 1, y + height - 24, 14, 12, night ? '#ffd78a' : '#9cb6b4');
+      rect(ctx, xx + 6, y + height - 25, 2, 15, '#6b5349');
+      rect(ctx, xx, y + height - 19, 16, 2, '#6b5349');
     }
-    rect(ctx, x - 10, y + 25, 171, 6, '#523644');
-    rect(ctx, x + 65, y + 47, 25, 45, '#472f3d');
-    rect(ctx, x + 71, y + 49, 15, 39, '#76504a');
-    rect(ctx, x + 81, y + 65, 3, 4, '#efbc69');
-    for (const xx of [23, 113]) {
-      rect(ctx, x + xx, y + 45, 18, 19, '#554049');
-      rect(ctx, x + xx + 3, y + 49, 12, 10, '#edc575');
-      rect(ctx, x + xx + 8, y + 48, 2, 12, '#795952');
-      rect(ctx, x + xx + 3, y + 54, 12, 2, '#795952');
-    }
-    rect(ctx, x + 59, y + 89, 36, 6, '#846b64');
-    rect(ctx, x + 4, y + 87, 45, 4, '#56585c');
-    rect(ctx, x + 104, y + 87, 39, 4, '#56585c');
-    label(ctx, sign, x + 75, y + 5);
+    label(ctx, home.label, x + width / 2, y + roofHeight - 11, '#ead6b3');
   }
 
   function water(ctx, x, y, time, palette, lava = false) {
@@ -257,13 +258,6 @@
     }
     obstacles.forEach(draw => draw());
     if (map.id === 'village') {
-      house(ctx, 137, 101, ['#87514e','#a35c54','#ce8465'], 'ESTALAGEM');
-      house(ctx, 648, 101, ['#485878','#65728c','#8794a3'], 'FORJA');
-      for (const px of [303, 619]) {
-        rect(ctx, px, 119, 24, 53, '#473b48');
-        rect(ctx, px + 4, 120, 16, 40, '#777482');
-        rect(ctx, px + 7, 126, 10, 15, '#c1a77f');
-      }
       for (const px of [288, 321, 602, 640]) flower(ctx, px, 397, px);
     }
     if (map.kind === 'branch') {
@@ -422,6 +416,15 @@
     monk:['...............','......oo.......','....oooooo.....','....ohhhho.....','...aataata.....','...o......a....'],
     druid:['...a.....a.....','...oa...ao.....','....oaaao......','...obtttbo.....','..oobbbbboo....','...ooooooo.....']
   };
+  const naturalHair = {
+    curly:['...............','...............','....hhhhh......','...hkhhkhh.....','..hhkhhkhhh....',
+      '..hkhhhkhkh....','...hhhhhhh.....','...hh....hh....','...kh....hk....','....h....h.....'],
+    short:['...............','...............','.....hhhhh.....','....hhhhhhh....','....hkhhhkh....',
+      '....hhhhhhh....','....hh...hh....'],
+    braids:['...............','...............','....hhhhhhh....','...hkhkhkhkh...','...hhhhhhhhh...',
+      '...hhhhhhhhh...','...hh.....hh...','...kh.....hk...','...hk.....kh...','...kh.....hk...',
+      '...hk.....kh...','...kh.....hk...','...hk.....kh...','....a.....a....']
+  };
 
   function weapon(ctx, id, key, x, y, palette, scale, swinging) {
     const t = swinging ? -3 * scale : 0;
@@ -461,10 +464,13 @@
     if (left) ctx.scale(-1, 1);
     if (!entry.online && entry.online !== undefined) ctx.globalAlpha = 0.5;
     if (entry.hp === 0) ctx.globalAlpha *= 0.55;
-    const cs = { o: ink, h: key === 'cleric' ? '#c5955f' : '#67445a', s: up ? '#664557' : '#e8a67d',
+    const appearance = entry.appearance || {};
+    const skin = appearance.skin || (appearance.skinTone === 'deep' ? '#8f573f' : '#e8a67d');
+    const hair = appearance.hair ? '#2e2228' : key === 'cleric' ? '#c5955f' : '#67445a';
+    const cs = { o: ink, h: hair, k:'#5a3e3c', s: up ? hair : skin,
       e: up ? '#664557' : '#382c40', a: accent, b: main, d: dark, t: light };
     shape(ctx, -7 * scale, -17 * scale, commonBody, cs, scale);
-    shape(ctx, -7 * scale, -18 * scale, headwear[key], cs, scale);
+    shape(ctx, -7 * scale, -18 * scale, naturalHair[appearance.hair] || headwear[key], cs, scale);
     if (key === 'warrior' || key === 'paladin') {
       rect(ctx, -6 * scale, -8 * scale, 4 * scale, 3 * scale, light);
       rect(ctx, 4 * scale, -8 * scale, 3 * scale, 3 * scale, light);
@@ -503,17 +509,18 @@
 
   function monster(ctx, name, x, y, time, size = 2, boss = false, phase = 1) {
     const word = name.toLowerCase();
-    const creature = /morvath|bruxo/.test(word) ? 'wizard' : /lobo|javali|cão/.test(word) ? 'beast' : /aranha|escorpião/.test(word) ? 'spider'
+    const creature = /morvath|bruxo/.test(word) ? 'wizard' : /goblin/.test(word) ? 'goblin' : /lobo|javali|cão/.test(word) ? 'beast' : /aranha|escorpião/.test(word) ? 'spider'
       : /corvo|harpia|morcego|draco/.test(word) ? 'wing' : /ent|raiz/.test(word) ? 'tree' : /vazio|espectro|malakar|sentinela/.test(word) ? 'ghost' : 'armor';
     const colors = {
       beast:['#37394f','#816b84','#cda1a1'], spider:['#423354','#755387','#ba7cad'],
       wing:['#503846','#995457','#e18c68'], tree:['#35473b','#63835b','#acc578'],
       ghost:['#432b5b','#784d89','#b883ac'], armor:['#374257','#6a718e','#a2a9bd'],
-      wizard:['#1b172b','#43264f','#865189']
+      wizard:['#1b172b','#43264f','#865189'], goblin:['#244737','#588748','#a5c56f']
     }[creature];
-    const scale = boss ? size * 1.6 : size;
+    const scale = (boss ? size * 1.6 : size) * (creature === 'goblin' ? 0.78 : 1);
     const cs = { o:'#172539', d:colors[0], b:colors[1], t:colors[2], e:phase > 1 ? '#f9a681' : '#ffdf8b', a:'#eee0af' };
     if (creature === 'wizard') Object.assign(cs, { o:'#100f1d', e:'#ff5f65', a:'#cab6c2' });
+    if (creature === 'goblin') Object.assign(cs, { c:'#835942', a:'#eee1a8', e:'#f4cc77' });
     const sprites = {
       beast:['..o..o.........','..ototo........','.oottbto.......','oabbebto...oo..','..obbbto.oobto.','...obbbbobto...','...obbbbbbo....','....obdddbo....','....odooobo....','....oo..oo.....'],
       spider:['...o......o....','..obo....obo...','.obo..oo..obo..','obo.oottoo.obo.','oo.ottbbtto.oo.','..otebbbeto....','.oobbbbbbbboo..','odoobbdbboodo..','oo..ooodo..oo..'],
@@ -524,12 +531,19 @@
       wizard:['...........oo....','.........ootbo...','........otbbo....','.......otbbbo....','......otbbbbo....',
         '.....otbbtbbbo...','..oootttttttbboo.','...oooaddddaooo..','.....odededo.....','.....odadddo.....',
         '....obdaaabdo....','...otbbdddbbto...','..otbbbdtdbbbto..','.otbbbddtddbbbto.',
-        '.obbbdddtdddbbbo.','..odddddtdddddo..','..ooooooooooooo..']
+        '.obbbdddtdddbbbo.','..odddddtdddddo..','..ooooooooooooo..'],
+      goblin:['tto.........ott','tttooooooooottt','.otttbbbbbttto.','..otbeooebto...',
+        '...otbaaato....','....obbbbo.....','..obccccccbo...','.tobccaccbott..','...occccco.....',
+        '...oddoddo.....','...odo.odo.....','...oo...oo.....']
     };
     const bob = Math.floor(Math.sin(time / 350) * 3);
     rect(ctx, x - 6 * scale, y - 2, 12 * scale, 3 * scale, '#13213292');
     shape(ctx, x - (creature === 'wizard' ? 8 : 7) * scale,
-      y - (creature === 'wizard' ? 16 : 10) * scale + bob, sprites[creature], cs, scale);
+      y - (creature === 'wizard' ? 16 : creature === 'goblin' ? 11 : 10) * scale + bob, sprites[creature], cs, scale);
+    if (creature === 'goblin') {
+      shape(ctx, x + 6 * scale, y - 5 * scale + bob, ['...w.','..ww.','.ww..','cc...','.c...'],
+        { w:'#d9d9bd', c:'#674631' }, scale);
+    }
     if (creature === 'wizard') {
       rect(ctx, x + 9 * scale, y - 11 * scale + bob, 1.5 * scale, 12 * scale, '#6d525f');
       shape(ctx, x + 7 * scale, y - 14 * scale + bob,
@@ -554,8 +568,13 @@
       '..ollplllpllo..','..oslllllllso..','...olllglllo...','...ollpgpllo...','..ollplllpllo..',
       '..olplllllplo..','.ollplllllpllo.','.olplllllllplo.','olllllllllllllo',
       '.ooooooooooooo.','....oo...oo....'
-    ], { o:ink, g:'#f2cb70', j:'#ce718f', h:'#714854', s:'#edaf91', e:'#3b2943',
+    ], { o:ink, g:'#f2cb70', j:'#ce718f', h:'#35242e', s:'#edaf91', e:'#3b2943',
       p:'#ac72a5', l:'#e8bad2' }, scale);
+    // Rounded, highlighted ringlets frame the face and hang below the crown.
+    for (const [dx, dy] of [[-5,-18],[2,-18],[-6,-15],[3,-15],[-5,-12],[2,-12]]) {
+      shape(ctx, x + dx * scale, y + dy * scale,
+        ['.hh.','hkhh','hhkh','.hh.'], { h:'#35242e', k:'#815851' }, scale);
+    }
     if (nickname) label(ctx, entry.name || 'Maria Rita', x, y - 49, '#ffe2a1');
   }
 
@@ -677,10 +696,40 @@
     }
   }
 
+  function flyingWildlife(ctx, map, cycle, reducedMotion) {
+    if (map.kind === 'dungeon' || !['village','forest'].includes(map.region)) return;
+    const night = cycle.isNight;
+    const elapsed = reducedMotion ? 8500 : cycle.elapsed;
+    const count = reducedMotion ? 2 : night ? 3 : 4;
+    const poses = night ? [
+      ['o.......o','oto...oto','obto.otbo','.obbbbbo.','...oeo...'],
+      ['.........','oo.....oo','.oto.oto.','..obbbo..','...oeo...'],
+      ['.........','...ooo...','..otbto..','.oboeobo.','oo.....oo']
+    ] : [
+      ['t.....t','.t.b.t.','..tbt..','...b.a.'],
+      ['.......','tt.b.tt','..tbt..','...b.a.'],
+      ['.......','...b...','..tbt..','.t.b.ta']
+    ];
+    for (let i = 0; i < count; i++) {
+      const drift = elapsed / (night ? 48 : 55);
+      const x = (drift + i * 271 + map.id.length * 37) % (W.WIDTH + 90) - 45;
+      const y = 72 + i * 104 + (reducedMotion ? 0 : Math.sin(elapsed / 1700 + i * 2.1) * 15);
+      const pose = reducedMotion ? 1 : Math.floor(elapsed / (night ? 240 : 310) + i) % poses.length;
+      shape(ctx, x, y, poses[pose], night
+        ? { o:'#1b2031', t:'#625778', b:'#3d3652', e:'#ddad83' }
+        : { t:'#c7d4c7', b:'#4d5350', a:'#ddba7c' }, night ? 2 : 1.7);
+    }
+  }
+
   function drawWorld(canvas, state, positions, data, time) {
     const ctx = canvas.getContext('2d');
     const map = W.zone(state.zone);
     const palette = mapPalette(map);
+    const cycle = W.dayCycle ? W.dayCycle(time, state.world) : {
+      index:Math.floor(Math.max(0, time - state.world.epoch) / 22000) % 4,
+      elapsed:Math.max(0, time - state.world.epoch)
+    };
+    cycle.isNight ??= cycle.index === 3;
     if (followerZone !== state.campaignId + ':' + map.id) {
       followerZone = state.campaignId + ':' + map.id;
       followerPositions.clear();
@@ -717,6 +766,9 @@
       }
     }
     const actors = [];
+    for (const home of (W.HOUSES || []).filter(home => home.zone === map.id)) {
+      actors.push({ y:home.y + home.height, draw: () => house(ctx, home, cycle.isNight) });
+    }
     const field = state.battle?.mode === 'field' ? state.battle : null;
     if (field) dangerZones(ctx, field, time);
     const region = data.regions.find(entry => entry.id === map.region);
@@ -764,7 +816,9 @@
       const captives = { forest:['Tomás','Elara'], cave:['Borin'], fire:['Nilo'], castle:['Sera'], shadow:['Ivo','Maria Rita'] };
       actors.push({ y:153, draw: () => prison(ctx, 648, 153, time, !!state.world.cleared[map.region], captives[map.region]) });
     }
-    for (const npc of W.npcPositions(map.id, time, state.world)) actors.push({ y:npc.y, draw: () => hero(ctx, npc, time) });
+    for (const npc of W.npcPositions(map.id, time, state.world).filter(npc => !npc.indoors)) {
+      actors.push({ y:npc.y, draw: () => hero(ctx, npc, time) });
+    }
     for (const entry of state.players) {
       const p = { ...entry, ...positions.get(entry.id), self: entry.id === state.id };
       const action = field?.lastAction;
@@ -784,15 +838,18 @@
         actors.push({ y:ally.y, draw: () => hero(ctx, ally, time, { scale:1.75 }) });
       }
     }
-    if (map.id === 'village') {
-      const freed = state.world.rescued || (state.world.cleared.shadow ? ['Tomás','Elara','Borin','Nilo','Sera','Ivo'] : []);
-      for (const [i, name] of [...new Set(freed)].filter(name => name && name !== 'Maria Rita').entries()) {
-        const resident = { name, classKey:Object.keys(clothes)[i + 2], x:350 + i * 47, y:184 + i % 2 * 20, facing:'down' };
-        actors.push({ y:resident.y, draw: () => hero(ctx, resident, time, { scale:1.6 }) });
+    if (W.residentPositions) {
+      for (const resident of W.residentPositions(map.id, time, state.world).filter(resident => !resident.indoors)) {
+        actors.push({ y:resident.y, draw: () => hero(ctx, resident, time,
+          { scale:resident.classKey === 'princess' ? 2 : 1.6 }) });
       }
-      if (state.world.royalty?.rescued || state.world.cleared.shadow) {
-        const royal = { name:'Maria Rita', x:480, y:225, classKey:'princess' };
-        actors.push({ y:royal.y, draw: () => princess(ctx, royal, time, { scale:2 }) });
+    } else if (map.id === 'village') {
+      const freed = state.world.rescued || (state.world.cleared.shadow ? ['Tomás','Elara','Borin','Nilo','Sera','Ivo','Maria Rita'] : []);
+      for (const [i, name] of [...new Set(freed)].filter(Boolean).entries()) {
+        const resident = { name, classKey:name === 'Maria Rita' ? 'princess' : Object.keys(clothes)[i + 2],
+          x:350 + i * 47, y:184 + i % 2 * 20, facing:'down',
+          appearance:{ skin:['#8f573f','#dca17e','#bc805d','#724635'][i % 4] } };
+        actors.push({ y:resident.y, draw: () => hero(ctx, resident, time, { scale:1.6 }) });
       }
     }
     actors.sort((a, b) => a.y - b.y).forEach(actor => actor.draw());
@@ -801,8 +858,9 @@
       const y = (i * 58 + Math.sin(time / 1400 + i) * 11) % W.HEIGHT;
       rect(ctx, x, y, 2, 2, ['#eac576','#8ec3b2','#a69bc5'][i % 3] + (i % 2 ? 'a8' : '75'));
     }
-    const period = Math.floor(Math.max(0, time - state.world.epoch) / 22000) % 4;
-    if (period === 3 && map.kind !== 'dungeon' && ['village','forest'].includes(map.region)) {
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    flyingWildlife(ctx, map, cycle, reducedMotion);
+    if (cycle.isNight && map.kind !== 'dungeon' && ['village','forest'].includes(map.region)) {
       rect(ctx, 0, 0, W.WIDTH, W.HEIGHT, '#1e284d38');
     }
     ctx.restore();
@@ -1048,13 +1106,13 @@
     ctx.restore();
   }
 
-  function portrait(canvas, key, time = 0, equipment) {
+  function portrait(canvas, key, time = 0, equipment, appearance) {
     const ctx = canvas.getContext('2d');
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     if (key === 'lume') lume(ctx, canvas.width / 2, canvas.height * 0.69, time, true);
     else if (key === 'princess' || key === 'mariaRita') princess(ctx,
       { name:'Maria Rita', x:canvas.width / 2, y:canvas.height * 0.91 }, time, { nickname:false, scale:2.4 });
-    else hero(ctx, { x:canvas.width / 2, y:canvas.height * 0.83, classKey:key, equipment }, time, { nickname:false, scale:2.75 });
+    else hero(ctx, { x:canvas.width / 2, y:canvas.height * 0.83, classKey:key, equipment, appearance }, time, { nickname:false, scale:2.75 });
   }
 
   window.EldoriaPixel = { drawWorld, drawBattle, drawChapter, drawBossIntro, portrait, visiblePoint };

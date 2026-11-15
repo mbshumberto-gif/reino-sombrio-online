@@ -20,6 +20,12 @@ No mapa, jogadores próximos ao início do encontro participam; jogadores distan
 
 Cada chefe tem três fases, golpes anunciados e proteções que exigem decisões do grupo. Morvath usa maldições, totens sombrios e um eclipse arcano. Na arena, cada jogador escolhe sua ação na sua vez; defender, interromper e apoiar o grupo ajudam a enfrentar os golpes preparados. Todas as classes podem quebrar totens. A vinheta usa o relógio do servidor, não consome o tempo do primeiro turno e não permite ataques antecipados. A opção de reduzir movimento mantém a apresentação legível sem flashes.
 
+## Vida na Vila
+
+Mira, Eldrin e Nara têm pele negra e penteados próprios, preservando seus serviços e histórias. Maria Rita aparece com cabelos cacheados em seus retratos, no cativeiro e após o resgate. Os goblins usam um desenho verde próprio, com orelhas pontudas e adaga.
+
+As quatro casas da Vila e a casa de Lia no Pomar têm colisão e portas acessíveis. NPCs e moradores resgatados percorrem caminhos transitáveis ao entardecer e ficam dentro de casa durante a noite. As portas mantêm cura, loja e missões disponíveis; os moradores saem pela manhã. O relógio do servidor orienta essas rotinas, as janelas iluminadas e a troca de pássaros por morcegos nas áreas ao ar livre. A preferência por movimento reduzido diminui a animação dos animais.
+
 ## Persistência e limites desta entrega
 
 - Canteiros, alimentos, habilidades e equipamentos pertencem ao personagem. Resgates, guardiões e rota do barco pertencem à campanha; missões secundárias pertencem à participação do herói naquela campanha.

@@ -23,6 +23,8 @@ Converse com Lia sobre a primeira colheita. Depois de derrotar Morvath, o Bruxo 
 
 Para encontrar Lume, balance a macieira da Vila, colha a maçã após a queda e procure a luz no aqueduto do Pomar. A entrada do Pomar fica no lado leste da Floresta. Converse com Lia depois de libertar Lume. Aderic explica como procurar a relíquia, e a porta da masmorra fica no lado oeste da Floresta. As fogueiras restauram vida e mana e servem como ponto de retorno. A princesa Maria Rita, guardiã das memórias de Eldoria, aguarda o resgate no domínio de Malakar.
 
+A Vila tem quatro casas, e Lia mora no Pomar. Ao entardecer, NPCs e moradores resgatados caminham para suas casas; à noite, recolhem-se e as janelas ficam iluminadas. Interaja na porta para conversar, entregar missões, comprar equipamentos ou descansar. Pela manhã, eles voltam às atividades. O ciclo compartilhado dura 88 segundos. Pássaros cruzam as áreas ao ar livre durante o dia e o entardecer; à noite, aparecem morcegos. Mira, Eldrin e Nara são NPCs negros com aparências próprias, Maria Rita tem cabelos cacheados e os goblins têm pele verde e orelhas pontudas.
+
 ## Progresso persistente
 
 Configure `DATABASE_URL` com um PostgreSQL local ou já disponível. Para conexão local de desenvolvimento sem TLS, use `PGSSLMODE=disable`. Para acesso remoto ao jogo, sirva a aplicação por HTTPS e mantenha o PostgreSQL acessível apenas ao servidor. A aplicação verifica certificados em conexões TLS do banco. Instale a CA do servidor quando necessário.
