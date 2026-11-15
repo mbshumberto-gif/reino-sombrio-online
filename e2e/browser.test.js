@@ -26,7 +26,7 @@ async function launch(t, storage = createStorage(), options = {}) {
     try { await browser.close(); }
     finally { await game.close(); }
   });
-  return { browser, url:'http://127.0.0.1:' + port };
+  return { browser, storage, url:'http://127.0.0.1:' + port };
 }
 
 async function start(page, url, action = 'create') {
@@ -34,6 +34,11 @@ async function start(page, url, action = 'create') {
   await page.locator('#startAdventureBtn').click();
   await page.waitForFunction(() => document.querySelector('#heroClass').options.length === 10);
   await page.waitForFunction(() => document.querySelector('#entryStatus').textContent === 'Pronto para entrar.');
+  if (action === 'create') {
+    const summary = page.locator('#combatModeSummary');
+    assert.ok(await summary.isVisible() && /Exploração em tempo real.*Chefes por turnos/.test(await summary.textContent()), 'a entrada explica o combate híbrido');
+    assert.equal(await page.locator('select#combatMode').count(), 0, 'não exige escolher o modo de combate');
+  }
   await page.locator('#playerName').fill('Beto');
   await page.locator(action === 'create' ? '#createBtn' : '#continueSaveBtn').click();
   await page.waitForFunction(() => !document.querySelector('#game').classList.contains('hidden') &&
@@ -59,7 +64,7 @@ async function touch(page, session, dx, dy, milliseconds, ending = 'touchEnd') {
 }
 
 test('toque em retrato e paisagem, maçã e portal da Vila', { timeout:35000 }, async t => {
-  const { browser, url } = await launch(t);
+  const { browser, storage, url } = await launch(t);
   const context = await browser.newContext({ ...devices['Pixel 7'], viewport:{ width:360,height:800 } });
   const page = await context.newPage();
   page.setDefaultTimeout(6500);
@@ -67,6 +72,9 @@ test('toque em retrato e paisagem, maçã e portal da Vila', { timeout:35000 }, 
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
   await start(page, url);
+  const heroId = await page.evaluate(() => JSON.parse(localStorage.getItem('eldoriaIdentityV2')).id);
+  const hero = await storage.readHero(heroId);
+  assert.equal((await storage.readCampaign({ id:hero.data.homeCampaign })).data.combatMode, 'field');
   const cdp = await context.newCDPSession(page);
   await touch(page, cdp, -42, -19, 510, 'touchCancel');
   await page.getByText(/AÇÃO · Macieira da praça/).waitFor();

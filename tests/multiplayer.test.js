@@ -152,10 +152,19 @@ test('maçã cai, pode ser colhida uma vez e permanece na mochila em outra campa
   assert.equal(next.self.apples, 1);
 });
 
-test('servidor valida o trajeto, o turno e descarta a repetição de um golpe', async t => {
-  const f = await fixture(t, { turnMs:3000 });
+test('servidor valida o trajeto, o turno e descarta a repetição de um golpe em campanha antiga', async t => {
+  const storage = createStorage();
+  const hero = identity();
+  const campaign = newCampaign('A11CE9', hero.id);
+  const row = { id:hero.id, keyHash:digest(hero.key), revision:0,
+    data:{ ...makeHero(hero.name, hero.classKey), homeCampaign:campaign.id } };
+  // A campanha já salva sem combatMode representa o formato anterior aos encontros no mapa.
+  await storage.save({ campaign, players:[row], members:[makeMember(campaign, hero.id)] });
+  const f = await fixture(t, { storage, turnMs:3000 });
   const socket = await f.connect();
-  await enter(socket, 'create', identity());
+  const resumed = await enter(socket, 'continue', hero);
+  assert.equal(resumed.combatMode, 'turn');
+  assert.equal(Object.hasOwn((await storage.readCampaign({ id:campaign.id })).data, 'combatMode'), false);
   const start = socket.state.players[0];
   const ignored = event(socket, 'moved', () => true, 130).then(() => false, () => true);
   socket.emit('moveInput', { dx:40, dy:0, seq:1, zone:'village', x:900 });
