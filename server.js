@@ -39,7 +39,7 @@ const here = (room, zone) => 'map:' + room.id + ':' + zone;
 function createGame({ storage = createStorage({
   connectionString: process.env.DATABASE_URL,
   ssl: process.env.PGSSLMODE === 'disable' ? false : { rejectUnauthorized: true }
-}), graceMs = GRACE_MS, turnMs = 30000, actionMs = 700, logger = console } = {}) {
+}), graceMs = GRACE_MS, turnMs = 30000, actionMs = 700, bossIntroMs = 4500, logger = console } = {}) {
   const app = express();
   const httpServer = http.createServer(app);
   const io = new Server(httpServer, { maxHttpBufferSize: 16 * 1024 });
@@ -98,7 +98,7 @@ function createGame({ storage = createStorage({
   function stateFor(room, entry, now) {
     const member = entry.member.data;
     const encounter = room.battles.get(member.zone);
-    const battle = encounter?.mode === 'field' && !encounter.heroes.includes(entry.id) ? null : encounter;
+    const battle = encounter?.heroes.includes(entry.id) ? encounter : null;
     const people = [...room.players.values()];
     const heroes = people.map(player => ({
       id: player.id, name: player.data.name, classKey: player.data.classKey,
@@ -356,19 +356,33 @@ function createGame({ storage = createStorage({
       if (target.kind === 'enemy' && defeated.includes(target.enemyIndex)) return;
       enemy = target.kind === 'boss' ? region.boss : region.enemies[target.enemyIndex];
     }
-    const inField = room.data.combatMode === 'field' || map.kind === 'voyage';
+    const boss = target.kind === 'boss' || target.kind === 'voyageBoss' || target.kind === 'dungeonEnemy' && map.dungeonIndex === 3;
+    const inField = !boss && (room.data.combatMode === 'field' || map.kind === 'voyage');
     const origin = room.mobs.get(zone)?.[target.id] || target;
     const group = [...room.players.values()].filter(player => player.socketId && player.data.hp > 0 && player.member.data.zone === zone
-      && (!inField || World.distance(player.member.data, origin) <= 280));
+      && ((!inField && !boss) || World.distance(player.member.data, origin) <= 280));
     if (!group.length) return;
     for (const player of group) player.battleBaseline = structuredClone(player.data);
     const encounterTarget = {
       kind: target.kind, region: map.region, index: target.enemyIndex ?? map.dungeonIndex,
-      pointId:target.id, boss: target.kind === 'boss' || target.kind === 'voyageBoss' || target.kind === 'dungeonEnemy' && map.dungeonIndex === 3
+      pointId:target.id, boss
     };
     const battle = inField ? Field.start(zone, encounterTarget, enemy, group, origin, Date.now())
       : Combat.startBattle(zone, encounterTarget, enemy, group);
-    battle.expires = Date.now() + turnMs;
+    if (!inField) battle.mode = 'turn';
+    if (boss) {
+      const startedAt = Date.now();
+      const duration = Number.isFinite(bossIntroMs) ? Math.max(0, Math.min(10000, bossIntroMs)) : 4500;
+      const text = target.kind === 'boss' && map.region === 'forest'
+        ? 'O bruxo ergue seu cajado. As sombras cercam os moradores aprisionados. Quebre o selo da Floresta!'
+        : target.kind === 'boss' && map.region === 'shadow'
+          ? 'Malakar aprisionou a princesa Maria Rita e as últimas memórias de Eldoria. Reúna o grupo e liberte o reino!'
+          : enemy.name + ' bloqueia o caminho. Prepare o grupo para quebrar o selo e libertar os prisioneiros.';
+      battle.intro = { id:battle.id, title:enemy.name, caption:map.id === 'island' ? 'ILHA DAS RAÍZES' : region.name.toUpperCase(),
+        text, startedAt, endsAt:startedAt + duration };
+      battle.introEnded = duration === 0;
+    }
+    battle.expires = (battle.intro?.endsAt || Date.now()) + turnMs;
     room.battles.set(zone, battle);
   }
 
@@ -697,6 +711,7 @@ function createGame({ storage = createStorage({
   function battleAction(room, entry, payload, send, timeout = false) {
     const zone = entry.member.data.zone;
     const battle = room.battles.get(zone);
+    if (battle?.intro?.endsAt > Date.now()) throw fail('A apresentação do guardião ainda está em andamento. Prepare sua estratégia.');
     if (!battle || battle.mode === 'field' || battle.resolveAt || !battle.active || (!timeout && (payload.id !== battle.id || payload.turn !== battle.turn))) {
       throw fail('O turno mudou. Aguarde a próxima ação.');
     }
@@ -968,6 +983,13 @@ function createGame({ storage = createStorage({
 
   function settleTimeouts(room, now) {
     for (const battle of room.battles.values()) {
+      if (battle.intro && !battle.introEnded) {
+        if (now >= battle.intro.endsAt) queue(room, () => change(room, () => {
+          const current = room.battles.get(battle.zone);
+          if (current?.id === battle.id) current.introEnded = true;
+        })).catch(error => logger.error(error));
+        continue;
+      }
       if (battle.mode === 'field') {
         queue(room, () => change(room, send => {
           if (room.battles.get(battle.zone)?.id !== battle.id) return;
@@ -1029,7 +1051,7 @@ function createGame({ storage = createStorage({
       const group = battle.heroes.map(id => room.players.get(id)).filter(Boolean);
       Combat.skip(battle, entry.id, group);
       if (!battle.active) battle.resolveAt = Date.now() + actionMs;
-      else battle.expires = Date.now() + turnMs;
+      else battle.expires = Math.max(Date.now(), battle.intro?.endsAt || 0) + turnMs;
       for (const survivor of group) send(survivor, 'notice', entry.data.name + ' saiu do combate.');
     }
     battle.order = battle.order.filter(id => id !== entry.id);

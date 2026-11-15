@@ -33,7 +33,7 @@ function event(socket, name, condition = () => true, duration = 3500) {
 }
 
 async function fixture(t, options = {}) {
-  const game = createGame({ storage:createStorage(), graceMs:230, ...options, logger:{ error() {} } });
+  const game = createGame({ storage:createStorage(), graceMs:230, bossIntroMs:0, ...options, logger:{ error() {} } });
   const { port } = await game.listen(0, '127.0.0.1');
   const url = 'http://127.0.0.1:' + port;
   const clients = [];

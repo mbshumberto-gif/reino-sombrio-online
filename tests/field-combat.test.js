@@ -194,7 +194,7 @@ function regional(region, phase = 3) {
   return { hero, encounter };
 }
 
-test('os totens do Ent regeneram seiva em pulsos limitados à segunda fase', () => {
+test('o motor de campo mantém pulsos de regeneração de totens limitados à segunda fase', () => {
   const { hero, encounter } = regional('forest', 2);
   encounter.hp = 120;
   encounter.totems = [{ id:'seed', x:500, y:250, hp:2 }];

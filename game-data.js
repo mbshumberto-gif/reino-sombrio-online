@@ -29,7 +29,7 @@ const EQUIPMENT = {
 };
 
 const REGIONS = [
-  {id:'forest',name:'Floresta Amaldiçoada',level:1,unlock:null,description:'Árvores antigas, lobos sombrios e ruínas élficas.',enemies:[{name:'Lobo sombrio',hp:38,atk:9,xp:25,gold:12},{name:'Goblin ladrão',hp:48,atk:11,xp:30,gold:16},{name:'Aranha gigante',hp:44,atk:12,xp:35,gold:18},{name:'Corvo carniceiro',hp:55,atk:14,xp:38,gold:21},{name:'Javali das raízes',hp:78,atk:16,xp:48,gold:28}],boss:{name:'Ent Corrompido',hp:150,atk:17,xp:140,gold:85}},
+  {id:'forest',name:'Floresta Amaldiçoada',level:1,unlock:null,description:'Morvath amaldiçoou as trilhas e aprisionou as primeiras memórias de Eldoria.',enemies:[{name:'Lobo sombrio',hp:38,atk:9,xp:25,gold:12},{name:'Goblin ladrão',hp:48,atk:11,xp:30,gold:16},{name:'Aranha gigante',hp:44,atk:12,xp:35,gold:18},{name:'Corvo carniceiro',hp:55,atk:14,xp:38,gold:21},{name:'Javali das raízes',hp:78,atk:16,xp:48,gold:28}],boss:{name:'Morvath, o Bruxo das Sombras',hp:150,atk:17,xp:140,gold:85}},
   {id:'cave',name:'Caverna dos Ecos',level:3,unlock:'forest',description:'Galerias subterrâneas tomadas por orcs e mortos-vivos.',enemies:[{name:'Orc guerreiro',hp:68,atk:15,xp:40,gold:25},{name:'Esqueleto amaldiçoado',hp:58,atk:17,xp:45,gold:28},{name:'Troll da caverna',hp:88,atk:13,xp:50,gold:35},{name:'Morcego de cristal',hp:82,atk:20,xp:55,gold:36},{name:'Xamã subterrâneo',hp:112,atk:24,xp:70,gold:48}],boss:{name:'Troll Rei das Profundezas',hp:230,atk:23,xp:190,gold:130}},
   {id:'fire',name:'Terras do Fogo',level:6,unlock:'cave',description:'Campos vulcânicos guardados por criaturas ígneas.',enemies:[{name:'Salamandra ígnea',hp:100,atk:21,xp:70,gold:45},{name:'Cultista das chamas',hp:90,atk:24,xp:75,gold:50},{name:'Golem de magma',hp:140,atk:19,xp:85,gold:60},{name:'Escorpião de lava',hp:130,atk:28,xp:88,gold:58},{name:'Harpia das cinzas',hp:150,atk:31,xp:105,gold:72}],boss:{name:'Draco de Brasas',hp:350,atk:32,xp:300,gold:220}},
   {id:'castle',name:'Castelo dos Condenados',level:9,unlock:'fire',description:'Fortaleza em ruínas, lar dos generais de Malakar.',enemies:[{name:'Cavaleiro condenado',hp:145,atk:27,xp:100,gold:70},{name:'Necromante real',hp:120,atk:31,xp:110,gold:75},{name:'Abominação',hp:180,atk:25,xp:120,gold:85},{name:'Cão espectral',hp:180,atk:34,xp:125,gold:86},{name:'Carrasco de Vharok',hp:225,atk:38,xp:145,gold:105}],boss:{name:'General Vharok',hp:470,atk:40,xp:440,gold:310}},
@@ -41,10 +41,10 @@ const QUESTS = [
   {id:'q_cave',title:'Ecos sob a montanha',description:'Derrote o guardião da Caverna dos Ecos.',region:'cave',goal:1,reward:{xp:100,gold:60}},
   {id:'q_fire',title:'Coração em brasa',description:'Atravesse as Terras do Fogo e derrote o Draco de Brasas.',region:'fire',goal:1,reward:{xp:180,gold:100}},
   {id:'q_castle',title:'A queda do general',description:'Conquiste o Castelo dos Condenados.',region:'castle',goal:1,reward:{xp:260,gold:160}},
-  {id:'q_final',title:'O fim da escuridão',description:'Entre no Reino Sombrio e derrote Malakar.',region:'shadow',goal:1,reward:{xp:500,gold:350}}
+  {id:'q_final',title:'O fim da escuridão',description:'Reúna os fragmentos, derrote Malakar e liberte a princesa Maria Rita e os últimos moradores.',region:'shadow',goal:1,reward:{xp:500,gold:350}}
 ];
 
-// Curva de dificuldade de campanha: mais criaturas, inimigos resistentes e chefes em duas etapas.
+// Curva de dificuldade de campanha: criaturas resistentes e chefes em três fases.
 for (const region of REGIONS) {
   for (const enemy of region.enemies) { enemy.hp = Math.ceil(enemy.hp * 1.42); enemy.atk = Math.ceil(enemy.atk * 1.28); }
   region.boss.hp = Math.ceil(region.boss.hp * 1.42); region.boss.atk = Math.ceil(region.boss.atk * 1.30);

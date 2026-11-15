@@ -2,7 +2,7 @@
 
 RPG top-down cooperativo para até oito aventureiros por campanha. Explore Eldoria, encontre Lume no Pomar dos Sussurros e enfrente Malakar para trazer o povo de volta à Vila.
 
-A expansão **Raízes do Recomeço** acrescenta a Druida (dez classes), uma horta pessoal, combate em tempo real no próprio mapa e uma expedição de barco até a Ilha das Raízes. Veja [o roteiro da expansão](EXPANSAO.md).
+A expansão **Raízes do Recomeço** acrescenta a Druida (dez classes), uma horta pessoal, combate comum no próprio mapa, chefes em arenas por turnos e uma expedição de barco até a Ilha das Raízes. Veja [o roteiro da expansão](EXPANSAO.md).
 
 ## Jogar localmente
 
@@ -15,13 +15,13 @@ npm start
 
 Abra [http://localhost:3000](http://localhost:3000). Uma pessoa cria a aventura e envia o código de seis caracteres ao grupo. Na mesma rede, os amigos abrem o endereço do computador que executa o servidor. O jogo funciona em desktop e por toque. WASD ou setas movem o herói. E interage, e Espaço ataca durante o combate.
 
-Ao criar uma aventura, escolha **Na própria tela** (padrão) ou **Por turnos**. Campanhas já salvas conservam o combate por turnos. Em tempo real, mova-se para sair dos círculos antes do impacto; Espaço ataca, Q usa a habilidade, R usa a técnica, F defende e T quebra o totem mais próximo. No celular, o analógico permanece ativo e AÇÃO vira ATACAR; os outros golpes têm botões próprios.
+Ao criar uma aventura, escolha exploração em tempo real (padrão) ou por turnos. Campanhas já salvas conservam sua opção para os inimigos comuns. Todos os chefes — inclusive os guardiões das dungeons e da ilha — têm uma vinheta sincronizada de apresentação e uma arena por turnos. O primeiro turno só começa depois da vinheta; atualizar a página retoma a mesma apresentação e a mesma luta. Nos combates comuns em tempo real, mova-se para sair dos círculos antes do impacto; Espaço ataca, Q usa a habilidade, R usa a técnica, F defende e T quebra o totem mais próximo. No celular, o analógico permanece ativo e AÇÃO vira ATACAR; os outros golpes têm botões próprios.
 
 No Pomar, os quatro canteiros ao sul pertencem ao seu personagem. Sementes custam ouro; melancia, abóbora, cenoura e milho crescem pelo relógio do servidor, mesmo offline. Regar acelera uma vez. Colha e use os alimentos na mochila fora do combate. A Druida cultiva 15% mais rápido. A plantação e os alimentos acompanham o herói entre campanhas e são duráveis quando PostgreSQL está configurado.
 
-Converse com Lia sobre a primeira colheita. Depois de derrotar o Ent, aceite **Vozes além da margem** e embarque a leste do Pomar. Proteja o convés contra dois saqueadores para alcançar a ilha. A travessia usa combate no mapa em qualquer campanha. Derrote o Carcereiro das Raízes para libertar Marina e Caio. Cada guardião principal devolve um fragmento da Lanterna e liberta moradores que aparecem na Vila; o diário acompanha o resgate.
+Converse com Lia sobre a primeira colheita. Depois de derrotar Morvath, o Bruxo das Sombras, aceite **Vozes além da margem** e embarque a leste do Pomar. Proteja o convés contra dois saqueadores para alcançar a ilha. Os inimigos comuns do convés usam combate no mapa em qualquer campanha; o chefe da ilha entra em arena por turnos. Derrote o Carcereiro das Raízes para libertar Marina e Caio. Cada guardião principal devolve um fragmento da Lanterna e liberta moradores que aparecem na Vila; o diário acompanha o resgate.
 
-Para encontrar Lume, balance a macieira da Vila, colha a maçã após a queda e procure a luz no aqueduto do Pomar. A entrada do Pomar fica no lado leste da Floresta. Converse com Lia depois de libertar Lume. Aderic explica como procurar a relíquia, e a porta da masmorra fica no lado oeste da Floresta. As fogueiras restauram vida e mana e servem como ponto de retorno.
+Para encontrar Lume, balance a macieira da Vila, colha a maçã após a queda e procure a luz no aqueduto do Pomar. A entrada do Pomar fica no lado leste da Floresta. Converse com Lia depois de libertar Lume. Aderic explica como procurar a relíquia, e a porta da masmorra fica no lado oeste da Floresta. As fogueiras restauram vida e mana e servem como ponto de retorno. A princesa Maria Rita, guardiã das memórias de Eldoria, aguarda o resgate no domínio de Malakar.
 
 ## Progresso persistente
 

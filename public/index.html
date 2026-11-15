@@ -5,11 +5,11 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#182131">
   <title>As Crônicas do Reino Sombrio</title>
-  <link rel="stylesheet" href="/style.css?v=17">
+  <link rel="stylesheet" href="/style.css?v=18">
   <script defer src="/socket.io/socket.io.js"></script>
   <script defer src="/world-data.js?v=4"></script>
-  <script defer src="/pixel.js?v=5"></script>
-  <script defer src="/game.js?v=19"></script>
+  <script defer src="/pixel.js?v=6"></script>
+  <script defer src="/game.js?v=20"></script>
 </head>
 <body>
   <main class="shell">
@@ -33,10 +33,10 @@
         <p id="classRole" class="muted"></p>
         <label for="combatMode">Combate da nova aventura</label>
         <select id="combatMode" name="combatMode">
-          <option value="field">Na própria tela · tempo real</option>
+          <option value="field">Exploração em tempo real · chefes por turnos</option>
           <option value="turn">Por turnos · arena clássica</option>
         </select>
-        <p class="muted entry-help">Continuar ou entrar em uma sala mantém o modo daquela aventura.</p>
+        <p class="muted entry-help">Chefes se revelam em uma cena e enfrentam o grupo na arena por turnos. Continuar mantém o modo da aventura.</p>
         <div class="button-row">
           <button id="createBtn" class="primary" type="submit">Criar aventura</button>
           <button id="continueSaveBtn" type="button">Continuar aventura</button>
@@ -163,6 +163,14 @@
     <form method="dialog"><button class="close-dialog" type="submit" aria-label="Fechar janela">×</button></form>
     <h2 id="worldDialogTitle"></h2>
     <div id="worldDialogBody"></div>
+  </dialog>
+  <dialog id="bossIntro" class="boss-intro" aria-labelledby="bossIntroTitle" aria-describedby="bossIntroText" tabindex="-1">
+    <p id="bossIntroCaption" class="subtitle"></p>
+    <h2 id="bossIntroTitle"></h2>
+    <canvas id="bossIntroCanvas" width="640" height="280" aria-label="O guardião se revela diante do grupo"></canvas>
+    <p id="bossIntroText"></p>
+    <progress id="bossIntroProgress" max="4500" value="0" aria-label="Preparação da arena"></progress>
+    <p id="bossIntroStatus" role="status">O guardião se aproxima…</p>
   </dialog>
   <dialog id="transitionScreen" aria-labelledby="transitionTitle" aria-describedby="transitionMessage">
     <canvas id="endingStage" class="ending-art" width="520" height="164" aria-hidden="true"></canvas>
