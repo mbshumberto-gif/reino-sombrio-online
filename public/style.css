@@ -96,6 +96,12 @@ canvas{image-rendering:pixelated;display:block}
 #battleSceneCanvas{width:100%;height:auto}
 .enemy-hud{position:absolute;top:3%;right:2%;width:40%;padding:5px 7px;background:#192437ed;border:1px solid #b38976;font-size:17px}
 .enemy-hud h2{font-size:clamp(7px,1.4vw,12px);margin:3px 0}
+.battle .arena{display:flex;flex-direction:column}
+.battle .enemy-hud{position:static;order:-1;width:auto;display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:4px 10px;padding:8px 10px;border:0;border-bottom:1px solid #b38976}
+.battle #enemyPhase{grid-column:1/-1}
+.battle .enemy-hud h2{grid-column:1;grid-row:2}
+.battle #enemyHp{grid-column:2;grid-row:2;white-space:nowrap}
+.battle .enemy-hud .meter{grid-column:1/-1;grid-row:3;margin:2px 0}
 .enemy-hud .meter{margin:4px 0}
 #enemyPhase{color:#f2cc91}
 .battle-actions{display:grid;grid-template-columns:repeat(auto-fit,minmax(124px,1fr));gap:7px}
