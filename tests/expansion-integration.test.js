@@ -325,3 +325,48 @@ test('derrotar o Ent nas três fases persiste o fragmento, os resgates e a recom
   await send(resumed, 'fieldAction', { id:battleId, action:'attack' }, 'errorMessage');
   assert.equal((await storage.readHero(hero.id)).data.gold, savedHero.data.gold);
 });
+
+test('retomar com a chave correta substitui uma conexão ainda aberta sem duplicar o herói ou perder a luta', async t => {
+  const storage = createStorage();
+  const hero = await seed(storage, { name:'Retomada', zone:'forest', x:228, y:270,
+    heroData:{ baseDefense:1000 }, campaignData:{ combatMode:'field' } });
+  const f = await launch(t, storage);
+  const original = await f.connect();
+  await enter(original, hero);
+  const engaged = original.state.battle ? original.state
+    : await incoming(original, 'state', state => state.battle?.mode === 'field');
+
+  const invalidKey = await f.connect();
+  await send(invalidKey, 'adventure', { action:'resume', id:hero.id, key:randomBytes(32).toString('hex'),
+    campaignId:hero.campaign.id }, 'errorMessage');
+  assert.equal(original.connected, true, 'Uma chave inválida não pode substituir a conexão.');
+  const wrongCampaign = await f.connect();
+  await send(wrongCampaign, 'adventure', { action:'resume', id:hero.id, key:hero.key,
+    campaignId:randomBytes(16).toString('hex') }, 'errorMessage');
+  assert.equal(original.connected, true, 'O retorno deve se limitar à mesma campanha.');
+  const otherAction = await f.connect();
+  await send(otherAction, 'adventure', { action:'continue', id:hero.id, key:hero.key }, 'errorMessage');
+  assert.equal(original.connected, true, 'Continuar outra entrada não deve tomar uma sessão ativa.');
+
+  const replacement = incoming(original, 'sessionReplaced');
+  const disconnected = incoming(original, 'disconnect');
+  const resumed = await f.connect();
+  const [state] = await Promise.all([enter(resumed, hero, 'resume'), replacement, disconnected]);
+  assert.equal(original.connected, false);
+  assert.equal(resumed.connected, true);
+  assert.equal(state.id, hero.id);
+  assert.equal(state.battle.id, engaged.battle.id);
+  assert.equal(state.heroes.length, 1);
+  assert.equal(state.players.length, 1);
+  assert.deepEqual(state.battle.heroes, [hero.id]);
+  assert.equal(state.heroes[0].online, true, 'A desconexão antiga não pode marcar a nova conexão como ausente.');
+
+  const start = state.players[0];
+  const moved = await send(resumed, 'moveInput', { zone:'forest', dx:1, dy:0, seq:1 }, 'moved',
+    packet => packet.id === hero.id && packet.seq === 1);
+  assert.ok(moved.x > start.x);
+  await send(resumed, 'fieldAction', { id:state.battle.id, action:'defend' }, 'state',
+    update => update.battle?.lastAction?.side === 'party' && update.battle.lastAction.heroId === hero.id
+      && update.battle.lastAction.action === 'defend');
+  assert.equal(resumed.state.battle.id, engaged.battle.id);
+});

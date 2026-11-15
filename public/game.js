@@ -39,6 +39,7 @@
   let data;
   let state;
   let connectionPending = null;
+  let sessionReplaced = false;
   let activeRoom = null;
   let conversation = null;
   let currentPuzzle = null;
@@ -695,6 +696,7 @@
   });
 
   socket.on('joined', room => {
+    sessionReplaced = false;
     rememberRoom(room);
     connectionPending = null;
     inputId = 0;
@@ -718,10 +720,29 @@
     displayEntry();
   });
 
+  socket.on('sessionReplaced', () => {
+    sessionReplaced = true;
+    connectionPending = null;
+    // Another tab owns the same browser storage. Keep its saved room intact.
+    activeRoom = null;
+    closeDialogue();
+    if ($('worldDialog').open) $('worldDialog').close();
+    if ($('transitionScreen').open) $('transitionScreen').close();
+    cutscene = null;
+    state = null;
+    positions.clear();
+    pending.length = 0;
+    resetMovement();
+    show('game', false);
+    displayEntry();
+    text('entryStatus', 'Seu personagem foi retomado em outra aba. Recarregue esta página para voltar por aqui.');
+  });
+
   socket.on('disconnect', () => {
     connectionPending = null;
     resetMovement();
     updateGardenClock(worldTime());
+    if (sessionReplaced) return;
     if (state) {
       text('connectionStatus', 'Conexão interrompida · tentando retomar a mesma sala…');
       $('saveGameBtn').disabled = true;
