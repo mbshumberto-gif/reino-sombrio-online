@@ -407,7 +407,8 @@
     const main = document.createElement('details');
     main.className = 'entry-line';
     const map = World.zone(state.zone);
-    const description = map.kind === 'dungeon' ? data.dungeons[map.region]?.[map.dungeonIndex]?.description : data.lore[map.region];
+    const description = map.id === 'royal-castle' ? 'O castelinho de Eldoria voltou a abrir depois do resgate de Maria Rita. O salão guarda as memórias da princesa e das famílias que retornaram ao reino.'
+      : map.kind === 'dungeon' ? data.dungeons[map.region]?.[map.dungeonIndex]?.description : data.lore[map.region];
     main.append(paragraph('Crônicas de Eldoria', 'summary'), paragraph(description || '', 'small'),
       ...state.world.quests.map(quest => paragraph((quest.completed ? '✓ ' : '◇ ') + quest.title, 'small')));
     const lume = state.self.companions.lume ? [] : [paragraph('Encontre Lume, o espírito do pomar'), paragraph(lumeHint(), 'small')];
@@ -421,12 +422,15 @@
     if (fragments.length) rescue.append(document.createTextNode(' · ' + fragments.map(fragment => fragment.name).join(', ')));
     const echoQuest = state.self.companions.liaEcho?.needsRescue ? [paragraph('Resgate um novo Eco de Lia', 'summary'),
       paragraph('A Lia original aguarda no Pomar. Liberte o clone no broto luminoso ao sul, perto do Memorial dos Ecos.', 'small')] : [];
-    $('questList').replaceChildren(main, rescue, ...guard, ...lume, ...echoQuest, ...quests);
+    const royalStatus = ['village','royal-castle'].includes(map.id) ? [paragraph(state.world.royalty?.rescued
+      ? 'Castelinho de Maria Rita · Portões abertos na Vila.' : 'Castelinho fechado · Resgate a princesa Maria Rita para abrir os portões.', 'small')] : [];
+    $('questList').replaceChildren(main, rescue, ...royalStatus, ...guard, ...lume, ...echoQuest, ...quests);
     const routes = map.points.filter(p => p.kind === 'portal').map(p => {
       const blocked = p.shortcut && !state.world.orchardOpen || p.requires && !state.world.cleared[p.requires]
         || p.requiresVoyage === 'deck' && !['deck-raider-0', 'deck-raider-1'].every(id => state.world.voyage?.defeated?.includes(id))
         || p.requiresRoom !== undefined && !state.world.rooms[map.region]?.includes(p.requiresRoom);
-      return paragraph((blocked ? '◇ ' : '→ ') + p.label + (blocked ? ' · Fechado' : ''), 'small');
+      return paragraph((blocked ? '◇ ' : '→ ') + p.label + (p.royal
+        ? blocked ? ' · Resgate Maria Rita' : ' · Aberto' : blocked ? ' · Fechado' : ''), 'small');
     });
     $('routeList').replaceChildren(paragraph('Rotas nesta área'), ...routes);
   }
@@ -1014,11 +1018,12 @@
     }
     if (!focusable()) return;
     const { point, npc } = findInteraction(now);
-    const id = point?.id;
+    const id = point?.royal ? point.id + ':' + !!state.world.royalty?.rescued : point?.id;
     if (interaction !== id) {
       interaction = id;
       const touch = window.matchMedia('(any-pointer: coarse)').matches;
-      text('nearbyPrompt', point ? (touch ? 'AÇÃO · ' : 'E · ') + point.label
+      const label = point?.royal ? state.world.royalty?.rescued ? 'Entrar no castelinho de Maria Rita' : 'Castelinho fechado · Resgate Maria Rita' : point?.label;
+      text('nearbyPrompt', point ? (touch ? 'AÇÃO · ' : 'E · ') + label
         : touch ? 'Explore Eldoria' : 'WASD ou setas para andar · E para interagir');
     }
     if (!npc) lastAutoNpc = null;

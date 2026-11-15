@@ -204,6 +204,17 @@ function createGame({ storage = createStorage({
     throw fail('Não foi possível gerar um convite. Tente novamente.');
   }
 
+  function restoreRoyalAccess(member, world) {
+    if (world.cleared?.shadow === true) return false;
+    const inside = member.zone === 'royal-castle';
+    const checkpoint = member.checkpoint?.zone === 'royal-castle';
+    if (!inside && !checkpoint) return false;
+    const position = World.safePosition('village', 480, 458);
+    if (inside) Object.assign(member, { zone:'village', ...position, facing:'down' });
+    member.checkpoint = { zone:'village', ...position };
+    return true;
+  }
+
   async function enter(socket, event, payload) {
     if (stopping) throw fail('O servidor está reiniciando.');
     if (socket.data.heroId) throw fail('Você já está em uma aventura.');
@@ -219,9 +230,13 @@ function createGame({ storage = createStorage({
       if ((entry.socketId && !canResume) || !(canResume || canContinue || canJoin)) {
         throw fail('Esse herói tem uma sessão aberta. Retome a mesma aventura para continuar.');
       }
-      return queue(active, () => {
+      return queue(active, async () => {
         if (!socket.connected) return;
         if (active.players.get(id) !== entry) throw fail('A sessão expirou. Entre na aventura novamente.');
+        if (active.data.cleared?.shadow !== true && (entry.member.data.zone === 'royal-castle' || entry.member.data.checkpoint?.zone === 'royal-castle')) {
+          await change(active, () => restoreRoyalAccess(entry.member.data, active.data), { announce:false });
+          if (!socket.connected) return;
+        }
         const previousSocket = io.sockets.sockets.get(entry.socketId);
         rememberSocket(active, entry, socket);
         if (previousSocket && previousSocket.id !== socket.id) {
@@ -245,6 +260,7 @@ function createGame({ storage = createStorage({
     if (legacy?.campaign) {
       importedRoom = Story.newCampaign(await reserveCode(), id, legacy.campaign);
       importedMember = Story.makeMember(importedRoom, id, legacy);
+      restoreRoyalAccess(importedMember.data, importedRoom.data);
       hero.data.homeCampaign = importedRoom.id;
     }
     if (event === 'create' || (event === 'continue' && importedRoom)) {
@@ -273,6 +289,7 @@ function createGame({ storage = createStorage({
         ? importedMember : await storage.readMember(room.id, id);
       if (event === 'resume' && !savedMember) throw fail('A sala precisa de um convite para este personagem.');
       const member = savedMember || Story.makeMember(room, id);
+      const restoredRoyalAccess = restoreRoyalAccess(member.data, room.data);
       if (member.revision) Object.assign(member.data, World.safePosition(member.data.zone, member.data.x, member.data.y));
       const needsRevive = !hero.data.hp;
       if (needsRevive) {
@@ -285,9 +302,9 @@ function createGame({ storage = createStorage({
       if (importedRoom && importedRoom !== newRoom) {
         await storage.save({ campaign: importedRoom, players: [hero], members: [importedMember] });
       }
-      if (newRoom || !member.revision || saveHero) {
+      if (newRoom || !member.revision || saveHero || restoredRoyalAccess) {
         await storage.save({ campaign: newRoom ? room : null, players: saveHero && (!importedRoom || importedRoom === newRoom) ? [hero] : [],
-          members: !member.revision ? [member] : [] });
+          members: !member.revision || restoredRoyalAccess ? [member] : [] });
       }
       if (!socket.connected) return;
       if (newRoom) {
@@ -408,6 +425,9 @@ function createGame({ storage = createStorage({
     const member = entry.member.data;
     const map = World.zone(member.zone);
     const world = room.data;
+    if ((portal.royal || portal.to === 'royal-castle') && world.cleared?.shadow !== true) {
+      throw fail('O castelinho só abre depois do resgate da princesa Maria Rita.');
+    }
     if (portal.requires && !world.cleared[portal.requires]) throw fail('O guardião ainda protege essa passagem.');
     if (portal.requiresVoyage === 'deck' && !['deck-raider-0', 'deck-raider-1'].every(id => world.voyage?.defeated?.includes(id))) throw fail('Derrote os dois saqueadores no convés para alcançar a ilha.');
     if (portal.shortcut && !world.orchardOpen) throw fail('A passagem está selada. Procure a origem da luz no pomar.');
@@ -494,6 +514,16 @@ function createGame({ storage = createStorage({
     const position = room.mobs.get(member.zone)?.[point.id] || point;
     const range = point.kind === 'portal' ? 69 : 64;
     if (World.distance(member, position) > range) throw fail('Chegue mais perto.');
+    if (point.kind === 'royalMemory') {
+      if (room.data.cleared?.shadow !== true) throw fail('O castelinho só abre depois do resgate da princesa Maria Rita.');
+      const rescued = Story.publicCampaign(room.data).rescued;
+      send(entry, 'dialogue', { title:'Memórias de Maria Rita', portrait:'princess', lines:[
+        'Seja bem-vindo ao nosso castelinho. Sou Maria Rita. Cada história recuperada nos ajuda a reunir Eldoria outra vez.',
+        'Este livro preserva os nomes de quem voltou para casa: ' + rescued.join(', ') + '.',
+        'As portas ficam abertas para os aventureiros que quebraram os selos. Que este lugar guarde nossas memórias e os reencontros que ainda virão.'
+      ], options:[] });
+      return;
+    }
     if (point.kind === 'liaRescue') {
       const echo = Lia.rescue(entry.data);
       send(entry, 'dialogue', { title:'Lia · novo clone', portrait:'liaEcho', appearance:World.NPCS.lia.appearance,
@@ -807,7 +837,9 @@ function createGame({ storage = createStorage({
         player.data.hp = Math.ceil(player.data.maxHp * 0.55);
         player.data.mana = Math.ceil(player.data.maxMana * 0.55);
         const checkpoint = player.member.data.checkpoint;
-        if (['surface', 'branch', 'voyage'].includes(World.zone(checkpoint?.zone).kind) && World.canStand(checkpoint.zone, checkpoint.x, checkpoint.y)) {
+        const validCheckpoint = checkpoint && (checkpoint.zone === 'royal-castle'
+          ? world.cleared?.shadow === true : ['surface', 'branch', 'voyage'].includes(World.zone(checkpoint.zone).kind));
+        if (validCheckpoint && World.canStand(checkpoint.zone, checkpoint.x, checkpoint.y)) {
           teleport(player, checkpoint.zone, [checkpoint.x, checkpoint.y]);
         } else teleport(player, 'village', [480 + (i % 4) * 23, 451 + Math.floor(i / 4) * 22]);
       } else if (kind === 'boss' && won) {

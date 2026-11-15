@@ -136,6 +136,108 @@
     label(ctx, home.label, x + width / 2, y + roofHeight - 11, '#ead6b3');
   }
 
+  function royalCastle(ctx, castle, state, night) {
+    const { x, y, width, height, door } = castle;
+    const open = !!state.world.cleared.shadow;
+    const bottom = y + height;
+    rect(ctx, x + 4, bottom - 5, width - 8, 9, '#52635b');
+    rect(ctx, x + 38, y + 26, width - 76, height - 26, '#b3b6b0');
+    for (let row = 0; row < 5; row++) {
+      const yy = y + 30 + row * 13;
+      rect(ctx, x + 43, yy, width - 86, 2, '#8e9695');
+      for (let xx = x + 52 + row % 2 * 14; xx < x + width - 42; xx += 29) rect(ctx, xx, yy + 2, 2, 11, '#929b96');
+    }
+    for (const xx of [x, x + width - 48]) {
+      rect(ctx, xx + 2, y + 10, 44, height - 10, '#8a9698');
+      rect(ctx, xx + 6, y + 12, 36, height - 14, '#c7c9bd');
+      rect(ctx, xx + 7, y + 12, 5, height - 17, '#e2dcc5');
+      for (let row = 1; row < 7; row++) {
+        const yy = y + 13 + row * 11;
+        rect(ctx, xx + 5, yy, 38, 2, '#9da5a2');
+        rect(ctx, xx + 17 + row % 2 * 9, yy + 2, 2, 9, '#adb4ac');
+      }
+      rect(ctx, xx, y + 9, 48, 7, '#e0d9c5');
+      for (const tooth of [0,16,32]) {
+        rect(ctx, xx + tooth, y, 12, 12, '#d9d5c4');
+        rect(ctx, xx + tooth, y, 12, 3, '#ede3c9');
+      }
+      rect(ctx, xx + 18, y + 24, 12, 22, '#4c5365');
+      rect(ctx, xx + 20, y + 27, 8, 16, night || open ? '#f2c98a' : '#8fa5af');
+      rect(ctx, xx + 23, y + 27, 2, 17, '#6e747b');
+      rect(ctx, xx + 14, y + 55, 20, 30, '#94657f');
+      rect(ctx, xx + 16, y + 57, 16, 25, '#cf98ac');
+      shape(ctx, xx + 18, y + 62, ['g...g','.ggg.','..g..'], { g:'#f4d78b' }, 2);
+      rect(ctx, xx + 13, y + 53, 22, 3, '#d5bd80');
+    }
+    for (let xx = x + 55; xx < x + width - 51; xx += 25) {
+      rect(ctx, xx, y + 17, 15, 12, '#d8d4c2');
+      rect(ctx, xx, y + 17, 15, 3, '#eee2ca');
+    }
+    rect(ctx, door.x - 28, bottom - 44, 56, 44, '#777e87');
+    rect(ctx, door.x - 21, bottom - 51, 42, 10, '#cbd0c4');
+    rect(ctx, door.x - 25, bottom - 43, 50, 43, '#d5d4c3');
+    rect(ctx, door.x - 18, bottom - 40, 36, 40, open ? '#694758' : '#394151');
+    if (open) {
+      rect(ctx, door.x - 14, bottom - 35, 28, 34, '#d6b386');
+      rect(ctx, door.x - 10, bottom - 20, 20, 23, '#b27990');
+      rect(ctx, door.x - 18, bottom - 40, 36, 5, '#65717b');
+    } else {
+      for (let dx = -14; dx <= 14; dx += 7) rect(ctx, door.x + dx, bottom - 39, 3, 39, '#929a9b');
+      rect(ctx, door.x - 18, bottom - 25, 36, 4, '#aeb6ad');
+      rect(ctx, door.x - 5, bottom - 22, 10, 11, '#d2b77a');
+      rect(ctx, door.x - 1, bottom - 18, 3, 5, '#6c5058');
+    }
+    rect(ctx, door.x - 25, bottom + 1, 50, 7, '#c9c0a8');
+    rect(ctx, door.x - 21, bottom + 8, 42, 6, '#a9aaa0');
+    label(ctx, 'Castelinho de Maria Rita', door.x, y + 40, '#f1d7ab');
+  }
+
+  function royalHall(ctx, map) {
+    for (const [row, tiles] of map.grid.entries()) for (const [col, tile] of tiles.entries()) {
+      const x = col * W.TILE, y = row * W.TILE;
+      const floor = tile === 0 || tile === 2;
+      rect(ctx, x, y, 32, 32, floor ? (col + row) % 2 ? '#bcb0a0' : '#c9bdab' : '#6f6c7b');
+      if (floor) {
+        rect(ctx, x, y, 32, 2, '#d4cbbb');
+        rect(ctx, x, y, 2, 32, '#ada395');
+        if ((col * 3 + row) % 5 === 0) rect(ctx, x + 13, y + 13, 5, 5, '#b2a48f');
+      } else {
+        rect(ctx, x + 2, y + 3, 28, 22, '#95919a');
+        rect(ctx, x + 2, y + 3, 28, 4, '#bdb5b0');
+        rect(ctx, x + 15, y + 7, 2, 19, '#7c7b8a');
+      }
+    }
+    rect(ctx, 416, 176, 128, 336, '#9f627d');
+    rect(ctx, 421, 176, 118, 336, '#c487a2');
+    for (const x of [422,534]) rect(ctx, x, 176, 4, 336, '#e2c991');
+    for (let y = 190; y < 500; y += 31) {
+      shape(ctx, 474, y, ['..g..','.g.g.','g...g','.g.g.','..g..'], { g:'#edd9b0' }, 2);
+    }
+    // Framed mural, rather than a second princess NPC.
+    rect(ctx, 433, 43, 94, 87, '#5e465d');
+    rect(ctx, 438, 48, 84, 77, '#d5bb84');
+    rect(ctx, 442, 52, 76, 69, '#94758b');
+    rect(ctx, 449, 59, 62, 55, '#b6a2a5');
+    princess(ctx, { x:480, y:113, name:'Maria Rita' }, 0, { nickname:false, scale:2.2 });
+    label(ctx, 'Maria Rita', 480, 132, '#f3dca8');
+    rect(ctx, 446, 140, 68, 35, '#75566b');
+    rect(ctx, 451, 140, 58, 31, '#cb9dac');
+    rect(ctx, 446, 169, 68, 8, '#9d7085');
+    for (const x of [442,510]) {
+      rect(ctx, x, 150, 8, 32, '#d7bb80');
+      rect(ctx, x - 2, 145, 12, 8, '#eee0aa');
+    }
+    for (const x of [47,881]) {
+      rect(ctx, x, 124, 31, 78, '#93637e');
+      rect(ctx, x + 3, 127, 25, 70, '#cc98ad');
+      shape(ctx, x + 5, 140, ['g...g','.ggg.','..g..'], { g:'#f3d590' }, 4);
+      rect(ctx, x - 3, 121, 37, 5, '#dfc99b');
+      rect(ctx, x + 5, 227, 21, 31, '#5f6073');
+      rect(ctx, x + 8, 230, 15, 25, '#f6d29d');
+      rect(ctx, x + 14, 231, 3, 23, '#bdac8e');
+    }
+  }
+
   function water(ctx, x, y, time, palette, lava = false) {
     rect(ctx, x, y, 32, 32, palette[7]);
     rect(ctx, x + 2, y + 2, 28, 28, palette[8]);
@@ -185,6 +287,10 @@
     canvas.height = W.HEIGHT;
     const ctx = canvas.getContext('2d');
     const palette = mapPalette(map);
+    if (map.id === 'royal-castle') {
+      royalHall(ctx, map);
+      return { canvas, animatedWater:[] };
+    }
     if (map.id === 'boat') {
       rect(ctx, 0, 0, W.WIDTH, W.HEIGHT, '#183e58');
       for (let i = 0; i < 22; i++) rect(ctx, i * 47 % W.WIDTH, 18 + i * 83 % W.HEIGHT, 44, 3, '#2d657b');
@@ -271,6 +377,15 @@
 
   function prop(ctx, p, map, state, time) {
     const { x, y } = p;
+    if (p.id === 'royal-castle-gate' && map.id === 'village') return;
+    if (p.kind === 'royalMemory') {
+      rect(ctx, x - 16, y - 4, 32, 10, '#725c70');
+      rect(ctx, x - 11, y - 15, 22, 15, '#eed5aa');
+      rect(ctx, x - 10, y - 14, 9, 12, '#d1a2ad');
+      rect(ctx, x + 1, y - 14, 9, 12, '#b67e99');
+      rect(ctx, x - 1, y - 14, 2, 14, '#d9ba83');
+      return;
+    }
     if (p.kind === 'liaRescue') {
       liaEcho(ctx, { x, y, classKey:'rogue', facing:'down', appearance:W.NPCS.lia?.appearance }, time,
         { nickname:false, scale:1.9 });
@@ -781,7 +896,7 @@
   }
 
   function flyingWildlife(ctx, map, cycle, reducedMotion) {
-    if (map.kind === 'dungeon' || !['village','forest'].includes(map.region)) return;
+    if (['dungeon','interior'].includes(map.kind) || !['village','forest'].includes(map.region)) return;
     const night = cycle.isNight;
     const elapsed = reducedMotion ? 8500 : cycle.elapsed;
     const count = reducedMotion ? 2 : night ? 3 : 4;
@@ -850,6 +965,10 @@
       }
     }
     const actors = [];
+    if (map.id === 'village' && W.ROYAL_CASTLE) {
+      actors.push({ y:W.ROYAL_CASTLE.y + W.ROYAL_CASTLE.height,
+        draw: () => royalCastle(ctx, W.ROYAL_CASTLE, state, cycle.isNight) });
+    }
     for (const home of (W.HOUSES || []).filter(home => home.zone === map.id)) {
       actors.push({ y:home.y + home.height, draw: () => house(ctx, home, cycle.isNight) });
     }
@@ -945,14 +1064,14 @@
       }
     }
     actors.sort((a, b) => a.y - b.y).forEach(actor => actor.draw());
-    for (let i = 0; i < 18; i++) {
+    for (let i = 0; map.kind !== 'interior' && i < 18; i++) {
       const x = (i * 127 + time / 146) % W.WIDTH;
       const y = (i * 58 + Math.sin(time / 1400 + i) * 11) % W.HEIGHT;
       rect(ctx, x, y, 2, 2, ['#eac576','#8ec3b2','#a69bc5'][i % 3] + (i % 2 ? 'a8' : '75'));
     }
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     flyingWildlife(ctx, map, cycle, reducedMotion);
-    if (cycle.isNight && map.kind !== 'dungeon' && ['village','forest'].includes(map.region)) {
+    if (cycle.isNight && !['dungeon','interior'].includes(map.kind) && ['village','forest'].includes(map.region)) {
       rect(ctx, 0, 0, W.WIDTH, W.HEIGHT, '#1e284d38');
     }
     ctx.restore();

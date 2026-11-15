@@ -52,16 +52,17 @@
     { id:'house-nara', zone:'village', npcId:'villager', label:'Casa de Nara', x:736, y:352, width:128, height:64, door:{ x:800, y:432 } },
     { id:'house-lia', zone:'orchard', npcId:'lia', label:'Casa de Lia', x:736, y:64, width:128, height:64, door:{ x:800, y:144 } }
   ];
+  const ROYAL_CASTLE = { x:352, y:96, width:256, height:96, door:{ x:480, y:208 }, zone:'village', interior:'royal-castle' };
   const RESIDENTS = [
     { id:'resident-tomas', name:'Tomás', look:'warrior', unlock:'forest', homeId:'house-aderic', at:[350,208], appearance:{ skinTone:'medium', skin:'#bc805c', hair:'short' } },
     { id:'resident-elara', name:'Elara', look:'sorceress', unlock:'forest', homeId:'house-mira', at:[390,220], appearance:{ skinTone:'deep', skin:'#80503a', hair:'curly' } },
     { id:'resident-borin', name:'Borin', look:'monk', unlock:'cave', homeId:'house-eldrin', at:[590,250], appearance:{ skinTone:'light', skin:'#d4a17b', hair:'short' } },
     { id:'resident-nilo', name:'Nilo', look:'mage', unlock:'fire', homeId:'house-eldrin', at:[620,220], appearance:{ skinTone:'deep', skin:'#754532', hair:'curly' } },
-    { id:'resident-sera', name:'Sera', look:'bard', unlock:'castle', homeId:'house-nara', at:[550,190], appearance:{ skinTone:'medium', skin:'#bc805c', hair:'braids' } },
+    { id:'resident-sera', name:'Sera', look:'bard', unlock:'castle', homeId:'house-nara', at:[550,222], appearance:{ skinTone:'medium', skin:'#bc805c', hair:'braids' } },
     { id:'resident-ivo', name:'Ivo', look:'ranger', unlock:'shadow', homeId:'house-aderic', at:[365,265], appearance:{ skinTone:'deep', skin:'#69402f', hair:'short' } },
     { id:'resident-marina', name:'Marina', look:'cleric', unlock:'island', homeId:'house-mira', at:[550,300], appearance:{ skinTone:'deep', skin:'#80503a', hair:'braids' } },
     { id:'resident-caio', name:'Caio', look:'rogue', unlock:'island', homeId:'house-nara', at:[590,300], appearance:{ skinTone:'light', skin:'#d4a17b', hair:'short' } },
-    { id:'resident-maria-rita', name:'Maria Rita', look:'princess', unlock:'shadow', homeId:'house-aderic', at:[480,205], appearance:{ skinTone:'medium', skin:'#bc805c', hair:'curly' } }
+    { id:'resident-maria-rita', name:'Maria Rita', look:'princess', unlock:'shadow', homeId:'house-aderic', at:[540,280], appearance:{ skinTone:'medium', skin:'#bc805c', hair:'curly' } }
   ];
   const LIA_MEMORIAL_SLOTS = [
     { x:584, y:448 }, { x:616, y:448 }, { x:648, y:448 }, { x:680, y:448 },
@@ -90,6 +91,15 @@
       paint(13, 4, 5, 12, 2);
       paint(4, 13, 22, 2, 2);
       for (const [x,y] of [[4,4],[7,5],[22,5],[24,8],[5,9],[20,10],[8,11]]) paint(x,y,2,2,1);
+      return grid;
+    }
+    if (id === 'royal-castle') {
+      paint(1, 1, 28, 16, 0);
+      paint(13, 2, 4, 14, 2);
+      paint(5, 4, 3, 2, 4);
+      paint(22, 4, 3, 2, 4);
+      paint(5, 11, 3, 2, 4);
+      paint(22, 11, 3, 2, 4);
       return grid;
     }
     if (kind === 'dungeon') {
@@ -193,7 +203,8 @@
     point('apple-village', 'tree', 365, 408, 'Macieira da praça'),
     point('echo-bell', 'secret', 700, 188, 'Sino do primeiro amanhecer'),
     point('wishing-well', 'secret', 224, 287, 'Poço dos desejos'),
-    point('lamp-village', 'lamp', 561, 409, 'Lanterna da praça')
+    point('lamp-village', 'lamp', 561, 409, 'Lanterna da praça'),
+    portal('royal-castle-gate', 480, 208, 'Castelinho de Maria Rita', 'royal-castle', [480, 458], { requires:'shadow', royal:true })
   ]);
   REGIONS.forEach((region, index) => {
     const branch = BRANCHES[region];
@@ -264,6 +275,10 @@
     point('island-captives', 'captive', 620, 180, 'Libertar os moradores'),
     point('island-camp', 'camp', 340, 440, 'Fogueira dos navegantes')
   ]);
+  addZone('royal-castle', 'Castelinho de Maria Rita', 'village', 'interior', [
+    portal('royal-castle-exit', 480, 496, 'Voltar à Vila', 'village', [480, 212]),
+    point('royal-memory', 'royalMemory', 480, 180, 'Memórias de Maria Rita')
+  ]);
 
   // Houses use the same footprint for collision and art. A broad forecourt
   // keeps their doors connected to the roads and available for night services.
@@ -281,6 +296,16 @@
     }
     map.points.push(point(house.id, 'home', house.door.x, house.door.y, house.label,
       { homeId:house.id, npcId:house.npcId }));
+  }
+  const village = zones.village;
+  for (let y = ROYAL_CASTLE.y / TILE; y < (ROYAL_CASTLE.y + ROYAL_CASTLE.height) / TILE; y++) {
+    for (let x = ROYAL_CASTLE.x / TILE; x < (ROYAL_CASTLE.x + ROYAL_CASTLE.width) / TILE; x++) village.grid[y][x] = 4;
+  }
+  // The northern shortcut remains accessible on either side of the castle.
+  for (const [x, y, width, height] of [[320,64,320,32], [320,64,32,192], [608,64,32,192], [320,192,320,64]]) {
+    for (let row = y / TILE; row < (y + height) / TILE; row++) {
+      for (let col = x / TILE; col < (x + width) / TILE; col++) village.grid[row][col] = 2;
+    }
   }
 
   const zone = id => Object.hasOwn(zones, id) ? zones[id] : zones.village;
@@ -451,6 +476,6 @@
   const facing = (dx, dy, current) => Math.abs(dx) > Math.abs(dy)
     ? (dx < 0 ? 'left' : 'right') : dy ? (dy < 0 ? 'up' : 'down') : current;
 
-  return { TILE, COLS, ROWS, WIDTH, HEIGHT, SPEED, REGIONS, BRANCHES, NAMES, DUNGEONS, NPCS, HOUSES, RESIDENTS, LIA_MEMORIAL_SLOTS, zones, zone,
+  return { TILE, COLS, ROWS, WIDTH, HEIGHT, SPEED, REGIONS, BRANCHES, NAMES, DUNGEONS, NPCS, HOUSES, ROYAL_CASTLE, RESIDENTS, LIA_MEMORIAL_SLOTS, zones, zone,
     dungeonId, canStand, walk, safePosition, npcPositions, residentPositions, dayCycle, distance, facing, remainingEnemies, bossVisible };
 });
