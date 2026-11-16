@@ -13,6 +13,7 @@ const Story = require('./adventure');
 const Combat = require('./combat');
 const Field = require('./field-combat');
 const Farming = require('./farming');
+const Lia = require('./lia-companion');
 
 const GRACE_MS = 45000;
 const ROOM_LIMIT = 8;
@@ -39,7 +40,7 @@ const here = (room, zone) => 'map:' + room.id + ':' + zone;
 function createGame({ storage = createStorage({
   connectionString: process.env.DATABASE_URL,
   ssl: process.env.PGSSLMODE === 'disable' ? false : { rejectUnauthorized: true }
-}), graceMs = GRACE_MS, turnMs = 30000, actionMs = 700, logger = console } = {}) {
+}), graceMs = GRACE_MS, turnMs = 30000, actionMs = 700, bossIntroMs = 4500, logger = console } = {}) {
   const app = express();
   const httpServer = http.createServer(app);
   const io = new Server(httpServer, { maxHttpBufferSize: 16 * 1024 });
@@ -63,7 +64,7 @@ function createGame({ storage = createStorage({
       res.status(503).json({ ok: false, database: false, mode: 'unavailable' });
     }
   });
-  app.get('/game-data', (_req, res) => res.json({ classes: HERO_CLASSES, regions: REGIONS, equipment: EQUIPMENT, techniques: TECHNIQUES, crops: Farming.CROPS }));
+  app.get('/game-data', (_req, res) => res.json({ classes: HERO_CLASSES, regions: REGIONS, equipment: EQUIPMENT, techniques: TECHNIQUES, crops: Farming.CROPS, npcs:World.NPCS }));
   app.get('/campaign-data', (_req, res) => res.json({
     lore: Story.lore,
     dungeons: Object.fromEntries(Object.entries(DUNGEONS).map(([key, list]) => [key, list.map(
@@ -98,7 +99,7 @@ function createGame({ storage = createStorage({
   function stateFor(room, entry, now) {
     const member = entry.member.data;
     const encounter = room.battles.get(member.zone);
-    const battle = encounter?.mode === 'field' && !encounter.heroes.includes(entry.id) ? null : encounter;
+    const battle = encounter?.heroes.includes(entry.id) ? encounter : null;
     const people = [...room.players.values()];
     const heroes = people.map(player => ({
       id: player.id, name: player.data.name, classKey: player.data.classKey,
@@ -154,7 +155,8 @@ function createGame({ storage = createStorage({
     const oldBattles = structuredClone(room.battles);
     const oldFruit = structuredClone(room.fruit);
     const oldPlayers = [...room.players.values()].map(entry => ({
-      entry, hero: structuredClone(entry.data), member: structuredClone(entry.member.data), encounterAt: entry.encounterAt, baseline: entry.battleBaseline
+      entry, hero: structuredClone(entry.data), member: structuredClone(entry.member.data), encounterAt: entry.encounterAt,
+      baseline:entry.battleBaseline ? structuredClone(entry.battleBaseline) : null
     }));
     const messages = [];
     try {
@@ -202,6 +204,44 @@ function createGame({ storage = createStorage({
     throw fail('Não foi possível gerar um convite. Tente novamente.');
   }
 
+  function restoreRoyalAccess(member, world) {
+    if (world.cleared?.shadow === true) return false;
+    const inside = member.zone === 'royal-castle';
+    const checkpoint = member.checkpoint?.zone === 'royal-castle';
+    if (!inside && !checkpoint) return false;
+    const position = World.safePosition('village', 480, 458);
+    if (inside) Object.assign(member, { zone:'village', ...position, facing:'down' });
+    member.checkpoint = { zone:'village', ...position };
+    return true;
+  }
+
+  function characterProfile(data) {
+    return {
+      name:cleanName(data?.name) || 'Aventureiro',
+      classKey:Story.own(HERO_CLASSES, data?.classKey) ? data.classKey : 'warrior',
+      level:Number.isSafeInteger(data?.level) && data.level > 0 ? data.level : 1
+    };
+  }
+
+  function guardCharacterClass(id, event, requestedClass, saved) {
+    if (!['create', 'join'].includes(event) || !Story.own(HERO_CLASSES, requestedClass)
+      || !Story.own(HERO_CLASSES, saved?.classKey) || requestedClass === saved.classKey) return;
+    const character = characterProfile(saved);
+    const error = fail('Este personagem já é ' + HERO_CLASSES[character.classKey].name + '. Crie outro herói para jogar com a classe escolhida.');
+    error.info = { code:'CHARACTER_CLASS_MISMATCH', heroId:id, character };
+    throw error;
+  }
+
+  async function inspectHero(socket, payload) {
+    if (stopping) throw fail('O servidor está reiniciando.');
+    const { id, key } = payload;
+    if (!credentials(id, key)) throw fail('A identificação do navegador é inválida.');
+    const hero = await storage.readHero(id);
+    if (hero && !sameKey(hero.keyHash, key)) throw fail('Use o navegador original ou recupere seu personagem.');
+    const saved = hero?.data || await storage.readLegacy(id);
+    socket.emit('heroProfile', { heroId:id, exists:!!saved, ...(saved ? { character:characterProfile(saved) } : {}) });
+  }
+
   async function enter(socket, event, payload) {
     if (stopping) throw fail('O servidor está reiniciando.');
     if (socket.data.heroId) throw fail('Você já está em uma aventura.');
@@ -211,16 +251,26 @@ function createGame({ storage = createStorage({
     if (active) {
       const entry = active.players.get(id);
       if (!sameKey(entry.keyHash, key)) throw fail('Use o navegador original ou recupere seu personagem.');
+      guardCharacterClass(id, event, payload.classKey, entry.data);
       const canResume = event === 'resume' && payload.campaignId === active.id;
       const canContinue = event === 'continue' && entry.data.homeCampaign === active.id;
       const canJoin = event === 'join' && payload.code === active.code;
-      if (entry.socketId || !(canResume || canContinue || canJoin)) {
+      if ((entry.socketId && !canResume) || !(canResume || canContinue || canJoin)) {
         throw fail('Esse herói tem uma sessão aberta. Retome a mesma aventura para continuar.');
       }
-      return queue(active, () => {
+      return queue(active, async () => {
         if (!socket.connected) return;
         if (active.players.get(id) !== entry) throw fail('A sessão expirou. Entre na aventura novamente.');
+        if (active.data.cleared?.shadow !== true && (entry.member.data.zone === 'royal-castle' || entry.member.data.checkpoint?.zone === 'royal-castle')) {
+          await change(active, () => restoreRoyalAccess(entry.member.data, active.data), { announce:false });
+          if (!socket.connected) return;
+        }
+        const previousSocket = io.sockets.sockets.get(entry.socketId);
         rememberSocket(active, entry, socket);
+        if (previousSocket && previousSocket.id !== socket.id) {
+          previousSocket.emit('sessionReplaced');
+          previousSocket.disconnect(true);
+        }
         publish(active);
       });
     }
@@ -228,7 +278,9 @@ function createGame({ storage = createStorage({
     let hero = await storage.readHero(id);
     if (hero && !sameKey(hero.keyHash, key)) throw fail('Use o navegador original ou recupere seu personagem.');
     const legacy = hero ? null : await storage.readLegacy(id);
+    guardCharacterClass(id, event, payload.classKey, hero?.data || legacy);
     if (!hero) hero = { id, keyHash: hash(key), revision: 0, data: Story.makeHero(cleanName(payload.name) || 'Aventureiro', payload.classKey, legacy || {}) };
+    Lia.ensure(hero.data);
     let newRoom;
     let selected;
     let importedRoom;
@@ -237,11 +289,12 @@ function createGame({ storage = createStorage({
     if (legacy?.campaign) {
       importedRoom = Story.newCampaign(await reserveCode(), id, legacy.campaign);
       importedMember = Story.makeMember(importedRoom, id, legacy);
+      restoreRoyalAccess(importedMember.data, importedRoom.data);
       hero.data.homeCampaign = importedRoom.id;
     }
     if (event === 'create' || (event === 'continue' && importedRoom)) {
       newRoom = event === 'continue' ? importedRoom : Story.newCampaign(await reserveCode(importedRoom?.code), id);
-      if (event === 'create') newRoom.data.combatMode = payload.combatMode === 'field' ? 'field' : 'turn';
+      if (event === 'create') newRoom.data.combatMode = 'field';
       selected = newRoom;
     } else if (event === 'join') {
       if (!ROOM_CODE_PATTERN.test(payload.code || '')) throw fail('Digite o código de seis caracteres da sala.');
@@ -265,6 +318,7 @@ function createGame({ storage = createStorage({
         ? importedMember : await storage.readMember(room.id, id);
       if (event === 'resume' && !savedMember) throw fail('A sala precisa de um convite para este personagem.');
       const member = savedMember || Story.makeMember(room, id);
+      const restoredRoyalAccess = restoreRoyalAccess(member.data, room.data);
       if (member.revision) Object.assign(member.data, World.safePosition(member.data.zone, member.data.x, member.data.y));
       const needsRevive = !hero.data.hp;
       if (needsRevive) {
@@ -277,9 +331,9 @@ function createGame({ storage = createStorage({
       if (importedRoom && importedRoom !== newRoom) {
         await storage.save({ campaign: importedRoom, players: [hero], members: [importedMember] });
       }
-      if (newRoom || !member.revision || saveHero) {
+      if (newRoom || !member.revision || saveHero || restoredRoyalAccess) {
         await storage.save({ campaign: newRoom ? room : null, players: saveHero && (!importedRoom || importedRoom === newRoom) ? [hero] : [],
-          members: !member.revision ? [member] : [] });
+          members: !member.revision || restoredRoyalAccess ? [member] : [] });
       }
       if (!socket.connected) return;
       if (newRoom) {
@@ -298,9 +352,16 @@ function createGame({ storage = createStorage({
     const member = entry.member.data;
     if (member.quests.island_rescue?.step === 0 && world.voyage?.cleared) member.quests.island_rescue.step = 1;
     const lines = Story.dialogues[npc.id].slice();
+    if (npc.indoors) lines.unshift('Já estou em casa por esta noite, mas posso ajudar você aqui na porta.');
     if (world.cleared.shadow && npc.id === 'villager') lines.push('Malakar caiu. Meu irmão voltou na primeira manhã. Vamos acender as lanternas para celebrar?');
     if (npc.id === 'lia' && entry.data.companions.lume) lines.push('Lume gosta de você. Se quiser, eu conheço caminhos que a luz dele consegue revelar.');
-    if (npc.id === 'lia') lines.push('Os quatro canteiros ao sul são seus: plante, regue e leve comida à viagem. Depois de libertar a Floresta, o barco a leste leva à Ilha das Raízes.');
+    if (npc.id === 'lia') {
+      const echo = Lia.ensure(entry.data);
+      lines.push('Eu permaneço no Pomar. Quem viaja ao seu lado é um clone meu, feito da luz de Lume.');
+      if (echo.needsRescue) lines.push('Seu clone caiu quando você tombou em batalha. Guarde sua memória na lápide e desperte um novo clone no Broto de Lia, ao sul.');
+      else if (entry.data.companions.lia) lines.push('O clone ' + echo.generation + ' acompanha você. Minha presença original continua aqui para cuidar do Pomar.');
+      lines.push('Os quatro canteiros ao sul são seus: plante, regue e leve comida à viagem. Depois de libertar a Floresta, o barco a leste leva à Ilha das Raízes.');
+    }
     if (npc.id === 'chronicler') lines.push('Cada guardião aprisiona moradores e um fragmento da Lanterna. Recupere os cinco para devolver a memória a Eldoria.');
     const options = Object.entries(Story.quests).flatMap(([id, quest]) => {
       if (quest.npc !== npc.id || !Story.canOffer(id, world) || member.quests[id]?.completed) return [];
@@ -312,10 +373,11 @@ function createGame({ storage = createStorage({
     });
     if (npc.id === 'blacksmith') options.push({ id: 'shop', label: 'Ver equipamentos' });
     if (npc.id === 'healer') options.push({ id:'rest', label:world.cleared.forest ? 'Descansar · 10 ouros' : 'Descansar com Mira' });
-    if (npc.id === 'lia' && entry.data.companions.lume && !entry.data.companions.lia) {
-      options.push({ id: 'recruit', label: 'Convidar Lia para viajar' });
+    if (npc.id === 'lia' && entry.data.companions.lume && !entry.data.companions.lia && !Lia.ensure(entry.data).needsRescue) {
+      options.push({ id:'recruit', label:'Criar clone de Lia' });
     }
-    send(entry, 'dialogue', { id: npc.id, title: npc.label, portrait: npc.classKey, lines, options });
+    send(entry, 'dialogue', { id: npc.id, title: npc.label, portrait: npc.classKey,
+      appearance:npc.appearance || World.NPCS[npc.id]?.appearance, lines, options });
   }
 
   function nearbyNpc(room, entry, id) {
@@ -351,19 +413,33 @@ function createGame({ storage = createStorage({
       if (target.kind === 'enemy' && defeated.includes(target.enemyIndex)) return;
       enemy = target.kind === 'boss' ? region.boss : region.enemies[target.enemyIndex];
     }
-    const inField = room.data.combatMode === 'field' || map.kind === 'voyage';
+    const boss = target.kind === 'boss' || target.kind === 'voyageBoss' || target.kind === 'dungeonEnemy' && map.dungeonIndex === 3;
+    const inField = !boss && (room.data.combatMode === 'field' || map.kind === 'voyage');
     const origin = room.mobs.get(zone)?.[target.id] || target;
     const group = [...room.players.values()].filter(player => player.socketId && player.data.hp > 0 && player.member.data.zone === zone
-      && (!inField || World.distance(player.member.data, origin) <= 280));
+      && ((!inField && !boss) || World.distance(player.member.data, origin) <= 280));
     if (!group.length) return;
     for (const player of group) player.battleBaseline = structuredClone(player.data);
     const encounterTarget = {
       kind: target.kind, region: map.region, index: target.enemyIndex ?? map.dungeonIndex,
-      pointId:target.id, boss: target.kind === 'boss' || target.kind === 'voyageBoss' || target.kind === 'dungeonEnemy' && map.dungeonIndex === 3
+      pointId:target.id, boss
     };
     const battle = inField ? Field.start(zone, encounterTarget, enemy, group, origin, Date.now())
       : Combat.startBattle(zone, encounterTarget, enemy, group);
-    battle.expires = Date.now() + turnMs;
+    if (!inField) battle.mode = 'turn';
+    if (boss) {
+      const startedAt = Date.now();
+      const duration = Number.isFinite(bossIntroMs) ? Math.max(0, Math.min(10000, bossIntroMs)) : 4500;
+      const text = target.kind === 'boss' && map.region === 'forest'
+        ? 'O bruxo ergue seu cajado. As sombras cercam os moradores aprisionados. Quebre o selo da Floresta!'
+        : target.kind === 'boss' && map.region === 'shadow'
+          ? 'Malakar aprisionou a princesa Maria Rita e as últimas memórias de Eldoria. Reúna o grupo e liberte o reino!'
+          : enemy.name + ' bloqueia o caminho. Prepare o grupo para quebrar o selo e libertar os prisioneiros.';
+      battle.intro = { id:battle.id, title:enemy.name, caption:map.id === 'island' ? 'ILHA DAS RAÍZES' : region.name.toUpperCase(),
+        text, startedAt, endsAt:startedAt + duration };
+      battle.introEnded = duration === 0;
+    }
+    battle.expires = (battle.intro?.endsAt || Date.now()) + turnMs;
     room.battles.set(zone, battle);
   }
 
@@ -378,6 +454,9 @@ function createGame({ storage = createStorage({
     const member = entry.member.data;
     const map = World.zone(member.zone);
     const world = room.data;
+    if ((portal.royal || portal.to === 'royal-castle') && world.cleared?.shadow !== true) {
+      throw fail('O castelinho só abre depois do resgate da princesa Maria Rita.');
+    }
     if (portal.requires && !world.cleared[portal.requires]) throw fail('O guardião ainda protege essa passagem.');
     if (portal.requiresVoyage === 'deck' && !['deck-raider-0', 'deck-raider-1'].every(id => world.voyage?.defeated?.includes(id))) throw fail('Derrote os dois saqueadores no convés para alcançar a ilha.');
     if (portal.shortcut && !world.orchardOpen) throw fail('A passagem está selada. Procure a origem da luz no pomar.');
@@ -464,6 +543,43 @@ function createGame({ storage = createStorage({
     const position = room.mobs.get(member.zone)?.[point.id] || point;
     const range = point.kind === 'portal' ? 69 : 64;
     if (World.distance(member, position) > range) throw fail('Chegue mais perto.');
+    if (point.kind === 'royalMemory') {
+      if (room.data.cleared?.shadow !== true) throw fail('O castelinho só abre depois do resgate da princesa Maria Rita.');
+      const rescued = Story.publicCampaign(room.data).rescued;
+      send(entry, 'dialogue', { title:'Memórias de Maria Rita', portrait:'princess', lines:[
+        'Seja bem-vindo ao nosso castelinho. Sou Maria Rita. Cada história recuperada nos ajuda a reunir Eldoria outra vez.',
+        'Este livro preserva os nomes de quem voltou para casa: ' + rescued.join(', ') + '.',
+        'As portas ficam abertas para os aventureiros que quebraram os selos. Que este lugar guarde nossas memórias e os reencontros que ainda virão.'
+      ], options:[] });
+      return;
+    }
+    if (point.kind === 'liaRescue') {
+      const echo = Lia.rescue(entry.data);
+      send(entry, 'dialogue', { title:'Lia · novo clone', portrait:'liaEcho', appearance:World.NPCS.lia.appearance,
+        lines:['Lume ilumina o broto. Um novo clone de Lia desperta: clone ' + echo.generation + '.',
+          'A Lia original permanece no Pomar. As memórias dos clones anteriores continuam na lápide.'], options:[] });
+      return;
+    }
+    if (point.kind === 'memorial') {
+      const world = Story.publicCampaign(room.data);
+      const lines = ['Lia cuida deste memorial em homenagem aos clones que acompanharam os aventureiros.',
+        world.liaMemorialCount === 1 ? 'Um clone é lembrado no Pomar.' : world.liaMemorialCount + ' clones são lembrados no Pomar.'];
+      for (const grave of world.liaMemorials.slice(-12).reverse()) {
+        lines.push(grave.heroName + ' · clone ' + grave.generation + ' de Lia · ' + World.zone(grave.zone).name + '.');
+      }
+      if (!world.liaMemorials.length) lines.push('Nenhum clone de Lia caiu nesta campanha.');
+      send(entry, 'dialogue', { title:'Memorial dos Ecos de Lia', portrait:World.NPCS.lia.look,
+        appearance:World.NPCS.lia.appearance, lines, options:[] });
+      return;
+    }
+    if (point.kind === 'home') {
+      const resident = World.npcPositions(member.zone, Date.now(), room.data).find(person => person.id === point.npcId);
+      if (resident && (resident.indoors || World.distance(member, resident) <= 91)) return showNpc(room, entry, resident, send);
+      const owner = World.NPCS[point.npcId];
+      send(entry, 'dialogue', { title:point.label, portrait:owner?.look, appearance:owner?.appearance,
+        lines:[(owner?.name || 'O morador') + ' está pela ' + (member.zone === 'orchard' ? 'região do Pomar' : 'Vila') + '. Ao anoitecer, você pode conversar aqui na porta.'], options:[] });
+      return;
+    }
     if (point.kind === 'portal') return portalTravel(room, entry, point, send);
     if (point.kind === 'tree') return treeAction(room, entry, point, send);
     if (point.kind === 'plot') {
@@ -629,9 +745,8 @@ function createGame({ storage = createStorage({
       return;
     }
     if (npc.id === 'lia' && payload.action === 'recruit') {
-      if (!hero.companions.lume || hero.companions.lia) throw fail('Lia precisa saber que o espírito está livre.');
-      hero.companions.lia = true;
-      send(entry, 'notice', 'Lia juntou-se à sua jornada.');
+      const echo = Lia.recruit(hero);
+      send(entry, 'notice', 'O clone ' + echo.generation + ' de Lia juntou-se à sua jornada. A Lia original fica no Pomar.');
     }
   }
 
@@ -692,6 +807,7 @@ function createGame({ storage = createStorage({
   function battleAction(room, entry, payload, send, timeout = false) {
     const zone = entry.member.data.zone;
     const battle = room.battles.get(zone);
+    if (battle?.intro?.endsAt > Date.now()) throw fail('A apresentação do guardião ainda está em andamento. Prepare sua estratégia.');
     if (!battle || battle.mode === 'field' || battle.resolveAt || !battle.active || (!timeout && (payload.id !== battle.id || payload.turn !== battle.turn))) {
       throw fail('O turno mudou. Aguarde a próxima ação.');
     }
@@ -736,6 +852,7 @@ function createGame({ storage = createStorage({
     const bards = group.some(player => player.data.classKey === 'bard' && player.data.hp > 0);
     for (const [i, player] of group.entries()) {
       player.battleBaseline = null;
+      const falls = Lia.settleFalls(world, battle, player);
       if (won) {
         if (kind === 'voyageBoss' && player.member.data.quests.island_rescue?.step === 0) player.member.data.quests.island_rescue.step = 1;
         const mission = kind === 'boss' ? Story.mainQuest(region)?.reward : null;
@@ -749,7 +866,9 @@ function createGame({ storage = createStorage({
         player.data.hp = Math.ceil(player.data.maxHp * 0.55);
         player.data.mana = Math.ceil(player.data.maxMana * 0.55);
         const checkpoint = player.member.data.checkpoint;
-        if (['surface', 'branch', 'voyage'].includes(World.zone(checkpoint?.zone).kind) && World.canStand(checkpoint.zone, checkpoint.x, checkpoint.y)) {
+        const validCheckpoint = checkpoint && (checkpoint.zone === 'royal-castle'
+          ? world.cleared?.shadow === true : ['surface', 'branch', 'voyage'].includes(World.zone(checkpoint.zone).kind));
+        if (validCheckpoint && World.canStand(checkpoint.zone, checkpoint.x, checkpoint.y)) {
           teleport(player, checkpoint.zone, [checkpoint.x, checkpoint.y]);
         } else teleport(player, 'village', [480 + (i % 4) * 23, 451 + Math.floor(i / 4) * 22]);
       } else if (kind === 'boss' && won) {
@@ -765,8 +884,10 @@ function createGame({ storage = createStorage({
       const message = revealed ? 'A última criatura caiu. ' + regionById[region].boss.name + ' apareceu ao norte!' :
         won ? battle.name + ' foi derrotado. Recompensas guardadas.' :
         result.outcome === 'lost' ? 'O grupo recuou a um ponto seguro. Descanse antes de tentar de novo.' : result.text;
-      send(player, 'notice', message);
-      if (rescued?.length) send(player, 'notice', rescued.join(' e ') + ' foram libertados! ' + (kind === 'boss' ? 'Mais um fragmento da Lanterna voltou à Vila.' : 'A rota da ilha está segura.'));
+      const rescueMessage = rescued?.length ? ' ' + rescued.join(' e ') + ' foram libertados! ' +
+        (kind === 'boss' ? 'Mais um fragmento da Lanterna voltou à Vila.' : 'A rota da ilha está segura.') : '';
+      const echoMessage = falls.length ? ' Seu Eco de Lia caiu; Lia guardou uma homenagem no Pomar. Resgate um novo clone no broto.' : '';
+      send(player, 'notice', message + rescueMessage + echoMessage);
     }
   }
 
@@ -853,10 +974,10 @@ function createGame({ storage = createStorage({
 
   function report(socket, error) {
     if (error.code === 'GAME_RULE' || error.code === 'SAVE_CONFLICT') {
-      socket.emit('errorMessage', error.message, { retryable:false });
+      socket.emit('errorMessage', error.message, { ...error.info, retryable:false });
     } else {
       logger.error(error);
-      socket.emit('errorMessage', 'O progresso não foi confirmado. Tente novamente quando o servidor estiver disponível.', { retryable:true });
+      socket.emit('errorMessage', 'O progresso não foi confirmado. Tente novamente quando o servidor estiver disponível.', { ...error.info, retryable:true });
     }
   }
 
@@ -899,6 +1020,13 @@ function createGame({ storage = createStorage({
       }).catch(error => report(socket, error));
     });
 
+    admit('inspectHero', async payload => {
+      try { await inspectHero(socket, payload); }
+      catch (error) {
+        error.info = { request:'inspectHero', ...(typeof payload.id === 'string' && HERO_ID_PATTERN.test(payload.id) ? { heroId:payload.id } : {}) };
+        throw error;
+      }
+    });
     admit('adventure', payload => enter(socket, ['create', 'join', 'continue', 'resume'].includes(payload.action) ? payload.action : 'continue', payload));
     admit('redeemRecovery', async payload => {
       if (socket.data.heroId) throw fail('Feche a aventura antes de recuperar outro herói.');
@@ -963,6 +1091,13 @@ function createGame({ storage = createStorage({
 
   function settleTimeouts(room, now) {
     for (const battle of room.battles.values()) {
+      if (battle.intro && !battle.introEnded) {
+        if (now >= battle.intro.endsAt) queue(room, () => change(room, () => {
+          const current = room.battles.get(battle.zone);
+          if (current?.id === battle.id) current.introEnded = true;
+        })).catch(error => logger.error(error));
+        continue;
+      }
       if (battle.mode === 'field') {
         queue(room, () => change(room, send => {
           if (room.battles.get(battle.zone)?.id !== battle.id) return;
@@ -999,8 +1134,9 @@ function createGame({ storage = createStorage({
   function removeFromBattle(room, entry, send) {
     const battle = room.battles.get(entry.member.data.zone);
     if (!battle || !battle.heroes.includes(entry.id)) return;
-    if (entry.battleBaseline) entry.data = entry.battleBaseline;
+    if (entry.battleBaseline) entry.data = structuredClone(entry.battleBaseline);
     entry.battleBaseline = null;
+    Lia.settleFalls(room.data, battle, entry);
     if (battle.mode === 'field') {
       Field.remove(battle, entry.id);
       if (!battle.heroes.length) room.battles.delete(battle.zone);
@@ -1011,8 +1147,9 @@ function createGame({ storage = createStorage({
       for (const id of battle.heroes) {
         const other = room.players.get(id);
         if (other?.battleBaseline) {
-          other.data = other.battleBaseline;
+          other.data = structuredClone(other.battleBaseline);
           other.battleBaseline = null;
+          Lia.settleFalls(room.data, battle, other);
         }
       }
       room.battles.delete(battle.zone);
@@ -1024,7 +1161,7 @@ function createGame({ storage = createStorage({
       const group = battle.heroes.map(id => room.players.get(id)).filter(Boolean);
       Combat.skip(battle, entry.id, group);
       if (!battle.active) battle.resolveAt = Date.now() + actionMs;
-      else battle.expires = Date.now() + turnMs;
+      else battle.expires = Math.max(Date.now(), battle.intro?.endsAt || 0) + turnMs;
       for (const survivor of group) send(survivor, 'notice', entry.data.name + ' saiu do combate.');
     }
     battle.order = battle.order.filter(id => id !== entry.id);
@@ -1084,7 +1221,9 @@ function createGame({ storage = createStorage({
     for (const room of rooms.values()) {
       await room.tail;
       const force = [...room.players.values()].filter(entry => entry.positionDirty).map(entry => entry.id);
-      if (force.length) await change(room, () => {}, { force, announce: false }).catch(error => logger.error(error));
+      if (force.length || room.battles.size) await change(room, send => {
+        for (const entry of room.players.values()) removeFromBattle(room, entry, send);
+      }, { force, announce:false }).catch(error => logger.error(error));
     }
     await new Promise(resolve => io.close(resolve));
     await storage.close();

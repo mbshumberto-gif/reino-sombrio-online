@@ -11,8 +11,8 @@ const { makeHero, newCampaign, makeMember } = require('../adventure');
 const id = { id:'e2e-hero', key:'9'.repeat(64) };
 const hash = key => createHash('sha256').update(key).digest('hex');
 
-async function launch(t, storage = createStorage()) {
-  const game = createGame({ storage });
+async function launch(t, storage = createStorage(), options = {}) {
+  const game = createGame({ storage, bossIntroMs:200, ...options });
   const { port } = await game.listen(0, '127.0.0.1');
   const executablePath = process.env.ELDORIA_CHROMIUM;
   const browser = await chromium.launch({
@@ -26,7 +26,7 @@ async function launch(t, storage = createStorage()) {
     try { await browser.close(); }
     finally { await game.close(); }
   });
-  return { browser, url:'http://127.0.0.1:' + port };
+  return { browser, storage, url:'http://127.0.0.1:' + port };
 }
 
 async function start(page, url, action = 'create') {
@@ -34,6 +34,11 @@ async function start(page, url, action = 'create') {
   await page.locator('#startAdventureBtn').click();
   await page.waitForFunction(() => document.querySelector('#heroClass').options.length === 10);
   await page.waitForFunction(() => document.querySelector('#entryStatus').textContent === 'Pronto para entrar.');
+  if (action === 'create') {
+    const summary = page.locator('#combatModeSummary');
+    assert.ok(await summary.isVisible() && /Exploração em tempo real.*Chefes por turnos/.test(await summary.textContent()), 'a entrada explica o combate híbrido');
+    assert.equal(await page.locator('select#combatMode').count(), 0, 'não exige escolher o modo de combate');
+  }
   await page.locator('#playerName').fill('Beto');
   await page.locator(action === 'create' ? '#createBtn' : '#continueSaveBtn').click();
   await page.waitForFunction(() => !document.querySelector('#game').classList.contains('hidden') &&
@@ -59,7 +64,7 @@ async function touch(page, session, dx, dy, milliseconds, ending = 'touchEnd') {
 }
 
 test('toque em retrato e paisagem, maçã e portal da Vila', { timeout:35000 }, async t => {
-  const { browser, url } = await launch(t);
+  const { browser, storage, url } = await launch(t);
   const context = await browser.newContext({ ...devices['Pixel 7'], viewport:{ width:360,height:800 } });
   const page = await context.newPage();
   page.setDefaultTimeout(6500);
@@ -67,6 +72,9 @@ test('toque em retrato e paisagem, maçã e portal da Vila', { timeout:35000 }, 
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
   await start(page, url);
+  const heroId = await page.evaluate(() => JSON.parse(localStorage.getItem('eldoriaIdentityV2')).id);
+  const hero = await storage.readHero(heroId);
+  assert.equal((await storage.readCampaign({ id:hero.data.homeCampaign })).data.combatMode, 'field');
   const cdp = await context.newCDPSession(page);
   await touch(page, cdp, -42, -19, 510, 'touchCancel');
   await page.getByText(/AÇÃO · Macieira da praça/).waitFor();
@@ -87,7 +95,7 @@ test('toque em retrato e paisagem, maçã e portal da Vila', { timeout:35000 }, 
   if (process.env.ELDORIA_SCREENSHOT) await page.screenshot({ path:process.env.ELDORIA_SCREENSHOT });
 });
 
-test('Ent tem três fases, Espaço ataca e o herói volta a andar após a vitória', { timeout:35000 }, async t => {
+test('Morvath tem introdução, três fases e a vitória devolve o herói ao mapa', { timeout:35000 }, async t => {
   const storage = createStorage();
   const room = newCampaign('D1133A', id.id);
   room.data.defeated.forest = [0,1,2,3,4];
@@ -103,7 +111,10 @@ test('Ent tem três fases, Espaço ataca e o herói volta a andar após a vitór
   await start(page, url, 'continue');
   await page.waitForTimeout(1860);
   await page.keyboard.press('KeyE');
-  await page.waitForFunction(() => document.querySelector('#enemyPhase').textContent === 'FASE 1/3');
+  await page.locator('#bossIntro').waitFor({ state:'visible' });
+  assert.match(await page.locator('#bossIntroTitle').textContent(), /Morvath/);
+  await page.locator('#bossIntro').waitFor({ state:'hidden' });
+  await page.waitForFunction(() => document.querySelector('#enemyPhase').textContent === 'FASE 1/3' && !document.querySelector('#attackBtn').disabled);
   await page.keyboard.press('Space');
   await page.waitForFunction(() => document.querySelector('#enemyPhase').textContent === 'FASE 2/3');
   await page.locator('#totemBtn').click();
@@ -117,8 +128,8 @@ test('Ent tem três fases, Espaço ataca e o herói volta a andar após a vitór
   await page.waitForFunction(() => !document.querySelector('#attackBtn').disabled);
   await page.keyboard.press('Space');
   await page.waitForFunction(() => document.querySelector('#transitionScreen').open &&
-    document.querySelector('#transitionTitle').textContent === 'Floresta Amaldiçoada conquistada');
-  assert.equal(await page.locator('#transitionCaption').textContent(),'I · O ENT CORROMPIDO');
+    document.querySelector('#transitionTitle').textContent === 'O selo da Floresta se partiu');
+  assert.equal(await page.locator('#transitionCaption').textContent(),'I · MORVATH, O BRUXO DAS SOMBRAS');
   assert.ok(await page.locator('#endingStage').isVisible());
   await page.locator('#continueCampaignBtn').click();
   await page.locator('#worldCanvas').waitFor();
@@ -149,7 +160,7 @@ test('quatro cenas de Malakar ficam acessíveis em celular baixo mesmo com fonte
   page.setDefaultNavigationTimeout(12000);
   await page.addInitScript(id => localStorage.setItem('eldoriaIdentityV2', JSON.stringify(id)), id);
   await start(page, url, 'continue');
-  for (const title of ['O último grito de Malakar','As correntes se partem','Eldoria desperta','O primeiro amanhecer']) {
+  for (const title of ['O último grito de Malakar','Maria Rita está livre','Eldoria desperta','O primeiro amanhecer']) {
     await page.waitForFunction(title => document.querySelector('#transitionScreen').open &&
       document.querySelector('#transitionTitle').textContent === title, title);
     await page.locator('#continueCampaignBtn').tap();

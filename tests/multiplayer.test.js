@@ -33,7 +33,7 @@ function event(socket, name, condition = () => true, duration = 3500) {
 }
 
 async function fixture(t, options = {}) {
-  const game = createGame({ storage:createStorage(), graceMs:230, ...options, logger:{ error() {} } });
+  const game = createGame({ storage:createStorage(), graceMs:230, bossIntroMs:0, ...options, logger:{ error() {} } });
   const { port } = await game.listen(0, '127.0.0.1');
   const url = 'http://127.0.0.1:' + port;
   const clients = [];
@@ -152,10 +152,19 @@ test('maçã cai, pode ser colhida uma vez e permanece na mochila em outra campa
   assert.equal(next.self.apples, 1);
 });
 
-test('servidor valida o trajeto, o turno e descarta a repetição de um golpe', async t => {
-  const f = await fixture(t, { turnMs:3000 });
+test('servidor valida o trajeto, o turno e descarta a repetição de um golpe em campanha antiga', async t => {
+  const storage = createStorage();
+  const hero = identity();
+  const campaign = newCampaign('A11CE9', hero.id);
+  const row = { id:hero.id, keyHash:digest(hero.key), revision:0,
+    data:{ ...makeHero(hero.name, hero.classKey), homeCampaign:campaign.id } };
+  // A campanha já salva sem combatMode representa o formato anterior aos encontros no mapa.
+  await storage.save({ campaign, players:[row], members:[makeMember(campaign, hero.id)] });
+  const f = await fixture(t, { storage, turnMs:3000 });
   const socket = await f.connect();
-  await enter(socket, 'create', identity());
+  const resumed = await enter(socket, 'continue', hero);
+  assert.equal(resumed.combatMode, 'turn');
+  assert.equal(Object.hasOwn((await storage.readCampaign({ id:campaign.id })).data, 'combatMode'), false);
   const start = socket.state.players[0];
   const ignored = event(socket, 'moved', () => true, 130).then(() => false, () => true);
   socket.emit('moveInput', { dx:40, dy:0, seq:1, zone:'village', x:900 });
@@ -259,7 +268,7 @@ test('PostgreSQL migra, persiste o checkpoint e confirma apenas gravação váli
   const second = await enter(other, 'create', otherHero);
   await send(first, 'leaveAdventure', {}, 'left');
   await wait(420);
-  const visitor = await enter(first, 'join', hero, { code:second.code });
+  const visitor = await enter(first, 'join', hero, { code:second.code, classKey:'mage' });
   assert.equal(visitor.self.classKey, 'mage');
   assert.equal(visitor.world.cleared.forest, false);
   assert.equal((await storage.readCampaign({ id:before.campaignId })).data.cleared.forest, true);

@@ -13,8 +13,8 @@
     ArrowLeft:[-1,0], KeyA:[-1,0], ArrowRight:[1,0], KeyD:[1,0]
   };
   const chapters = {
-    forest: { region:'forest', caption:'I · O ENT CORROMPIDO', pages:[
-      ['Floresta Amaldiçoada conquistada', 'O Ent cai de joelhos. Entre suas raízes, um broto verde rompe a terra escura. É a primeira vez em anos que se ouve um pássaro nesta trilha.']
+    forest: { region:'forest', caption:'I · MORVATH, O BRUXO DAS SOMBRAS', pages:[
+      ['O selo da Floresta se partiu', 'O cajado de Morvath se apaga. Tomás e Elara atravessam as grades abertas, e o fragmento da Raiz volta a brilhar na lanterna. Pela primeira vez em anos, um pássaro canta no bosque.']
     ] },
     cave: { region:'cave', caption:'II · O TROLL REI', pages:[
       ['Vozes sob a pedra', 'O último golpe do Troll Rei ecoa pela caverna. Quando o silêncio volta, alguém bate três vezes do outro lado da rocha. Há gente viva lá embaixo.']
@@ -28,8 +28,8 @@
     ] },
     shadow: { region:'shadow', final:true, caption:'V · MALAKAR', pages:[
       ['O último grito de Malakar', 'Malakar tenta lançar sua última maldição. A voz falha. Por um instante, ninguém se mexe. Então a lanterna do grupo volta a queimar.'],
-      ['As correntes se partem', 'Nas profundezas da caverna, alguém bate três vezes na pedra. Desta vez, a porta se abre. Os moradores sobem em direção à luz.'],
-      ['Eldoria desperta', 'As janelas se acendem, uma por uma. Na praça, Aderic ergue a primeira das Sete Lanternas e vê as famílias se reencontrarem.'],
+      ['Maria Rita está livre', 'A última corrente se desfaz diante da Princesa Maria Rita. Ela ergue a lanterna reconstruída e chama os moradores pelo nome. Juntos, deixam a prisão de Malakar e seguem em direção à luz.'],
+      ['Eldoria desperta', 'As janelas se acendem, uma por uma. Na praça, Aderic recebe Maria Rita e as famílias que voltaram. O povo responde ao brilho da lanterna com o primeiro canto de liberdade.'],
       ['O primeiro amanhecer', 'O sino que se calou no castelo enfim termina a badalada. Na Vila, os moradores respondem. Pela primeira vez, os aventureiros podem voltar para casa.']
     ] }
   };
@@ -39,6 +39,7 @@
   let data;
   let state;
   let connectionPending = null;
+  let sessionReplaced = false;
   let activeRoom = null;
   let conversation = null;
   let currentPuzzle = null;
@@ -47,6 +48,8 @@
   let lastGardenTick = 0;
   let lastFieldTick = 0;
   let cutscene = null;
+  let bossIntro = null;
+  const completedBossIntros = new Set();
   let inputId = 0;
   let lastInput = 0;
   let wasMoving = false;
@@ -62,6 +65,19 @@
   let stick = { dx: 0, dy: 0 };
   let clockOffset = 0;
   let music = null;
+  let heroRoster = [];
+  let heroProfile = null;
+  let profileLoadingId = null;
+  let profileInFlightId = null;
+  let profileSendTimer;
+  let profileTimeout;
+  let nextProfileRequestAt = 0;
+  let queuedEntry = null;
+  let lastEntryAttempt = null;
+  let nextAdventureAt = 0;
+  let adventureTimer;
+  let classEdited = false;
+  let nameEdited = false;
 
   function randomKey() {
     return [...crypto.getRandomValues(new Uint8Array(32))].map(byte => byte.toString(16).padStart(2, '0')).join('');
@@ -82,6 +98,7 @@
   }
 
   credentials = loadCredentials();
+  heroRoster = readHeroRoster();
   try {
     const resume = JSON.parse(localStorage.getItem('eldoriaActiveRoom') || 'null');
     if (resume?.heroId === credentials.id && typeof resume.campaignId === 'string') activeRoom = resume;
@@ -92,6 +109,169 @@
   const control = () => positions.get(state?.id);
   const fieldCombat = () => state?.battle?.mode === 'field';
   const worldTime = () => Date.now() + clockOffset;
+  const bossIntroActive = () => state?.battle?.intro?.endsAt > worldTime();
+
+  function validIdentity(value) {
+    return value && typeof value.id === 'string' && /^[a-zA-Z0-9_-]{1,80}$/.test(value.id)
+      && typeof value.key === 'string' && /^[a-f0-9]{64}$/i.test(value.key);
+  }
+
+  function validCharacter(value) {
+    return value && typeof value.name === 'string' && value.name.trim().length > 0 && value.name.length <= 18
+      && typeof value.classKey === 'string' && /^[a-z][a-z0-9_]{0,29}$/.test(value.classKey)
+      && (!data || Object.hasOwn(data.classes, value.classKey))
+      && Number.isSafeInteger(value.level) && value.level >= 1 && value.level <= 10000000;
+  }
+
+  function readHeroRoster() {
+    try {
+      const rows = JSON.parse(localStorage.getItem('eldoriaHeroRosterV1') || '[]');
+      if (!Array.isArray(rows)) return [];
+      const unique = new Map();
+      for (const row of rows) if (validIdentity(row) && validCharacter(row)) {
+        unique.set(row.id, { id:row.id, key:row.key, name:row.name, classKey:row.classKey, level:row.level });
+      }
+      return [...unique.values()];
+    } catch { return []; }
+  }
+
+  function rosterWith(identity, character, rows = [...heroRoster, ...readHeroRoster()]) {
+    const unique = new Map(rows.map(row => [row.id, row]));
+    if (validIdentity(identity) && validCharacter(character)) unique.set(identity.id,
+      { id:identity.id, key:identity.key, name:character.name, classKey:character.classKey, level:character.level });
+    return [...unique.values()];
+  }
+
+  function rememberCharacter(identity, character) {
+    if (!validIdentity(identity) || !validCharacter(character)) return false;
+    const existing = heroRoster.find(row => row.id === identity.id);
+    if (existing && existing.key === identity.key && existing.name === character.name
+      && existing.classKey === character.classKey && existing.level === character.level) return true;
+    const rows = rosterWith(identity, character);
+    heroRoster = rows;
+    try { localStorage.setItem('eldoriaHeroRosterV1', JSON.stringify(rows)); }
+    catch { say('O navegador não conseguiu atualizar a lista de personagens. Mantenha esta aba aberta e libere espaço para guardar a lista.', false); return false; }
+    renderHeroRoster();
+    return true;
+  }
+
+  function renderHeroRoster() {
+    if (!data) return;
+    heroRoster = [...new Map([...heroRoster, ...readHeroRoster()].map(row => [row.id, row])).values()];
+    const rows = heroRoster.filter(row => Object.hasOwn(data.classes, row.classKey));
+    const options = rows.map(row => new Option(row.name + ' · ' + data.classes[row.classKey].name + ' · Nível ' + row.level, row.id));
+    if (!rows.some(row => row.id === credentials.id)) options.unshift(new Option('Novo personagem', credentials.id));
+    $('heroRoster').replaceChildren(...options);
+    $('heroRoster').value = credentials.id;
+    show('heroRosterPanel', options.length > 1);
+  }
+
+  function updateEntryControls() {
+    const profile = heroProfile?.heroId === credentials.id ? heroProfile : null;
+    const saved = profile?.exists ? profile.character : null;
+    const changedClass = saved && $('heroClass').value !== saved.classKey;
+    const busy = !!connectionPending || !!queuedEntry;
+    $('createBtn').disabled = $('joinBtn').disabled = !data || !socket.connected || busy;
+    $('heroRoster').disabled = $('heroClass').disabled = $('playerName').disabled = busy;
+    $('continueSaveBtn').disabled = !data || !socket.connected || busy || profileLoadingId === credentials.id || !saved || !!changedClass;
+    text('continueSaveBtn', saved && data ? 'Continuar ' + data.classes[saved.classKey].name + ' salvo' : 'Continuar aventura');
+    text('savedHeroHint', saved && data ? changedClass
+      ? saved.name + ' é ' + data.classes[saved.classKey].name + '. Criar aventura começa outro personagem; escolha a classe salva para continuar este herói.'
+      : 'Personagem salvo: ' + saved.name + ' · ' + data.classes[saved.classKey].name + ' · Nível ' + saved.level + '. Continuar retoma este herói.'
+      : profileLoadingId === credentials.id ? 'Conferindo o personagem salvo neste navegador…'
+      : 'Escolha sua classe e crie uma aventura para começar.');
+  }
+
+  function applyHeroProfile() {
+    if (!data) return;
+    const saved = heroProfile?.heroId === credentials.id && heroProfile.exists ? heroProfile.character : null;
+    if (validCharacter(saved)) {
+      if (!classEdited) $('heroClass').value = saved.classKey;
+      if (!nameEdited) $('playerName').value = saved.name;
+    }
+    classPreview();
+    renderHeroRoster();
+    updateEntryControls();
+  }
+
+  function inspectHero(scheduleCurrent = false) {
+    if (!socket.connected || profileLoadingId === credentials.id && !scheduleCurrent) return;
+    clearTimeout(profileSendTimer);
+    const heroId = credentials.id;
+    profileLoadingId = heroId;
+    updateEntryControls();
+    // Keep one request in flight across roster changes; a delayed old response
+    // releases this slot, but can never change the currently selected hero.
+    if (profileInFlightId) return;
+    clearTimeout(profileTimeout);
+    profileSendTimer = setTimeout(() => {
+      if (!socket.connected || credentials.id !== heroId || profileLoadingId !== heroId) return;
+      profileInFlightId = heroId;
+      socket.emit('inspectHero', { ...credentials });
+      profileTimeout = setTimeout(() => {
+        if (profileInFlightId !== heroId) return;
+        profileInFlightId = null;
+        nextProfileRequestAt = Date.now() + 450;
+        if (profileLoadingId === credentials.id && credentials.id !== heroId) {
+          inspectHero(true);
+          return;
+        }
+        if (profileLoadingId !== heroId || credentials.id !== heroId) return;
+        profileLoadingId = null;
+        queuedEntry = null;
+        updateEntryControls();
+        text('entryStatus', 'Não foi possível conferir seu personagem. Tente entrar novamente.');
+      }, 10000);
+    }, Math.max(0, nextProfileRequestAt - Date.now()));
+  }
+
+  function createIdentityFor(attempt, previousCharacter) {
+    const next = { id:'hero-' + randomKey().slice(0, 32), key:randomKey() };
+    let rows = rosterWith(credentials, previousCharacter);
+    rows = rosterWith(next, { name:attempt.name.trim().slice(0, 18) || 'Aventureiro', classKey:attempt.classKey, level:1 }, rows);
+    try {
+      // Archive the old identity before replacing the active one. Both writes must succeed.
+      localStorage.setItem('eldoriaHeroRosterV1', JSON.stringify(rows));
+      localStorage.setItem('eldoriaIdentityV2', JSON.stringify(next));
+    } catch {
+      heroRoster = readHeroRoster();
+      renderHeroRoster();
+      text('entryStatus', 'O navegador não conseguiu guardar os personagens. Libere espaço antes de criar outro; seu herói anterior foi preservado.');
+      return false;
+    }
+    credentials = next;
+    heroRoster = rows;
+    activeRoom = null;
+    clearTimeout(profileSendTimer);
+    if (!profileInFlightId) clearTimeout(profileTimeout);
+    profileLoadingId = null;
+    heroProfile = { heroId:next.id, exists:false };
+    renderHeroRoster();
+    return true;
+  }
+
+  function submitEntry(attempt) {
+    if (!socket.connected || state || connectionPending || attempt.heroId !== credentials.id) return;
+    const saved = heroProfile?.heroId === credentials.id && heroProfile.exists ? heroProfile.character : null;
+    if (attempt.action === 'continue' && (!saved || attempt.classKey !== saved.classKey)) {
+      updateEntryControls();
+      text('entryStatus', saved ? 'Escolha a classe do personagem salvo para continuar. Criar aventura começa outro personagem.' : 'Crie uma aventura para este personagem.');
+      return;
+    }
+    if (['create', 'join'].includes(attempt.action) && saved && attempt.classKey !== saved.classKey) {
+      if (!createIdentityFor(attempt, saved)) { updateEntryControls(); return; }
+      attempt.heroId = credentials.id;
+    }
+    lastEntryAttempt = attempt;
+    connectionPending = attempt.action;
+    updateEntryControls();
+    text('entryStatus', 'Abrindo aventura…');
+    clearTimeout(adventureTimer);
+    adventureTimer = setTimeout(() => {
+      if (!socket.connected || lastEntryAttempt !== attempt || connectionPending !== attempt.action || credentials.id !== attempt.heroId) return;
+      send('adventure', { action:attempt.action, ...credentials, name:attempt.name, classKey:attempt.classKey, code:attempt.code });
+    }, Math.max(0, nextAdventureAt - Date.now()));
+  }
 
   function button(label, handler, className) {
     const element = document.createElement('button');
@@ -140,9 +320,13 @@
     show('titleScreen', false);
     show('entry');
     text('entryStatus', socket.connected ? 'Pronto para entrar.' : 'Conectando a Eldoria…');
+    if (!sessionReplaced && heroProfile?.heroId !== credentials.id) inspectHero();
+    else applyHeroProfile();
+    updateEntryControls();
   }
 
   function enter(action) {
+    if (connectionPending || queuedEntry || state) return;
     if (!data) {
       text('entryStatus', 'Aguarde os dados do mundo ou recarregue a página.');
       return;
@@ -151,11 +335,36 @@
       text('entryStatus', 'Conectando a Eldoria…');
       return;
     }
-    connectionPending = action;
-    text('entryStatus', 'Abrindo aventura…');
-    send('adventure', { action, ...credentials, name:$('playerName').value,
-      classKey:$('heroClass').value, code:$('roomCode').value.trim().toUpperCase(), combatMode:$('combatMode').value });
+    const attempt = { action, heroId:credentials.id, name:$('playerName').value, classKey:$('heroClass').value,
+      code:$('roomCode').value.trim().toUpperCase(), classEdited, nameEdited, retried:false };
+    if (!heroProfile || heroProfile.heroId !== credentials.id || profileLoadingId === credentials.id) {
+      queuedEntry = attempt;
+      updateEntryControls();
+      text('entryStatus', 'Conferindo seu personagem antes de entrar…');
+      inspectHero();
+      return;
+    }
+    submitEntry(attempt);
   }
+
+  $('heroRoster').addEventListener('change', () => {
+    if (state || connectionPending || queuedEntry) return;
+    const chosen = heroRoster.find(row => row.id === $('heroRoster').value);
+    if (!chosen || chosen.id === credentials.id) return;
+    try { localStorage.setItem('eldoriaIdentityV2', JSON.stringify({ id:chosen.id, key:chosen.key })); }
+    catch { renderHeroRoster(); text('entryStatus', 'Não foi possível trocar o personagem. Libere espaço no navegador e tente novamente.'); return; }
+    credentials = { id:chosen.id, key:chosen.key };
+    activeRoom = null;
+    heroProfile = null;
+    profileLoadingId = null;
+    clearTimeout(profileSendTimer);
+    if (!profileInFlightId) clearTimeout(profileTimeout);
+    classEdited = nameEdited = false;
+    $('playerName').value = chosen.name;
+    $('heroClass').value = chosen.classKey;
+    classPreview();
+    inspectHero();
+  });
 
   $('startAdventureBtn').addEventListener('click', displayEntry);
   $('backTitleBtn').addEventListener('click', () => { show('entry', false); show('titleScreen'); });
@@ -164,7 +373,14 @@
   $('continueSaveBtn').addEventListener('click', () => enter('continue'));
   $('recoverForm').addEventListener('submit', event => {
     event.preventDefault();
+    if (connectionPending || queuedEntry || !socket.connected) return;
+    const saved = heroProfile?.heroId === credentials.id && heroProfile.exists ? heroProfile.character
+      : heroRoster.find(row => row.id === credentials.id)
+        || { name:$('playerName').value.trim().slice(0, 18) || 'Aventureiro', classKey:$('heroClass').value, level:1 };
+    try { localStorage.setItem('eldoriaHeroRosterV1', JSON.stringify(rosterWith(credentials, saved))); }
+    catch { text('entryStatus', 'Libere espaço no navegador antes de recuperar outro herói. Seu personagem atual foi preservado.'); return; }
     connectionPending = 'recover';
+    updateEntryControls();
     send('redeemRecovery', { key:credentials.key, code:$('recoveryCode').value });
   });
   $('leaveAdventureBtn').addEventListener('click', () => send('leaveAdventure'));
@@ -180,7 +396,8 @@
     Pixel.portrait($('heroPreview'), id);
     if (data) text('classRole', data.classes[id].role + ' · ' + data.classes[id].skill.name);
   }
-  $('heroClass').addEventListener('change', classPreview);
+  $('heroClass').addEventListener('change', () => { classEdited = true; classPreview(); updateEntryControls(); });
+  $('playerName').addEventListener('input', () => { nameEdited = true; });
 
   function closeDialogue() {
     conversation = null;
@@ -385,7 +602,10 @@
       feed.disabled = !!state.battle || !me.apples || me.companions.lume >= 5;
       list.push(feed);
     } else list.push(paragraph(lumeHint(), 'small'));
-    if (me.companions.lia) list.push(paragraph('Lia acompanha sua jornada. Chame-a durante o combate para apoiar o grupo.', 'small'));
+    const echo = me.companions.liaEcho;
+    if (me.companions.lia) list.push(paragraph('Eco de Lia · clone ' + (echo?.generation || 1) + '. Chame-o durante o combate para apoiar o grupo. A Lia original cuida do Pomar.', 'small'));
+    else if (echo?.needsRescue) list.push(paragraph('O Eco de Lia caiu protegendo você. Volte ao broto luminoso no sul do Pomar dos Sussurros para resgatar um novo clone.', 'small'));
+    if (echo?.fallen) list.push(paragraph('Lia homenageou ' + echo.fallen + (echo.fallen === 1 ? ' clone no Memorial dos Ecos.' : ' clones no Memorial dos Ecos.'), 'small'));
     $('inventoryPanel').replaceChildren(...list);
   }
 
@@ -400,7 +620,8 @@
     const main = document.createElement('details');
     main.className = 'entry-line';
     const map = World.zone(state.zone);
-    const description = map.kind === 'dungeon' ? data.dungeons[map.region]?.[map.dungeonIndex]?.description : data.lore[map.region];
+    const description = map.id === 'royal-castle' ? 'O castelinho de Eldoria voltou a abrir depois do resgate de Maria Rita. O salão guarda as memórias da princesa e das famílias que retornaram ao reino.'
+      : map.kind === 'dungeon' ? data.dungeons[map.region]?.[map.dungeonIndex]?.description : data.lore[map.region];
     main.append(paragraph('Crônicas de Eldoria', 'summary'), paragraph(description || '', 'small'),
       ...state.world.quests.map(quest => paragraph((quest.completed ? '✓ ' : '◇ ') + quest.title, 'small')));
     const lume = state.self.companions.lume ? [] : [paragraph('Encontre Lume, o espírito do pomar'), paragraph(lumeHint(), 'small')];
@@ -412,12 +633,17 @@
     const fragments = state.world.fragments || [];
     const rescue = paragraph('Lanterna · ' + fragments.length + '/5 fragmentos · ' + (state.world.rescued || []).length + ' moradores resgatados', 'small');
     if (fragments.length) rescue.append(document.createTextNode(' · ' + fragments.map(fragment => fragment.name).join(', ')));
-    $('questList').replaceChildren(main, rescue, ...guard, ...lume, ...quests);
+    const echoQuest = state.self.companions.liaEcho?.needsRescue ? [paragraph('Resgate um novo Eco de Lia', 'summary'),
+      paragraph('A Lia original aguarda no Pomar. Liberte o clone no broto luminoso ao sul, perto do Memorial dos Ecos.', 'small')] : [];
+    const royalStatus = ['village','royal-castle'].includes(map.id) ? [paragraph(state.world.royalty?.rescued
+      ? 'Castelinho de Maria Rita · Portões abertos na Vila.' : 'Castelinho fechado · Resgate a princesa Maria Rita para abrir os portões.', 'small')] : [];
+    $('questList').replaceChildren(main, rescue, ...royalStatus, ...guard, ...lume, ...echoQuest, ...quests);
     const routes = map.points.filter(p => p.kind === 'portal').map(p => {
       const blocked = p.shortcut && !state.world.orchardOpen || p.requires && !state.world.cleared[p.requires]
         || p.requiresVoyage === 'deck' && !['deck-raider-0', 'deck-raider-1'].every(id => state.world.voyage?.defeated?.includes(id))
         || p.requiresRoom !== undefined && !state.world.rooms[map.region]?.includes(p.requiresRoom);
-      return paragraph((blocked ? '◇ ' : '→ ') + p.label + (blocked ? ' · Fechado' : ''), 'small');
+      return paragraph((blocked ? '◇ ' : '→ ') + p.label + (p.royal
+        ? blocked ? ' · Resgate Maria Rita' : ' · Aberto' : blocked ? ' · Fechado' : ''), 'small');
     });
     $('routeList').replaceChildren(paragraph('Rotas nesta área'), ...routes);
   }
@@ -458,7 +684,7 @@
     if (!battle) return;
     const me = state.self;
     const animating = battle.lastAction && worldTime() - battleTime < 690;
-    const myTurn = battle.active === state.id && me.hp > 0 && !battle.resolveAt && !animating;
+    const myTurn = battle.active === state.id && me.hp > 0 && !battle.resolveAt && !animating && !bossIntroActive();
     const active = state.heroes.find(hero => hero.id === battle.active);
     text('enemyName', battle.name);
     text('enemyPhase', battle.boss ? 'FASE ' + battle.phase + '/3' : 'RODADA ' + battle.round);
@@ -466,7 +692,7 @@
     setBar('enemyBar', battle.hp, battle.maxHp);
     const target = state.heroes.find(hero => hero.id === battle.move?.target);
     const warning = battle.move ? battle.move.name + (battle.move.type === 'area' ? ' → todo o grupo' : target ? ' → ' + target.name : '') : '';
-    const turn = battle.result ? 'Combate encerrado' : !active || animating && battle.lastAction?.side === 'enemy'
+    const turn = bossIntroActive() ? 'O guardião prepara a arena' : battle.result ? 'Combate encerrado' : !active || animating && battle.lastAction?.side === 'enemy'
       ? 'Vez do monstro' : active.id === state.id ? 'Sua vez' : 'Vez de ' + active.name;
     const riposte = battle.status?.[state.id]?.riposte;
     text('battleHint', turn + (warning ? ' · ' + warning : '') + (riposte ? ' · Revide pronto +35%' : ''));
@@ -522,9 +748,9 @@
       companion:me.companions.lia && !battle.supportUsed, flee:!battle.boss };
     const labels = { attack:'Atacar', skill:ability.name + ' · ' + cost(ability.cost) + ' MP',
       technique:technique.name + ' · ' + cost(technique.cost) + ' MP', defend:'Defender', totem:'Quebrar totem',
-      potion:'Poção · ' + me.potions, apple:'Maçã · ' + me.apples, companion:'Chamar Lia', flee:'Recuar' };
+      potion:'Poção · ' + me.potions, apple:'Maçã · ' + me.apples, companion:'Eco de Lia', flee:'Recuar' };
     const shortLabels = { attack:'Atacar', skill:'Habil.', technique:'Técnica', defend:'Defesa', totem:'Totem',
-      potion:'Poção', apple:'Maçã', companion:'Lia', flee:'Recuar' };
+      potion:'Poção', apple:'Maçã', companion:'Eco', flee:'Recuar' };
     for (const button of document.querySelectorAll('[data-field-action]')) {
       const action = button.dataset.fieldAction;
       const cooldowns = battle.cooldowns?.[state.id] || {};
@@ -557,14 +783,50 @@
 
   function battleAction(action) {
     const battle = state?.battle;
-    if (!battle || battle.active !== state.id || battle.resolveAt || (battle.lastAction && worldTime() - battleTime < 690)) return;
+    if (!battle || bossIntroActive() || battle.active !== state.id || battle.resolveAt || (battle.lastAction && worldTime() - battleTime < 690)) return;
     send('battleAction', { id:battle.id, turn:battle.turn, action });
   }
 
   document.querySelectorAll('[data-action]').forEach(control => control.addEventListener('click', () => battleAction(control.dataset.action)));
 
+  function closeBossIntro(completed = false) {
+    if (completed && bossIntro) {
+      completedBossIntros.add(bossIntro.id);
+      if (completedBossIntros.size > 40) completedBossIntros.delete(completedBossIntros.values().next().value);
+    }
+    bossIntro = null;
+    if ($('bossIntro').open) $('bossIntro').close();
+  }
+
+  function syncBossIntro() {
+    const battle = state?.battle;
+    const intro = battle?.intro;
+    if (!intro || fieldCombat() || intro.endsAt <= worldTime()) {
+      if (bossIntro) closeBossIntro(!!intro && bossIntro.id === intro.id);
+      return;
+    }
+    if (completedBossIntros.has(intro.id) || bossIntro?.id === intro.id) return;
+    closeBossIntro();
+    resetMovement();
+    closeDialogue();
+    if ($('worldDialog').open) $('worldDialog').close();
+    if ($('transitionScreen').open) $('transitionScreen').close();
+    cutscene = null;
+    bossIntro = { ...intro, battleId:battle.id };
+    text('bossIntroCaption', intro.caption || 'UM GUARDIÃO BLOQUEIA O CAMINHO');
+    text('bossIntroTitle', intro.title || battle.name);
+    text('bossIntroText', intro.text || 'Prepare sua equipe para enfrentar o guardião.');
+    $('bossIntroProgress').max = Math.max(1, intro.endsAt - intro.startedAt);
+    $('bossIntroProgress').value = Math.max(0, worldTime() - intro.startedAt);
+    $('bossIntro').showModal();
+    $('bossIntro').focus();
+  }
+
+  $('bossIntro').addEventListener('cancel', event => event.preventDefault());
+
   function openScene(chapter) {
     if (cutscene) return;
+    closeBossIntro();
     resetMovement();
     closeDialogue();
     if ($('worldDialog').open) $('worldDialog').close();
@@ -643,6 +905,19 @@
   function acceptState(next) {
     const prior = state;
     state = next;
+    if (state.id === credentials.id) {
+      const character = { name:state.self.name, classKey:state.self.classKey, level:state.self.level };
+      heroProfile = { heroId:credentials.id, exists:true, character };
+      profileLoadingId = null;
+      clearTimeout(profileSendTimer);
+      if (!profileInFlightId) clearTimeout(profileTimeout);
+      rememberCharacter(credentials, character);
+      classEdited = nameEdited = false;
+      $('playerName').value = character.name;
+      $('heroClass').value = character.classKey;
+      classPreview();
+      updateEntryControls();
+    }
     gardenBusy = false;
     clockOffset = state.now - Date.now();
     const movedZone = prior?.zone !== state.zone || prior?.campaignId !== state.campaignId;
@@ -675,6 +950,7 @@
       if (state.battle?.lastAction) battleRefresh = setTimeout(() => { if (state) renderBattle(); }, 710);
     }
     refresh();
+    syncBossIntro();
     const battle = prior?.battle;
     const region = battle?.target.region;
     if (battle?.target.kind === 'boss' && prior.campaignId === state.campaignId &&
@@ -685,18 +961,65 @@
   function resumeRoom() {
     if (!activeRoom || !data || !socket.connected || connectionPending) return;
     connectionPending = 'resume';
+    lastEntryAttempt = null;
+    updateEntryControls();
     text('connectionStatus', 'Recuperando sua participação…');
     socket.emit('adventure', { ...credentials, action:'resume', campaignId:activeRoom.campaignId });
   }
 
   socket.on('connect', () => {
+    clearTimeout(adventureTimer);
+    nextAdventureAt = 0;
+    clearTimeout(profileSendTimer);
+    clearTimeout(profileTimeout);
+    profileLoadingId = null;
+    profileInFlightId = null;
+    nextProfileRequestAt = 0;
     text('entryStatus', 'Pronto para entrar.');
     resumeRoom();
+    inspectHero();
+  });
+
+  socket.on('heroProfile', profile => {
+    const completedRequest = profile?.heroId === profileInFlightId;
+    if (completedRequest) {
+      clearTimeout(profileTimeout);
+      profileInFlightId = null;
+      // Server admission happens before this response. Pacing from the response,
+      // rather than from emit(), remains safe when network delays change.
+      nextProfileRequestAt = Date.now() + 450;
+    }
+    if (profile?.heroId !== credentials.id || profileLoadingId !== profile.heroId) {
+      if (completedRequest && profileLoadingId === credentials.id) inspectHero(true);
+      return;
+    }
+    profileLoadingId = null;
+    if (typeof profile.exists !== 'boolean' || profile.exists && !validCharacter(profile.character)) {
+      queuedEntry = null;
+      updateEntryControls();
+      text('entryStatus', 'Não foi possível conferir os dados do personagem. Tente novamente.');
+      return;
+    }
+    heroProfile = { heroId:profile.heroId, exists:profile.exists, ...(profile.exists ? { character:profile.character } : {}) };
+    if (profile.exists) rememberCharacter(credentials, profile.character);
+    applyHeroProfile();
+    const waiting = queuedEntry;
+    queuedEntry = null;
+    if (waiting && waiting.heroId === credentials.id) {
+      if (!waiting.classEdited && profile.exists) waiting.classKey = profile.character.classKey;
+      if (!waiting.nameEdited && profile.exists) waiting.name = profile.character.name;
+      submitEntry(waiting);
+    }
+    updateEntryControls();
   });
 
   socket.on('joined', room => {
+    nextAdventureAt = Date.now() + 450;
+    sessionReplaced = false;
     rememberRoom(room);
     connectionPending = null;
+    queuedEntry = lastEntryAttempt = null;
+    updateEntryControls();
     inputId = 0;
     pending.length = 0;
     show('titleScreen', false);
@@ -705,6 +1028,7 @@
   });
 
   socket.on('left', () => {
+    closeBossIntro();
     closeDialogue();
     if ($('worldDialog').open) $('worldDialog').close();
     if ($('transitionScreen').open) $('transitionScreen').close();
@@ -718,10 +1042,38 @@
     displayEntry();
   });
 
-  socket.on('disconnect', () => {
+  socket.on('sessionReplaced', () => {
+    closeBossIntro();
+    sessionReplaced = true;
     connectionPending = null;
+    // Another tab owns the same browser storage. Keep its saved room intact.
+    activeRoom = null;
+    closeDialogue();
+    if ($('worldDialog').open) $('worldDialog').close();
+    if ($('transitionScreen').open) $('transitionScreen').close();
+    cutscene = null;
+    state = null;
+    positions.clear();
+    pending.length = 0;
+    resetMovement();
+    show('game', false);
+    displayEntry();
+    text('entryStatus', 'Seu personagem foi retomado em outra aba. Recarregue esta página para voltar por aqui.');
+  });
+
+  socket.on('disconnect', () => {
+    clearTimeout(adventureTimer);
+    closeBossIntro();
+    connectionPending = null;
+    queuedEntry = null;
+    profileLoadingId = null;
+    profileInFlightId = null;
+    clearTimeout(profileSendTimer);
+    clearTimeout(profileTimeout);
+    updateEntryControls();
     resetMovement();
     updateGardenClock(worldTime());
+    if (sessionReplaced) return;
     if (state) {
       text('connectionStatus', 'Conexão interrompida · tentando retomar a mesma sala…');
       $('saveGameBtn').disabled = true;
@@ -755,6 +1107,42 @@
 
   socket.on('notice', message => say(message));
   socket.on('errorMessage', (message, info) => {
+    if (info?.request === 'inspectHero') {
+      const completedRequest = !info.heroId || info.heroId === profileInFlightId;
+      if (completedRequest) {
+        clearTimeout(profileTimeout);
+        profileInFlightId = null;
+        nextProfileRequestAt = Date.now() + 450;
+      }
+      if (info.heroId && info.heroId !== credentials.id) {
+        if (completedRequest && profileLoadingId === credentials.id) inspectHero(true);
+        return;
+      }
+      profileLoadingId = null;
+      queuedEntry = null;
+      updateEntryControls();
+      text('entryStatus', message);
+      return;
+    }
+    if (['create', 'join', 'continue', 'resume'].includes(connectionPending)) nextAdventureAt = Date.now() + 450;
+    if (info?.code === 'CHARACTER_CLASS_MISMATCH' && info.heroId === credentials.id && lastEntryAttempt
+      && lastEntryAttempt.heroId === credentials.id && !lastEntryAttempt.retried
+      && ['create', 'join'].includes(lastEntryAttempt.action) && validCharacter(info.character)) {
+      const retry = { ...lastEntryAttempt, retried:true };
+      connectionPending = null;
+      heroProfile = { heroId:credentials.id, exists:true, character:info.character };
+      if (createIdentityFor(retry, info.character)) {
+        retry.heroId = credentials.id;
+        queuedEntry = retry;
+        updateEntryControls();
+        setTimeout(() => {
+          if (queuedEntry !== retry || credentials.id !== retry.heroId || !socket.connected) return;
+          queuedEntry = null;
+          submitEntry(retry);
+        }, 450);
+      } else updateEntryControls();
+      return;
+    }
     gardenBusy = false;
     updateGardenClock(worldTime());
     if (currentPuzzle && $('puzzleStatus')) text('puzzleStatus', message);
@@ -767,6 +1155,7 @@
       }
       rememberRoom(null);
       state = null;
+      closeBossIntro();
       closeDialogue();
       if ($('worldDialog').open) $('worldDialog').close();
       if ($('transitionScreen').open) $('transitionScreen').close();
@@ -776,13 +1165,16 @@
     }
     if (connectionPending || !state) text('entryStatus', message);
     connectionPending = null;
+    lastEntryAttempt = null;
+    updateEntryControls();
     say(message, false);
   });
 
   socket.on('dialogue', payload => {
     if (!state || state.battle) return;
     conversation = { payload, step:0 };
-    Pixel.portrait($('dialoguePortrait'), payload.portrait, worldTime());
+    Pixel.portrait($('dialoguePortrait'), payload.portrait, worldTime(), undefined,
+      payload.appearance || data.npcs?.[payload.id]?.appearance);
     show('dialoguePanel');
     renderDialogue();
   });
@@ -811,9 +1203,15 @@
   });
   socket.on('recovered', ({ id }) => {
     rememberRoom(null);
-    credentials.id = id;
-    try { localStorage.setItem('eldoriaIdentityV2', JSON.stringify(credentials)); } catch {}
+    credentials = { id, key:credentials.key };
+    try { localStorage.setItem('eldoriaIdentityV2', JSON.stringify(credentials)); }
+    catch { say('O herói foi recuperado nesta aba, mas o navegador não conseguiu guardar o acesso. Mantenha a aba aberta e libere espaço.', false); }
     connectionPending = null;
+    queuedEntry = lastEntryAttempt = null;
+    heroProfile = null;
+    profileLoadingId = null;
+    classEdited = nameEdited = false;
+    inspectHero();
     text('entryStatus', 'Herói recuperado. Clique em Continuar aventura.');
     $('recoveryCode').value = '';
   });
@@ -826,7 +1224,7 @@
     const map = World.zone(state.zone);
     const player = control();
     const points = map.points.filter(p => Pixel.visiblePoint(p, map, state));
-    const npcs = World.npcPositions(map.id, now, state.world);
+    const npcs = World.npcPositions(map.id, now, state.world).filter(npc => !npc.indoors);
     const candidates = [...points, ...npcs].map(p => p.kind === 'enemy' ? { ...p, ...state.mobs?.[p.id] } : p)
       .filter(p => World.distance(player, p) <= (p.kind === 'npc' ? 77 : p.kind === 'portal' ? 62 : 56));
     candidates.sort((a,b) => World.distance(player,a) - World.distance(player,b));
@@ -934,7 +1332,7 @@
   }
 
   function renderFocus(now) {
-    const phase = Math.floor(Math.max(0, now - state.world.epoch) / 22000) % 4;
+    const phase = World.dayCycle(now, state.world).index;
     const dayPhase = ['Manhã','Tarde','Entardecer','Noite'][phase];
     if ($('miniClock').textContent !== dayPhase) text('miniClock', dayPhase);
     if (fieldCombat()) {
@@ -943,11 +1341,12 @@
     }
     if (!focusable()) return;
     const { point, npc } = findInteraction(now);
-    const id = point?.id;
+    const id = point?.royal ? point.id + ':' + !!state.world.royalty?.rescued : point?.id;
     if (interaction !== id) {
       interaction = id;
       const touch = window.matchMedia('(any-pointer: coarse)').matches;
-      text('nearbyPrompt', point ? (touch ? 'AÇÃO · ' : 'E · ') + point.label
+      const label = point?.royal ? state.world.royalty?.rescued ? 'Entrar no castelinho de Maria Rita' : 'Castelinho fechado · Resgate Maria Rita' : point?.label;
+      text('nearbyPrompt', point ? (touch ? 'AÇÃO · ' : 'E · ') + label
         : touch ? 'Explore Eldoria' : 'WASD ou setas para andar · E para interagir');
     }
     if (!npc) lastAutoNpc = null;
@@ -961,6 +1360,20 @@
     const dt = Math.min(0.05, (t - (lastFrame || t)) / 1000);
     lastFrame = t;
     if (state && data && !document.hidden) {
+      if (bossIntro) {
+        const now = worldTime();
+        if (state.battle?.id !== bossIntro.battleId || now >= bossIntro.endsAt) {
+          closeBossIntro(now >= bossIntro.endsAt);
+          renderBattle();
+        } else {
+          const elapsed = Math.max(0, now - bossIntro.startedAt);
+          $('bossIntroProgress').value = elapsed;
+          const status = 'A arena abre em ' + Math.ceil((bossIntro.endsAt - now) / 1000) + ' s.';
+          if ($('bossIntroStatus').textContent !== status) text('bossIntroStatus', status);
+          if (typeof Pixel.drawBossIntro === 'function') Pixel.drawBossIntro($('bossIntroCanvas'), state.battle, state.self, elapsed);
+          else Pixel.drawBattle($('bossIntroCanvas'), state, now, backdrop, battleTime);
+        }
+      }
       if (currentGarden && t - lastGardenTick >= 1000) {
         lastGardenTick = t;
         updateGardenClock(worldTime());
@@ -971,7 +1384,7 @@
       }
       if (focusable()) stepMovement(t, dt);
       if (cutscene) Pixel.drawChapter($('endingStage'), cutscene, state.self, t - cutscene.started, backdrop);
-      if (!cutscene && t - lastDraw >= 16) {
+      if (!cutscene && !bossIntro && t - lastDraw >= 16) {
         lastDraw = t;
         for (const [id, position] of positions) {
           if (id === state.id) continue;
@@ -1029,10 +1442,18 @@
     return response.json();
   })).then(([game, story]) => {
     data = { ...game, ...story };
+    const selectedClass = $('heroClass').value;
     const options = Object.entries(data.classes).map(([id, role]) => new Option(role.name, id));
     $('heroClass').replaceChildren(...options);
-    classPreview();
+    if (classEdited && Object.hasOwn(data.classes, selectedClass)) $('heroClass').value = selectedClass;
+    const local = heroRoster.find(row => row.id === credentials.id && Object.hasOwn(data.classes, row.classKey));
+    if (local) {
+      if (!classEdited) $('heroClass').value = local.classKey;
+      if (!nameEdited) $('playerName').value = local.name;
+    }
+    applyHeroProfile();
     resumeRoom();
+    if (!heroProfile || heroProfile.heroId !== credentials.id) inspectHero();
     requestAnimationFrame(animation);
   }).catch(() => text('entryStatus', 'Os dados do jogo não carregaram. Atualize a página para tentar novamente.'));
 })();

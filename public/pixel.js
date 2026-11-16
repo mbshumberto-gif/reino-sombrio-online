@@ -105,34 +105,137 @@
     rect(ctx, x, y, 2, 2, '#f9df91');
   }
 
-  function house(ctx, x, y, roof, sign) {
-    rect(ctx, x - 7, y + 12, 168, 88, '#1a2e34');
-    rect(ctx, x + 1, y + 14, 150, 79, '#684a48');
-    rect(ctx, x + 7, y + 26, 138, 60, '#be9b73');
-    rect(ctx, x + 7, y + 66, 138, 20, '#93715e');
-    for (let i = 0; i < 19; i++) {
-      rect(ctx, x + 11 + (i * 31) % 127, y + 33 + (i * 17) % 44, 3 + i % 4, 2, i % 3 ? '#aa8869' : '#cdaa7d');
+  function house(ctx, home, night) {
+    const { x, y, width, height, door } = home;
+    const roof = { chronicler:['#715479','#957394'], blacksmith:['#526382','#7f8a9c'],
+      healer:['#a46d5c','#c59578'], villager:['#637b62','#93a174'], lia:['#8b6859','#b28d6c'] }[home.npcId] || ['#87514e','#ce8465'];
+    const roofHeight = Math.round(height * 0.5);
+    rect(ctx, x + 3, y + height - 2, width - 6, 5, '#1a2e34');
+    rect(ctx, x + 4, y + roofHeight - 5, width - 8, height - roofHeight + 5, '#b39473');
+    rect(ctx, x + 4, y + height - 10, width - 8, 10, '#836757');
+    for (let k = 0; k < 6; k++) {
+      const inset = Math.round((5 - k) * width / 19);
+      const yy = y + Math.round(k * roofHeight / 6);
+      rect(ctx, x + inset, yy, width - inset * 2, Math.ceil(roofHeight / 6) + 1, roof[k % 2]);
+      for (let xx = x + inset + 6; xx < x + width - inset - 4; xx += 17) rect(ctx, xx, yy + 2, 10, 2, roof[1]);
     }
-    for (let xx = 15; xx < 150; xx += 33) rect(ctx, x + xx, y + 33, 4, 55, '#71534f');
-    for (let k = 0; k < 8; k++) {
-      const offset = Math.abs(6 - k) * 8;
-      rect(ctx, x + offset - 12, y - 25 + k * 7, 175 - 2 * offset, 8, k % 2 ? roof[1] : roof[0]);
-      for (let xx = offset - 6; xx < 156 - offset; xx += 13) rect(ctx, x + xx, y - 21 + k * 7, 8, 2, roof[2]);
+    rect(ctx, x, y + roofHeight - 2, width, 5, '#51414a');
+    for (const xx of [x + 10, x + width - 15]) rect(ctx, xx, y + roofHeight + 3, 4, height - roofHeight - 4, '#72594d');
+    const doorHeight = Math.min(32, height - roofHeight - 2);
+    rect(ctx, door.x - 13, y + height - doorHeight, 26, doorHeight, '#352a37');
+    rect(ctx, door.x - 9, y + height - doorHeight + 2, 18, doorHeight - 2, '#725244');
+    rect(ctx, door.x + 5, y + height - 14, 3, 4, '#e4bd76');
+    rect(ctx, door.x - 17, y + height + 1, 34, 6, '#b29b7b');
+    for (const xx of [x + 25, x + width - 41]) {
+      if (night) rect(ctx, xx - 7, y + height - 32, 30, 29, '#f2c1741d');
+      rect(ctx, xx - 2, y + height - 27, 20, 18, '#51434c');
+      rect(ctx, xx + 1, y + height - 24, 14, 12, night ? '#ffd78a' : '#9cb6b4');
+      rect(ctx, xx + 6, y + height - 25, 2, 15, '#6b5349');
+      rect(ctx, xx, y + height - 19, 16, 2, '#6b5349');
     }
-    rect(ctx, x - 10, y + 25, 171, 6, '#523644');
-    rect(ctx, x + 65, y + 47, 25, 45, '#472f3d');
-    rect(ctx, x + 71, y + 49, 15, 39, '#76504a');
-    rect(ctx, x + 81, y + 65, 3, 4, '#efbc69');
-    for (const xx of [23, 113]) {
-      rect(ctx, x + xx, y + 45, 18, 19, '#554049');
-      rect(ctx, x + xx + 3, y + 49, 12, 10, '#edc575');
-      rect(ctx, x + xx + 8, y + 48, 2, 12, '#795952');
-      rect(ctx, x + xx + 3, y + 54, 12, 2, '#795952');
+    label(ctx, home.label, x + width / 2, y + roofHeight - 11, '#ead6b3');
+  }
+
+  function royalCastle(ctx, castle, state, night) {
+    const { x, y, width, height, door } = castle;
+    const open = !!state.world.cleared.shadow;
+    const bottom = y + height;
+    rect(ctx, x + 4, bottom - 5, width - 8, 9, '#52635b');
+    rect(ctx, x + 38, y + 26, width - 76, height - 26, '#b3b6b0');
+    for (let row = 0; row < 5; row++) {
+      const yy = y + 30 + row * 13;
+      rect(ctx, x + 43, yy, width - 86, 2, '#8e9695');
+      for (let xx = x + 52 + row % 2 * 14; xx < x + width - 42; xx += 29) rect(ctx, xx, yy + 2, 2, 11, '#929b96');
     }
-    rect(ctx, x + 59, y + 89, 36, 6, '#846b64');
-    rect(ctx, x + 4, y + 87, 45, 4, '#56585c');
-    rect(ctx, x + 104, y + 87, 39, 4, '#56585c');
-    label(ctx, sign, x + 75, y + 5);
+    for (const xx of [x, x + width - 48]) {
+      rect(ctx, xx + 2, y + 10, 44, height - 10, '#8a9698');
+      rect(ctx, xx + 6, y + 12, 36, height - 14, '#c7c9bd');
+      rect(ctx, xx + 7, y + 12, 5, height - 17, '#e2dcc5');
+      for (let row = 1; row < 7; row++) {
+        const yy = y + 13 + row * 11;
+        rect(ctx, xx + 5, yy, 38, 2, '#9da5a2');
+        rect(ctx, xx + 17 + row % 2 * 9, yy + 2, 2, 9, '#adb4ac');
+      }
+      rect(ctx, xx, y + 9, 48, 7, '#e0d9c5');
+      for (const tooth of [0,16,32]) {
+        rect(ctx, xx + tooth, y, 12, 12, '#d9d5c4');
+        rect(ctx, xx + tooth, y, 12, 3, '#ede3c9');
+      }
+      rect(ctx, xx + 18, y + 24, 12, 22, '#4c5365');
+      rect(ctx, xx + 20, y + 27, 8, 16, night || open ? '#f2c98a' : '#8fa5af');
+      rect(ctx, xx + 23, y + 27, 2, 17, '#6e747b');
+      rect(ctx, xx + 14, y + 55, 20, 30, '#94657f');
+      rect(ctx, xx + 16, y + 57, 16, 25, '#cf98ac');
+      shape(ctx, xx + 18, y + 62, ['g...g','.ggg.','..g..'], { g:'#f4d78b' }, 2);
+      rect(ctx, xx + 13, y + 53, 22, 3, '#d5bd80');
+    }
+    for (let xx = x + 55; xx < x + width - 51; xx += 25) {
+      rect(ctx, xx, y + 17, 15, 12, '#d8d4c2');
+      rect(ctx, xx, y + 17, 15, 3, '#eee2ca');
+    }
+    rect(ctx, door.x - 28, bottom - 44, 56, 44, '#777e87');
+    rect(ctx, door.x - 21, bottom - 51, 42, 10, '#cbd0c4');
+    rect(ctx, door.x - 25, bottom - 43, 50, 43, '#d5d4c3');
+    rect(ctx, door.x - 18, bottom - 40, 36, 40, open ? '#694758' : '#394151');
+    if (open) {
+      rect(ctx, door.x - 14, bottom - 35, 28, 34, '#d6b386');
+      rect(ctx, door.x - 10, bottom - 20, 20, 23, '#b27990');
+      rect(ctx, door.x - 18, bottom - 40, 36, 5, '#65717b');
+    } else {
+      for (let dx = -14; dx <= 14; dx += 7) rect(ctx, door.x + dx, bottom - 39, 3, 39, '#929a9b');
+      rect(ctx, door.x - 18, bottom - 25, 36, 4, '#aeb6ad');
+      rect(ctx, door.x - 5, bottom - 22, 10, 11, '#d2b77a');
+      rect(ctx, door.x - 1, bottom - 18, 3, 5, '#6c5058');
+    }
+    rect(ctx, door.x - 25, bottom + 1, 50, 7, '#c9c0a8');
+    rect(ctx, door.x - 21, bottom + 8, 42, 6, '#a9aaa0');
+    label(ctx, 'Castelinho de Maria Rita', door.x, y + 40, '#f1d7ab');
+  }
+
+  function royalHall(ctx, map) {
+    for (const [row, tiles] of map.grid.entries()) for (const [col, tile] of tiles.entries()) {
+      const x = col * W.TILE, y = row * W.TILE;
+      const floor = tile === 0 || tile === 2;
+      rect(ctx, x, y, 32, 32, floor ? (col + row) % 2 ? '#bcb0a0' : '#c9bdab' : '#6f6c7b');
+      if (floor) {
+        rect(ctx, x, y, 32, 2, '#d4cbbb');
+        rect(ctx, x, y, 2, 32, '#ada395');
+        if ((col * 3 + row) % 5 === 0) rect(ctx, x + 13, y + 13, 5, 5, '#b2a48f');
+      } else {
+        rect(ctx, x + 2, y + 3, 28, 22, '#95919a');
+        rect(ctx, x + 2, y + 3, 28, 4, '#bdb5b0');
+        rect(ctx, x + 15, y + 7, 2, 19, '#7c7b8a');
+      }
+    }
+    rect(ctx, 416, 176, 128, 336, '#9f627d');
+    rect(ctx, 421, 176, 118, 336, '#c487a2');
+    for (const x of [422,534]) rect(ctx, x, 176, 4, 336, '#e2c991');
+    for (let y = 190; y < 500; y += 31) {
+      shape(ctx, 474, y, ['..g..','.g.g.','g...g','.g.g.','..g..'], { g:'#edd9b0' }, 2);
+    }
+    // Framed mural, rather than a second princess NPC.
+    rect(ctx, 433, 43, 94, 87, '#5e465d');
+    rect(ctx, 438, 48, 84, 77, '#d5bb84');
+    rect(ctx, 442, 52, 76, 69, '#94758b');
+    rect(ctx, 449, 59, 62, 55, '#b6a2a5');
+    princess(ctx, { x:480, y:113, name:'Maria Rita' }, 0, { nickname:false, scale:2.2 });
+    label(ctx, 'Maria Rita', 480, 132, '#f3dca8');
+    rect(ctx, 446, 140, 68, 35, '#75566b');
+    rect(ctx, 451, 140, 58, 31, '#cb9dac');
+    rect(ctx, 446, 169, 68, 8, '#9d7085');
+    for (const x of [442,510]) {
+      rect(ctx, x, 150, 8, 32, '#d7bb80');
+      rect(ctx, x - 2, 145, 12, 8, '#eee0aa');
+    }
+    for (const x of [47,881]) {
+      rect(ctx, x, 124, 31, 78, '#93637e');
+      rect(ctx, x + 3, 127, 25, 70, '#cc98ad');
+      shape(ctx, x + 5, 140, ['g...g','.ggg.','..g..'], { g:'#f3d590' }, 4);
+      rect(ctx, x - 3, 121, 37, 5, '#dfc99b');
+      rect(ctx, x + 5, 227, 21, 31, '#5f6073');
+      rect(ctx, x + 8, 230, 15, 25, '#f6d29d');
+      rect(ctx, x + 14, 231, 3, 23, '#bdac8e');
+    }
   }
 
   function water(ctx, x, y, time, palette, lava = false) {
@@ -184,6 +287,10 @@
     canvas.height = W.HEIGHT;
     const ctx = canvas.getContext('2d');
     const palette = mapPalette(map);
+    if (map.id === 'royal-castle') {
+      royalHall(ctx, map);
+      return { canvas, animatedWater:[] };
+    }
     if (map.id === 'boat') {
       rect(ctx, 0, 0, W.WIDTH, W.HEIGHT, '#183e58');
       for (let i = 0; i < 22; i++) rect(ctx, i * 47 % W.WIDTH, 18 + i * 83 % W.HEIGHT, 44, 3, '#2d657b');
@@ -257,13 +364,6 @@
     }
     obstacles.forEach(draw => draw());
     if (map.id === 'village') {
-      house(ctx, 137, 101, ['#87514e','#a35c54','#ce8465'], 'ESTALAGEM');
-      house(ctx, 648, 101, ['#485878','#65728c','#8794a3'], 'FORJA');
-      for (const px of [303, 619]) {
-        rect(ctx, px, 119, 24, 53, '#473b48');
-        rect(ctx, px + 4, 120, 16, 40, '#777482');
-        rect(ctx, px + 7, 126, 10, 15, '#c1a77f');
-      }
       for (const px of [288, 321, 602, 640]) flower(ctx, px, 397, px);
     }
     if (map.kind === 'branch') {
@@ -277,6 +377,37 @@
 
   function prop(ctx, p, map, state, time) {
     const { x, y } = p;
+    if (p.id === 'royal-castle-gate' && map.id === 'village') return;
+    if (p.kind === 'royalMemory') {
+      rect(ctx, x - 16, y - 4, 32, 10, '#725c70');
+      rect(ctx, x - 11, y - 15, 22, 15, '#eed5aa');
+      rect(ctx, x - 10, y - 14, 9, 12, '#d1a2ad');
+      rect(ctx, x + 1, y - 14, 9, 12, '#b67e99');
+      rect(ctx, x - 1, y - 14, 2, 14, '#d9ba83');
+      return;
+    }
+    if (p.kind === 'liaRescue') {
+      liaEcho(ctx, { x, y, classKey:'rogue', facing:'down', appearance:W.NPCS.lia?.appearance }, time,
+        { nickname:false, scale:1.9 });
+      for (const [dx, dy, width] of [[-25,-4,49],[-19,-18,38],[-13,-31,27]]) {
+        rect(ctx, x + dx, y + dy, width, 3, '#5d879e');
+        rect(ctx, x + dx + 5, y + dy - 3, Math.max(3,width - 10), 2, '#a3cee0');
+      }
+      shape(ctx, x - 8, y - 7, ['..ll....','..lll...','.lllll..','...t....','...t....'],
+        { l:'#b6dba7', t:'#659d95' }, 2);
+      label(ctx, 'Libertar Eco de Lia', x, y - 58, '#c1dfd9');
+      return;
+    }
+    if (p.kind === 'memorial') {
+      rect(ctx, x - 20, y - 2, 40, 9, '#42515a');
+      rect(ctx, x - 14, y - 24, 28, 27, '#7c8790');
+      rect(ctx, x - 11, y - 28, 22, 6, '#a5b2ac');
+      shape(ctx, x - 7, y - 22, ['...ll..','..lll..','.lll...','..t....'],
+        { l:'#c1d7a0', t:'#e4d5a1' }, 2);
+      for (const side of [-1,1]) flower(ctx, x + side * 23, y + 2, 2);
+      label(ctx, 'Memorial dos Ecos', x, y - 43, '#d7d7b9');
+      return;
+    }
     if (p.kind === 'tree') {
       tree(ctx, x, y, mapPalette(map), true);
       const fruit = state.fruit.find(candidate => candidate.id === p.id && !candidate.claimed && candidate.expires > time);
@@ -422,6 +553,15 @@
     monk:['...............','......oo.......','....oooooo.....','....ohhhho.....','...aataata.....','...o......a....'],
     druid:['...a.....a.....','...oa...ao.....','....oaaao......','...obtttbo.....','..oobbbbboo....','...ooooooo.....']
   };
+  const naturalHair = {
+    curly:['...............','...............','....hhhhh......','...hkhhkhh.....','..hhkhhkhhh....',
+      '..hkhhhkhkh....','...hhhhhhh.....','...hh....hh....','...kh....hk....','....h....h.....'],
+    short:['...............','...............','.....hhhhh.....','....hhhhhhh....','....hkhhhkh....',
+      '....hhhhhhh....','....hh...hh....'],
+    braids:['...............','...............','....hhhhhhh....','...hkhkhkhkh...','...hhhhhhhhh...',
+      '...hhhhhhhhh...','...hh.....hh...','...kh.....hk...','...hk.....kh...','...kh.....hk...',
+      '...hk.....kh...','...kh.....hk...','...hk.....kh...','....a.....a....']
+  };
 
   function weapon(ctx, id, key, x, y, palette, scale, swinging) {
     const t = swinging ? -3 * scale : 0;
@@ -446,8 +586,9 @@
   }
 
   function hero(ctx, entry, time, { nickname = true, scale = 2, attacking = false } = {}) {
+    if (entry.classKey === 'princess') return princess(ctx, entry, time, { nickname, scale });
     const key = clothes[entry.classKey] ? entry.classKey : 'warrior';
-    const palette = clothes[key];
+    const palette = entry.appearance?.echo ? ['#253f43','#4c7973','#a5c8a3','#e3e8b6'] : clothes[key];
     const [dark, main, light, accent] = palette;
     const step = entry.moving ? Math.floor(time / 125) % 4 : 0;
     const x = Math.round(entry.x);
@@ -460,10 +601,13 @@
     if (left) ctx.scale(-1, 1);
     if (!entry.online && entry.online !== undefined) ctx.globalAlpha = 0.5;
     if (entry.hp === 0) ctx.globalAlpha *= 0.55;
-    const cs = { o: ink, h: key === 'cleric' ? '#c5955f' : '#67445a', s: up ? '#664557' : '#e8a67d',
+    const appearance = entry.appearance || {};
+    const skin = appearance.skin || (appearance.skinTone === 'deep' ? '#8f573f' : '#e8a67d');
+    const hair = appearance.hair ? '#2e2228' : key === 'cleric' ? '#c5955f' : '#67445a';
+    const cs = { o: ink, h: hair, k:'#5a3e3c', s: up ? hair : skin,
       e: up ? '#664557' : '#382c40', a: accent, b: main, d: dark, t: light };
     shape(ctx, -7 * scale, -17 * scale, commonBody, cs, scale);
-    shape(ctx, -7 * scale, -18 * scale, headwear[key], cs, scale);
+    shape(ctx, -7 * scale, -18 * scale, naturalHair[appearance.hair] || headwear[key], cs, scale);
     if (key === 'warrior' || key === 'paladin') {
       rect(ctx, -6 * scale, -8 * scale, 4 * scale, 3 * scale, light);
       rect(ctx, 4 * scale, -8 * scale, 3 * scale, 3 * scale, light);
@@ -500,35 +644,124 @@
     if (Math.floor(time / 270) % 3) rect(ctx, x + 9, y - 15 + bob, scale, scale, '#f6e4a3');
   }
 
+  function liaEcho(ctx, entry, time, { nickname = true, scale = 2 } = {}) {
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const orbit = reduced ? 0 : time / 1800;
+    ctx.save();
+    ctx.strokeStyle = '#b7d9b9';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.ellipse(entry.x, entry.y - 4, 11 * scale, 3 * scale, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.globalAlpha = 0.86;
+    hero(ctx, { ...entry, appearance:{ ...(entry.appearance || W.NPCS.lia?.appearance), echo:true } }, time,
+      { nickname:false, scale });
+    ctx.restore();
+    for (let i = 0; i < 4; i++) {
+      const angle = orbit + i * Math.PI / 2;
+      const x = entry.x + Math.cos(angle) * 12 * scale;
+      const y = entry.y - 18 * scale + Math.sin(angle) * 5 * scale;
+      shape(ctx, x, y, ['..l.','.ll.','ll..'], { l:i % 2 ? '#d7e9b4' : '#93c6a1' }, Math.max(1, scale * 0.6));
+    }
+    if (nickname) label(ctx, 'Eco de Lia', entry.x, entry.y - 44, '#d6e9bb');
+  }
+
   function monster(ctx, name, x, y, time, size = 2, boss = false, phase = 1) {
     const word = name.toLowerCase();
-    const creature = /lobo|javali|cão/.test(word) ? 'beast' : /aranha|escorpião/.test(word) ? 'spider'
+    const creature = /morvath|bruxo/.test(word) ? 'wizard' : /goblin/.test(word) ? 'goblin' : /troll/.test(word) ? 'troll' : /lobo|javali|cão/.test(word) ? 'beast' : /aranha|escorpião/.test(word) ? 'spider'
       : /corvo|harpia|morcego|draco/.test(word) ? 'wing' : /ent|raiz/.test(word) ? 'tree' : /vazio|espectro|malakar|sentinela/.test(word) ? 'ghost' : 'armor';
     const colors = {
       beast:['#37394f','#816b84','#cda1a1'], spider:['#423354','#755387','#ba7cad'],
       wing:['#503846','#995457','#e18c68'], tree:['#35473b','#63835b','#acc578'],
-      ghost:['#432b5b','#784d89','#b883ac'], armor:['#374257','#6a718e','#a2a9bd']
+      ghost:['#432b5b','#784d89','#b883ac'], armor:['#374257','#6a718e','#a2a9bd'],
+      wizard:['#1b172b','#43264f','#865189'], goblin:['#244737','#588748','#a5c56f'],
+      troll:boss ? ['#343d4e','#63717b','#9ba99e'] : ['#3b473f','#657c62','#9aa580']
     }[creature];
-    const scale = boss ? size * 1.6 : size;
+    const scale = (boss ? size * 1.6 : size) * (creature === 'goblin' ? 0.78 : 1);
     const cs = { o:'#172539', d:colors[0], b:colors[1], t:colors[2], e:phase > 1 ? '#f9a681' : '#ffdf8b', a:'#eee0af' };
+    if (creature === 'wizard') Object.assign(cs, { o:'#100f1d', e:'#ff5f65', a:'#cab6c2' });
+    if (creature === 'goblin') Object.assign(cs, { c:'#835942', a:'#eee1a8', e:'#f4cc77' });
+    if (creature === 'troll') Object.assign(cs, { o:'#17232e', a:'#dfceac', e:phase >= 3 ? '#ffb65b' : '#e9ba66',
+      c:phase >= 2 ? '#a6dbdd' : '#6c9ca7', v:'#514c51' });
     const sprites = {
       beast:['..o..o.........','..ototo........','.oottbto.......','oabbebto...oo..','..obbbto.oobto.','...obbbbobto...','...obbbbbbo....','....obdddbo....','....odooobo....','....oo..oo.....'],
       spider:['...o......o....','..obo....obo...','.obo..oo..obo..','obo.oottoo.obo.','oo.ottbbtto.oo.','..otebbbeto....','.oobbbbbbbboo..','odoobbdbboodo..','oo..ooodo..oo..'],
       wing:['o.............o','oto....o....oto','obto..oto..otbo','odbbottttobbdo.','.obbbteetbbbbo.','..oobbttbbboo..','....obttbbo....','.....ooboo.....','......ao.......'],
       tree:['..to.o.to......','.otbobotot..o..','..obttbto.oto..','ootootttooobo..','.obbbteetbboo..','..otbbtbbtoo...','..obbtbtbbto...','...obbbbooo....','..obtdbbto.....','..otodoooto....','.oooo...oooo...'],
       ghost:['......ooo......','....ootttbo....','...ottbbbtbo...','..ottbeebttbo..','.ottbttbbtbddo.','.otbbttbbttbbo.','..odbbddbbbdo..','...odbdddbdo...','....oo.do.o....','.......o.......'],
-      armor:['.....ooooo.....','....ottttto....','...ottbbttto...','...oeoddoeoo...','...obbtbbdoo...','..otttbbddboo..','..obtbttbbbo...','..oobbdddboo...','...oddooodo....','...ooo.oooo....']
+      armor:['.....ooooo.....','....ottttto....','...ottbbttto...','...oeoddoeoo...','...obbtbbdoo...','..otttbbddboo..','..obtbttbbbo...','..oobbdddboo...','...oddooodo....','...ooo.oooo....'],
+      wizard:['...........oo....','.........ootbo...','........otbbo....','.......otbbbo....','......otbbbbo....',
+        '.....otbbtbbbo...','..oootttttttbboo.','...oooaddddaooo..','.....odededo.....','.....odadddo.....',
+        '....obdaaabdo....','...otbbdddbbto...','..otbbbdtdbbbto..','.otbbbddtddbbbto.',
+        '.obbbdddtdddbbbo.','..odddddtdddddo..','..ooooooooooooo..'],
+      goblin:['tto.........ott','tttooooooooottt','.otttbbbbbttto.','..otbeooebto...',
+        '...otbaaato....','....obbbbo.....','..obccccccbo...','.tobccaccbott..','...occccco.....',
+        '...oddoddo.....','...odo.odo.....','...oo...oo.....'],
+      troll:['.........oooo........','.......ootttboo......','......otttbbbttbo....',
+        '.....otbeodetbbto....','....otbbbdddbbbtbo...','...ootbdooooodbttbo..',
+        '..otbbtdbbbbbdbbttbo.','.otbbbbbvvvvbbbbttbo.',
+        'otbbbttbbvvbbbccttbo.','obbbttbbdddbbcctbtbo.',
+        'obbdtbbbddbbbctbbtbo.','obddtbbddddbbbtbbdoo.',
+        '.oootbbddoddbbtooo...','...otdddo.oddto......','...ooooo..ooooo......']
     };
     const bob = Math.floor(Math.sin(time / 350) * 3);
     rect(ctx, x - 6 * scale, y - 2, 12 * scale, 3 * scale, '#13213292');
-    shape(ctx, x - 7 * scale, y - 10 * scale + bob, sprites[creature], cs, scale);
+    shape(ctx, x - (creature === 'wizard' ? 8 : creature === 'troll' ? 10 : 7) * scale,
+      y - (creature === 'wizard' ? 16 : creature === 'troll' ? 14 : creature === 'goblin' ? 11 : 10) * scale + bob, sprites[creature], cs, scale);
+    if (creature === 'troll') {
+      const crown = boss ? ['..c......c...','..tc....ct...','c.ttc..ctt..c','cttttcttttctc','..ttttttttt..'] : ['..c...','..tc..','.cttc.','cttttc'];
+      shape(ctx, x + (boss ? -4 : 5) * scale, y - (boss ? 17 : 12) * scale + bob,
+        crown, { c:cs.c, t:boss ? '#7d959c' : '#8a9b83' }, scale);
+      shape(ctx, x - 4 * scale, y - 9 * scale + bob,
+        ['.ooooooo.','oaaoooaao','oaoooooao','.ovvvvvo.','..bbbbb..'],
+        { o:'#202936', a:'#daccb2', v:'#665451', b:cs.b }, scale);
+      rect(ctx, x - 3 * scale, y - 12 * scale + bob, 3 * scale, scale, '#25313c');
+      rect(ctx, x + scale, y - 12 * scale + bob, 3 * scale, scale, '#25313c');
+      if (boss && phase >= 2) {
+        shape(ctx, x + 6 * scale, y - 9 * scale + bob, ['..c..','.ctc.','.ctc.','ctttc'],
+          { c:cs.c, t:'#d7ece0' }, scale);
+      }
+    }
+    if (creature === 'goblin') {
+      shape(ctx, x + 6 * scale, y - 5 * scale + bob, ['...w.','..ww.','.ww..','cc...','.c...'],
+        { w:'#d9d9bd', c:'#674631' }, scale);
+    }
+    if (creature === 'wizard') {
+      rect(ctx, x + 9 * scale, y - 11 * scale + bob, 1.5 * scale, 12 * scale, '#6d525f');
+      shape(ctx, x + 7 * scale, y - 14 * scale + bob,
+        ['.aaa.','addda','aedea','.ada.','..a..'], { a:'#d6c6bd', d:'#2c2034', e:'#e76575' }, scale);
+      if (phase >= 2) {
+        const pulse = 2 + Math.sin(time / 280);
+        rect(ctx, x - 10 * scale, y - 5 * scale + bob - pulse, 2 * scale, 2 * scale, '#b879bf');
+      }
+    }
     if (boss && phase === 3) {
       rect(ctx, x - 6 * scale, y - 10 * scale, 2 * scale, 2 * scale, '#f7ba79');
       rect(ctx, x + 5 * scale, y - 12 * scale, 2 * scale, 2 * scale, '#f7ba79');
     }
   }
 
+  function princess(ctx, entry, time, { nickname = true, scale = 2 } = {}) {
+    const x = Math.round(entry.x), y = Math.round(entry.y);
+    rect(ctx, x - 6 * scale, y - 1, 12 * scale, 3 * scale, '#16263080');
+    shape(ctx, x - 7 * scale, y - 21 * scale, [
+      '....g..g..g....','....ggggggg....','.....gjjjg.....','....ohhhhho....','....ohsssho....',
+      '....ohesesho...','....ohsssho....','....ohhshho....','...olllglllo...',
+      '..ollplllpllo..','..oslllllllso..','...olllglllo...','...ollpgpllo...','..ollplllpllo..',
+      '..olplllllplo..','.ollplllllpllo.','.olplllllllplo.','olllllllllllllo',
+      '.ooooooooooooo.','....oo...oo....'
+    ], { o:ink, g:'#f2cb70', j:'#ce718f', h:'#35242e', s:'#edaf91', e:'#3b2943',
+      p:'#ac72a5', l:'#e8bad2' }, scale);
+    // Rounded, highlighted ringlets frame the face and hang below the crown.
+    for (const [dx, dy] of [[-5,-18],[2,-18],[-6,-15],[3,-15],[-5,-12],[2,-12]]) {
+      shape(ctx, x + dx * scale, y + dy * scale,
+        ['.hh.','hkhh','hhkh','.hh.'], { h:'#35242e', k:'#815851' }, scale);
+    }
+    if (nickname) label(ctx, entry.name || 'Maria Rita', x, y - 49, '#ffe2a1');
+  }
+
   function visiblePoint(p, map, state) {
+    if (p.kind === 'liaRescue') return !!state.self.companions.liaEcho?.needsRescue;
     if (p.kind === 'enemy') return !state.world.cleared[map.region] && !state.world.defeated[map.region]?.includes(p.enemyIndex);
     if (p.kind === 'boss') return W.bossVisible(map, state.world);
     if (p.kind === 'dungeonEnemy' || p.kind === 'puzzle') return !state.world.rooms[map.region]?.includes(map.dungeonIndex);
@@ -561,7 +794,7 @@
   function prison(ctx, x, y, time, open, names = ['Morador']) {
     rect(ctx, x - 35, y - 4, 70, 12, '#1c2c32');
     for (const [i, name] of names.entries()) {
-      hero(ctx, { name, classKey:i % 2 ? 'bard' : 'ranger', x:x - (names.length - 1) * 15 + i * 30,
+      hero(ctx, { name, classKey:name === 'Maria Rita' ? 'princess' : i % 2 ? 'bard' : 'ranger', x:x - (names.length - 1) * 15 + i * 30,
         y, facing:'down' }, time, { nickname:false, scale:1.5 });
     }
     if (open) {
@@ -618,6 +851,22 @@
     if (progress >= 1) label(ctx, (data.crops?.[crop.crop]?.name || 'Colheita') + ' · pronta', x, y - 32, '#e1db91');
   }
 
+  function echoMemorial(ctx, memorial, slot) {
+    const x = slot.x ?? slot[0], y = slot.y ?? slot[1];
+    rect(ctx, x - 12, y, 24, 5, '#293d3e');
+    rect(ctx, x - 10, y - 14, 20, 17, '#718280');
+    rect(ctx, x - 7, y - 17, 14, 4, '#9daea1');
+    shape(ctx, x - 3, y - 13, ['..ll.','.lll.','ll...','..t..'],
+      { l:'#c2d8b3', t:'#d6d5ae' }, 1.2);
+    flower(ctx, x + 13, y + 1, 2);
+    ctx.save();
+    ctx.fillStyle = '#e4dfc5';
+    ctx.font = '12px VT323, monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(String(memorial.generation), x, y + 1);
+    ctx.restore();
+  }
+
   function dangerZones(ctx, battle, time) {
     for (const warning of battle.telegraphs || []) {
       const remaining = warning.resolvesAt - time;
@@ -646,10 +895,40 @@
     }
   }
 
+  function flyingWildlife(ctx, map, cycle, reducedMotion) {
+    if (['dungeon','interior'].includes(map.kind) || !['village','forest'].includes(map.region)) return;
+    const night = cycle.isNight;
+    const elapsed = reducedMotion ? 8500 : cycle.elapsed;
+    const count = reducedMotion ? 2 : night ? 3 : 4;
+    const poses = night ? [
+      ['o.......o','oto...oto','obto.otbo','.obbbbbo.','...oeo...'],
+      ['.........','oo.....oo','.oto.oto.','..obbbo..','...oeo...'],
+      ['.........','...ooo...','..otbto..','.oboeobo.','oo.....oo']
+    ] : [
+      ['t.....t','.t.b.t.','..tbt..','...b.a.'],
+      ['.......','tt.b.tt','..tbt..','...b.a.'],
+      ['.......','...b...','..tbt..','.t.b.ta']
+    ];
+    for (let i = 0; i < count; i++) {
+      const drift = elapsed / (night ? 48 : 55);
+      const x = (drift + i * 271 + map.id.length * 37) % (W.WIDTH + 90) - 45;
+      const y = 72 + i * 104 + (reducedMotion ? 0 : Math.sin(elapsed / 1700 + i * 2.1) * 15);
+      const pose = reducedMotion ? 1 : Math.floor(elapsed / (night ? 240 : 310) + i) % poses.length;
+      shape(ctx, x, y, poses[pose], night
+        ? { o:'#1b2031', t:'#625778', b:'#3d3652', e:'#ddad83' }
+        : { t:'#c7d4c7', b:'#4d5350', a:'#ddba7c' }, night ? 2 : 1.7);
+    }
+  }
+
   function drawWorld(canvas, state, positions, data, time) {
     const ctx = canvas.getContext('2d');
     const map = W.zone(state.zone);
     const palette = mapPalette(map);
+    const cycle = W.dayCycle ? W.dayCycle(time, state.world) : {
+      index:Math.floor(Math.max(0, time - state.world.epoch) / 22000) % 4,
+      elapsed:Math.max(0, time - state.world.epoch)
+    };
+    cycle.isNight ??= cycle.index === 3;
     if (followerZone !== state.campaignId + ':' + map.id) {
       followerZone = state.campaignId + ':' + map.id;
       followerPositions.clear();
@@ -686,6 +965,20 @@
       }
     }
     const actors = [];
+    if (map.id === 'village' && W.ROYAL_CASTLE) {
+      actors.push({ y:W.ROYAL_CASTLE.y + W.ROYAL_CASTLE.height,
+        draw: () => royalCastle(ctx, W.ROYAL_CASTLE, state, cycle.isNight) });
+    }
+    for (const home of (W.HOUSES || []).filter(home => home.zone === map.id)) {
+      actors.push({ y:home.y + home.height, draw: () => house(ctx, home, cycle.isNight) });
+    }
+    if (map.id === 'orchard') {
+      const memorials = (state.world.liaMemorials || []).slice(-8);
+      for (const [i, memorial] of memorials.entries()) {
+        const slot = W.LIA_MEMORIAL_SLOTS?.[i];
+        if (slot) actors.push({ y:slot.y ?? slot[1], draw: () => echoMemorial(ctx, memorial, slot) });
+      }
+    }
     const field = state.battle?.mode === 'field' ? state.battle : null;
     if (field) dangerZones(ctx, field, time);
     const region = data.regions.find(entry => entry.id === map.region);
@@ -730,10 +1023,12 @@
       }
     }
     if (map.kind === 'surface' && W.REGIONS.includes(map.region)) {
-      const captives = { forest:['Tomás','Elara'], cave:['Borin'], fire:['Nilo'], castle:['Sera'], shadow:['Ivo'] };
+      const captives = { forest:['Tomás','Elara'], cave:['Borin'], fire:['Nilo'], castle:['Sera'], shadow:['Ivo','Maria Rita'] };
       actors.push({ y:153, draw: () => prison(ctx, 648, 153, time, !!state.world.cleared[map.region], captives[map.region]) });
     }
-    for (const npc of W.npcPositions(map.id, time, state.world)) actors.push({ y:npc.y, draw: () => hero(ctx, npc, time) });
+    for (const npc of W.npcPositions(map.id, time, state.world).filter(npc => !npc.indoors)) {
+      actors.push({ y:npc.y, draw: () => hero(ctx, npc, time) });
+    }
     for (const entry of state.players) {
       const p = { ...entry, ...positions.get(entry.id), self: entry.id === state.id };
       const action = field?.lastAction;
@@ -749,25 +1044,34 @@
       }
       if (p.companions.lia) {
         const location = follow('lia:' + p.id, p.x + (p.facing === 'right' ? -38 : 37), p.y + 9);
-        const ally = { ...p, ...location, classKey:'rogue', equipment:{}, name:'Lia' };
-        actors.push({ y:ally.y, draw: () => hero(ctx, ally, time, { scale:1.75 }) });
+        const ally = { ...p, ...location, classKey:'rogue', equipment:{}, name:'Eco de Lia',
+          appearance:{ ...(W.NPCS.lia?.appearance || {}), echo:true } };
+        actors.push({ y:ally.y, draw: () => liaEcho(ctx, ally, time, { scale:1.75, nickname:p.self }) });
       }
     }
-    if (map.id === 'village') {
-      const freed = state.world.rescued || (state.world.cleared.shadow ? ['Tomás','Elara','Borin','Nilo','Sera','Ivo'] : []);
+    if (W.residentPositions) {
+      for (const resident of W.residentPositions(map.id, time, state.world).filter(resident => !resident.indoors)) {
+        actors.push({ y:resident.y, draw: () => hero(ctx, resident, time,
+          { scale:resident.classKey === 'princess' ? 2 : 1.6 }) });
+      }
+    } else if (map.id === 'village') {
+      const freed = state.world.rescued || (state.world.cleared.shadow ? ['Tomás','Elara','Borin','Nilo','Sera','Ivo','Maria Rita'] : []);
       for (const [i, name] of [...new Set(freed)].filter(Boolean).entries()) {
-        const resident = { name, classKey:Object.keys(clothes)[i + 2], x:350 + i * 47, y:184 + i % 2 * 20, facing:'down' };
+        const resident = { name, classKey:name === 'Maria Rita' ? 'princess' : Object.keys(clothes)[i + 2],
+          x:350 + i * 47, y:184 + i % 2 * 20, facing:'down',
+          appearance:{ skin:['#8f573f','#dca17e','#bc805d','#724635'][i % 4] } };
         actors.push({ y:resident.y, draw: () => hero(ctx, resident, time, { scale:1.6 }) });
       }
     }
     actors.sort((a, b) => a.y - b.y).forEach(actor => actor.draw());
-    for (let i = 0; i < 18; i++) {
+    for (let i = 0; map.kind !== 'interior' && i < 18; i++) {
       const x = (i * 127 + time / 146) % W.WIDTH;
       const y = (i * 58 + Math.sin(time / 1400 + i) * 11) % W.HEIGHT;
       rect(ctx, x, y, 2, 2, ['#eac576','#8ec3b2','#a69bc5'][i % 3] + (i % 2 ? 'a8' : '75'));
     }
-    const period = Math.floor(Math.max(0, time - state.world.epoch) / 22000) % 4;
-    if (period === 3 && map.kind !== 'dungeon' && ['village','forest'].includes(map.region)) {
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    flyingWildlife(ctx, map, cycle, reducedMotion);
+    if (cycle.isNight && !['dungeon','interior'].includes(map.kind) && ['village','forest'].includes(map.region)) {
       rect(ctx, 0, 0, W.WIDTH, W.HEIGHT, '#1e284d38');
     }
     ctx.restore();
@@ -836,8 +1140,8 @@
     const foe = { x:602, y:151 };
     const enemyAction = action?.side === 'enemy';
     const heroColors = { warrior:'#ffc781', mage:'#ff7349', sorceress:'#ba8dfb', cleric:'#fff3a5',
-      rogue:'#b498db', bard:'#ffc2e2', paladin:'#f7d475', ranger:'#a2de79', monk:'#72f1ce' };
-    const enemyColors = { forest:'#aee16f', cave:'#7ad7f5', fire:'#ff7b4d', castle:'#f6cb8a', shadow:'#d19cff' };
+      rogue:'#b498db', bard:'#ffc2e2', paladin:'#f7d475', ranger:'#a2de79', monk:'#72f1ce', druid:'#b2d993' };
+    const enemyColors = { forest:'#c18cdd', cave:'#7ad7f5', fire:'#ff7b4d', castle:'#f6cb8a', shadow:'#d19cff' };
     const effects = [];
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     if (battle.move?.type === 'charge' || battle.move?.type === 'area') {
@@ -878,6 +1182,8 @@
       });
     }
     const recoil = !reducedMotion && action?.damage && progress > 0.61 ? Math.sin(progress * 86) * (1 - progress) * 22 : 0;
+    if (action?.action === 'companion') liaEcho(ctx,
+      { x:382, y:246, classKey:'rogue', facing:'right', appearance:W.NPCS.lia?.appearance }, time, { scale:2.7 });
     monster(ctx, battle.name, foe.x + recoil - (enemyAction ? Math.sin(progress * Math.PI) * 34 : 0), 224, time,
       battle.boss ? 8.1 : 9, battle.boss, battle.phase);
     for (let i = 0; i < battle.totems; i++) {
@@ -902,6 +1208,57 @@
     }
   }
 
+  function drawBossIntro(canvas, battle, self, elapsedMs) {
+    const ctx = canvas.getContext('2d');
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const time = reduced ? 2400 : Math.max(0, Math.min(4500, elapsedMs));
+    const region = battle.target?.region || 'forest';
+    const palette = palettes[region] || palettes.shadow;
+    const reveal = Math.min(1, Math.max(0, (time - 400) / 850));
+    ctx.save();
+    ctx.imageSmoothingEnabled = false;
+    ctx.scale(canvas.width / 760, canvas.height / 296);
+    arenaBackdrop(ctx, W.zone(region), 760, 296, palette, { complete:false }, time);
+    rect(ctx, 0, 0, 760, 296, '#18112585');
+    const wizard = /morvath|bruxo/i.test(battle.name);
+    const bossX = reduced ? 560 : 590 - reveal * 30;
+    const ring = 83 + (reduced ? 0 : Math.sin(time / 350) * 4);
+    ctx.strokeStyle = wizard ? '#a273bd' : '#e2b38a';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.ellipse(bossX, 236, ring, 17, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    for (let i = 0; i < 7; i++) {
+      const angle = i * Math.PI * 2 / 7 + (reduced ? 0 : time / 6000);
+      const x = bossX + Math.cos(angle) * (ring + 5);
+      const y = 210 + Math.sin(angle) * 57;
+      rect(ctx, x, y, 4, 7, '#d3b4db');
+    }
+    ctx.save();
+    if (reveal < 0.8) ctx.filter = 'brightness(0.12)';
+    ctx.globalAlpha = 0.35 + reveal * 0.65;
+    monster(ctx, battle.name || 'Guardião', bossX, 228, time, wizard ? 6.3 : 7.4, true, 1);
+    ctx.restore();
+    hero(ctx, { ...self, x:137, y:237, facing:'right' }, time, { nickname:false, scale:4 });
+    if (self?.companions?.lume) lume(ctx, 92, 187, time, true);
+    if (self?.companions?.lia) liaEcho(ctx,
+      { classKey:'rogue', x:76, y:249, facing:'right', appearance:W.NPCS.lia?.appearance }, time,
+      { nickname:false, scale:2.7 });
+    if (!reduced && time > 650 && time < 1100) {
+      const glow = Math.sin((time - 650) / 450 * Math.PI) * 0.12;
+      ctx.fillStyle = 'rgba(233,211,248,' + glow + ')';
+      ctx.fillRect(0, 0, 760, 296);
+    }
+    // One gentle reveal, with a static full scene for reduced motion.
+    rect(ctx, 0, 0, 760, 28, '#0e111ee8');
+    rect(ctx, 0, 261, 760, 35, '#0e111eeb');
+    rect(ctx, 0, 28, 20, 233, '#0e111e65');
+    rect(ctx, 740, 28, 20, 233, '#0e111e65');
+    label(ctx, 'O GUARDIÃO DO SELO', 380, 15, '#c9b5d9');
+    label(ctx, battle.name || 'Guardião', 380, 279, '#f4d49d');
+    ctx.restore();
+  }
+
   function drawChapter(canvas, chapter, player, elapsed, backdrop) {
     const ctx = canvas.getContext('2d');
     const { width, height } = canvas;
@@ -918,9 +1275,13 @@
     hero(ctx, { ...player, x:109, y:143, facing:'right' }, time, { nickname:false, scale:3 });
     const gold = '#ffda8d';
     if (region === 'forest') {
-      rect(ctx, 306, 143 - 24 * light, 4, 24 * light, '#a0c579');
-      rect(ctx, 296, 137 - 19 * light, 12 * light, 6, '#79ae6f');
-      rect(ctx, 309, 131 - 19 * light, 12 * light, 6, '#b1d87a');
+      rect(ctx, 304, 109, 9, 35, '#59405f');
+      shape(ctx, 294, 101 + 16 * light, ['..aaa..','.addda.','aededa.','.addda.','..aaa..'],
+        { a:'#c7b6c9', d:'#4b2d55', e:'#bd6a98' }, 4);
+      const split = light * 24;
+      rect(ctx, 290 - split, 143, 18, 5, '#8a5c94');
+      rect(ctx, 312 + split, 140, 17, 5, '#8a5c94');
+      rect(ctx, 304, 89 - light * 18, 10, 14, gold);
     } else if (region === 'cave' || region === 'shadow' && step === 1) {
       const split = region === 'cave' ? 3 : 10 + 38 * light;
       rect(ctx, 305 - split, 39, split * 2, 105, gold);
@@ -945,6 +1306,7 @@
           { nickname:false, scale:2.5 });
         if (light * 5 > i) rect(ctx, x - 3, 60 - i % 2 * 8, 7, 10, gold);
       }
+      princess(ctx, { name:'Maria Rita', x:381, y:148 }, time, { nickname:false, scale:2.5 });
     } else {
       rect(ctx, 304, 116, 15, 22, '#674e54');
       rect(ctx, 307, 120 - 9 * light, 9, 16 + 9 * light, gold);
@@ -958,12 +1320,17 @@
     ctx.restore();
   }
 
-  function portrait(canvas, key, time = 0, equipment) {
+  function portrait(canvas, key, time = 0, equipment, appearance) {
     const ctx = canvas.getContext('2d');
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     if (key === 'lume') lume(ctx, canvas.width / 2, canvas.height * 0.69, time, true);
-    else hero(ctx, { x:canvas.width / 2, y:canvas.height * 0.83, classKey:key, equipment }, time, { nickname:false, scale:2.75 });
+    else if (key === 'liaEcho') liaEcho(ctx,
+      { x:canvas.width / 2, y:canvas.height * 0.83, classKey:'rogue', appearance:W.NPCS.lia?.appearance }, time,
+      { nickname:false, scale:2.4 });
+    else if (key === 'princess' || key === 'mariaRita') princess(ctx,
+      { name:'Maria Rita', x:canvas.width / 2, y:canvas.height * 0.91 }, time, { nickname:false, scale:2.4 });
+    else hero(ctx, { x:canvas.width / 2, y:canvas.height * 0.83, classKey:key, equipment, appearance }, time, { nickname:false, scale:2.75 });
   }
 
-  window.EldoriaPixel = { drawWorld, drawBattle, drawChapter, portrait, visiblePoint };
+  window.EldoriaPixel = { drawWorld, drawBattle, drawChapter, drawBossIntro, portrait, visiblePoint };
 })();

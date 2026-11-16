@@ -12,7 +12,7 @@ const Farming = require('../farming');
 const identity = { id:'expansion-hero', key:'7'.repeat(64) };
 const hash = key => createHash('sha256').update(key).digest('hex');
 
-async function fixture(t, { zone, x, y, setup = () => {} }) {
+async function fixture(t, { zone, x, y, setup = () => {}, bossIntroMs = 200, reducedMotion = 'no-preference' }) {
   const storage = createStorage();
   const room = newCampaign('FA4D01', identity.id);
   room.data.combatMode = 'field';
@@ -21,14 +21,14 @@ async function fixture(t, { zone, x, y, setup = () => {} }) {
   const member = makeMember(room, identity.id, { x, y, campaign:{ activeRegion:zone } });
   setup(room.data, hero.data, member.data);
   await storage.save({ campaign:room, players:[hero], members:[member] });
-  const game = createGame({ storage });
+  const game = createGame({ storage, bossIntroMs });
   const { port } = await game.listen(0, '127.0.0.1');
   const executablePath = process.env.ELDORIA_CHROMIUM;
   const browser = await chromium.launch({ executablePath,
     args:executablePath ? ['--no-sandbox','--disable-dev-shm-usage','--single-process','--no-zygote'] : []
   }).catch(async error => { await game.close(); throw error; });
   t.after(async () => { try { await browser.close(); } finally { await game.close(); } });
-  const context = await browser.newContext({ ...devices['Pixel 7'], viewport:{ width:390, height:844 } });
+  const context = await browser.newContext({ ...devices['Pixel 7'], viewport:{ width:390, height:844 }, reducedMotion });
   const page = await context.newPage();
   page.setDefaultTimeout(8000);
   page.setDefaultNavigationTimeout(15000);
@@ -56,6 +56,26 @@ async function keyboard(page, key, duration) {
   finally { await page.keyboard.up(key); }
   await page.waitForTimeout(90);
 }
+
+test('outra aba retoma o personagem e atualizar mantém a sala salva no navegador', { timeout:30000 }, async t => {
+  const { page, context, room, errors } = await fixture(t, { zone:'village', x:480, y:458 });
+  const resumed = await context.newPage();
+  resumed.on('pageerror', error => errors.push(error.message));
+  await resumed.goto(page.url(), { waitUntil:'domcontentloaded' });
+  await resumed.waitForFunction(() => !document.querySelector('#game').classList.contains('hidden') &&
+    document.querySelector('#heroName').textContent === 'Jade');
+  await page.waitForFunction(() => document.querySelector('#game').classList.contains('hidden') &&
+    document.querySelector('#entryStatus').textContent.includes('outra aba'));
+  assert.equal(await resumed.evaluate(() => JSON.parse(localStorage.getItem('eldoriaActiveRoom')).campaignId), room.id);
+  await resumed.reload({ waitUntil:'domcontentloaded' });
+  await resumed.waitForFunction(() => !document.querySelector('#game').classList.contains('hidden') &&
+    document.querySelector('#roomLabel').textContent === 'FA4D01');
+  assert.equal(await resumed.locator('#heroName').textContent(), 'Jade');
+  assert.equal(await page.locator('#game').isHidden(), true);
+  assert.deepEqual(errors, []);
+  await resumed.locator('#leaveAdventureBtn').click();
+  await resumed.waitForFunction(() => document.querySelector('#game').classList.contains('hidden'));
+});
 
 async function position(page) {
   return page.evaluate(() => {
@@ -88,7 +108,7 @@ async function fieldButton(page, action) {
 
 async function assertFieldControlsFit(page) {
   const viewport = page.viewportSize();
-  for (const selector of ['#worldCanvas','#virtualJoystick','#mobileActionBtn','#fieldSkillBtn','#fieldTechniqueBtn','#fieldDefendBtn','#fieldTotemBtn','#fieldSelfVitals','#fieldLeaveBtn']) {
+  for (const selector of ['#worldCanvas','#virtualJoystick','#mobileActionBtn','#fieldSkillBtn','#fieldTechniqueBtn','#fieldDefendBtn','#fieldSelfVitals','#fieldLeaveBtn']) {
     const box = await page.locator(selector).boundingBox();
     assert.ok(box && box.width > 0 && box.height > 0, selector + ' visível');
     assert.ok(box.x >= -1 && box.y >= -1 && box.x + box.width <= viewport.width + 1 && box.y + box.height <= viewport.height + 1,
@@ -129,16 +149,15 @@ test('Druida colhe, replanta, rega e usa o alimento no Pomar pelo celular', { ti
   assert.deepEqual(errors, []);
 });
 
-test('Ent luta no mapa, aceita movimento por toque e exige quebrar totens nas três fases', { timeout:50000 }, async t => {
-  const { page, context, errors } = await fixture(t, { zone:'forest', x:480, y:160,
-    setup(world) { world.defeated.forest = [0,1,2,3,4]; } });
-  await page.waitForTimeout(1850);
-  await page.keyboard.press('KeyE');
+test('criaturas comuns continuam no mapa com controles mobile em retrato e paisagem', { timeout:35000 }, async t => {
+  const { page, context, errors } = await fixture(t, { zone:'forest', x:228, y:245 });
+  // The nearby creature engages naturally after the entry grace period.
   await page.waitForFunction(() => window.__e2eState?.battle?.mode === 'field');
   assert.equal(await page.locator('#worldCanvas').isVisible(), true);
   assert.equal(await page.locator('#virtualJoystick').isVisible(), true);
   assert.equal(await page.locator('#fieldBattle').isVisible(), true);
   assert.equal(await page.locator('#battle').isVisible(), false);
+  assert.equal(await page.locator('#bossIntro').isVisible(), false);
   await page.waitForFunction(() => window.__e2eState.battle.telegraphs.length > 0);
   const before = await position(page);
   const session = await context.newCDPSession(page);
@@ -152,10 +171,6 @@ test('Ent luta no mapa, aceita movimento por toque e exige quebrar totens nas tr
   await page.waitForTimeout(100);
   assert.ok((await position(page)).x > before.x + 10);
   assert.equal(await page.locator('#joystickKnob').evaluate(el => el.style.transform), '');
-  await page.locator('#worldCanvas').click({ position:{ x:5, y:5 } });
-  await page.keyboard.press('Space');
-  await page.waitForFunction(() => window.__e2eState.battle.phase === 2);
-  assert.equal(await page.evaluate(() => window.__e2eState.battle.totems.length), 2);
   await assertFieldControlsFit(page);
   await page.screenshot({ path:'/tmp/eldoria-field-mobile.png' });
   await page.setViewportSize({ width:844, height:390 });
@@ -163,21 +178,88 @@ test('Ent luta no mapa, aceita movimento por toque e exige quebrar totens nas tr
   await assertFieldControlsFit(page);
   await page.screenshot({ path:'/tmp/eldoria-field-landscape.png' });
   await page.setViewportSize({ width:390, height:844 });
-  for (let index = 0; index < 2; index++) {
-    const totem = await page.evaluate(() => window.__e2eState.battle.totems[0]);
-    await walkTo(page, totem.x, totem.y + 20);
-    await fieldButton(page, 'totem');
-    await page.waitForFunction(id => window.__e2eState.battle.totems.find(totem => totem.id === id)?.hp === 1, totem.id);
-    await fieldButton(page, 'totem');
-    await page.waitForFunction(id => !window.__e2eState.battle.totems.some(totem => totem.id === id), totem.id);
-  }
   await fieldButton(page, 'attack');
+  await page.waitForFunction(() => !window.__e2eState.battle && window.__e2eState.world.defeated.forest.includes(0));
+  assert.equal(await page.locator('#virtualJoystick').isVisible(), true);
+  assert.deepEqual(errors, []);
+});
+
+async function assertBossIntroFits(page) {
+  const viewport = page.viewportSize();
+  for (const selector of ['#bossIntro','#bossIntroCanvas','#bossIntroTitle','#bossIntroText','#bossIntroProgress','#bossIntroStatus']) {
+    const box = await page.locator(selector).boundingBox();
+    assert.ok(box && box.width > 0 && box.height > 0, selector + ' visível');
+    assert.ok(box.x >= -1 && box.y >= -1 && box.x + box.width <= viewport.width + 1 && box.y + box.height <= viewport.height + 1,
+      selector + ' cabe sem rolar: ' + JSON.stringify({ box, viewport }));
+  }
+}
+
+async function turnButton(page, action) {
+  const selector = '[data-action="' + action + '"]';
+  await page.waitForFunction(selector => {
+    const control = document.querySelector(selector);
+    return control && !control.disabled && !control.hidden;
+  }, selector);
+  await page.locator(selector).tap();
+}
+
+test('Morvath abre introdução sincronizada, retoma após atualizar e luta por turnos no celular', { timeout:45000 }, async t => {
+  const { page, context, errors } = await fixture(t, { zone:'forest', x:480, y:160, bossIntroMs:4500, reducedMotion:'reduce',
+    setup(world) { world.defeated.forest = [0,1,2,3,4]; } });
+  await page.waitForTimeout(1850);
+  await page.keyboard.press('KeyE');
+  await page.waitForFunction(() => window.__e2eState?.battle?.mode === 'turn' && document.querySelector('#bossIntro').open);
+  const original = await page.evaluate(() => ({ id:window.__e2eState.battle.id, endsAt:window.__e2eState.battle.intro.endsAt,
+    turn:window.__e2eState.battle.turn, hp:window.__e2eState.battle.hp }));
+  assert.match(await page.locator('#bossIntroTitle').textContent(), /Morvath/);
+  await assertBossIntroFits(page);
+  await page.screenshot({ path:'/tmp/eldoria-morvath-intro-mobile.png' });
+  assert.equal(await page.locator('#attackBtn').isDisabled(), true);
+  await page.keyboard.press('Space');
+  await page.waitForTimeout(220);
+  assert.equal(await page.evaluate(() => window.__e2eState.battle.hp), original.hp);
+  assert.equal(await page.evaluate(() => window.__e2eState.battle.turn), original.turn);
+  await page.setViewportSize({ width:844, height:390 });
+  await assertBossIntroFits(page);
+  await page.screenshot({ path:'/tmp/eldoria-morvath-intro-landscape.png' });
+  await page.reload({ waitUntil:'domcontentloaded' });
+  await page.waitForFunction(() => window.__e2eState?.battle?.intro && document.querySelector('#bossIntro').open);
+  assert.equal(await page.evaluate(() => window.__e2eState.battle.id), original.id);
+  assert.equal(await page.evaluate(() => window.__e2eState.battle.intro.endsAt), original.endsAt);
+  assert.ok(await page.evaluate(() => window.__e2eState.battle.intro.endsAt - window.__e2eState.now < 4300), 'retoma o tempo restante em vez de reiniciar a introdução');
+  await page.locator('#bossIntro').waitFor({ state:'hidden' });
+  assert.equal(await page.locator('#battle').isVisible(), true);
+  assert.equal(await page.locator('#worldCanvas').isVisible(), false);
+  assert.equal(await page.locator('#fieldBattle').isVisible(), false);
+  await page.setViewportSize({ width:390, height:844 });
+  await page.screenshot({ path:'/tmp/eldoria-morvath-arena-mobile.png' });
+  await turnButton(page, 'attack');
+  await page.waitForFunction(() => window.__e2eState.battle.phase === 2);
+  assert.equal(await page.evaluate(() => window.__e2eState.battle.totems), 2);
+  await turnButton(page, 'totem');
+  await page.waitForFunction(() => window.__e2eState.battle.totems === 1);
+  await turnButton(page, 'totem');
+  await page.waitForFunction(() => window.__e2eState.battle.totems === 0);
+  await turnButton(page, 'attack');
   await page.waitForFunction(() => window.__e2eState.battle.phase === 3);
-  await page.waitForFunction(() => !document.querySelector('#fieldAttackBtn').disabled);
-  await page.locator('#mobileActionBtn').tap();
+  await turnButton(page, 'attack');
   await page.waitForFunction(() => !window.__e2eState.battle && window.__e2eState.world.cleared.forest);
   assert.equal(await page.locator('#transitionScreen').isVisible(), true);
   assert.ok(await page.evaluate(() => window.__e2eState.world.rescued.includes('Tomás')));
+  await page.locator('#continueCampaignBtn').tap();
+  const before = await position(page);
+  const session = await context.newCDPSession(page);
+  const joystick = page.locator('#virtualJoystick');
+  await joystick.scrollIntoViewIfNeeded();
+  const box = await joystick.boundingBox();
+  const x = box.x + box.width / 2, y = box.y + box.height / 2;
+  await session.send('Input.dispatchTouchEvent', { type:'touchStart', touchPoints:[{x,y,id:1}] });
+  await session.send('Input.dispatchTouchEvent', { type:'touchMove', touchPoints:[{x:x+35,y,id:1}] });
+  await page.waitForTimeout(220);
+  await session.send('Input.dispatchTouchEvent', { type:'touchCancel', touchPoints:[] });
+  await page.waitForTimeout(100);
+  assert.ok((await position(page)).x > before.x + 10, 'analógico volta a mover o herói depois do chefe');
+  assert.equal(await page.locator('#joystickKnob').evaluate(el => el.style.transform), '');
   assert.deepEqual(errors, []);
 });
 

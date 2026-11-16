@@ -3,9 +3,10 @@
 const { randomUUID } = require('node:crypto');
 const { HERO_CLASSES, TECHNIQUES } = require('./game-data');
 const { heroStats } = require('./adventure');
+const Lia = require('./lia-companion');
 
 const BOSSES = {
-  forest: ['Investida das raízes', 'Totens de seiva', 'Coração da árvore'],
+  forest: ['Maldição do cajado', 'Totens do pacto sombrio', 'Eclipse de Morvath'],
   cave: ['Martelo de pedra', 'Cristais ressonantes', 'Eco sísmico'],
   fire: ['Mordida de brasa', 'Brasas em órbita', 'Fôlego vulcânico'],
   castle: ['Desafio do general', 'Estandartes da guarda', 'Última ordem'],
@@ -77,7 +78,7 @@ function announceMove(battle, alive) {
   }
   if (battle.boss && battle.phase === 2 && battle.totems) return { type: 'shield', name: moves[1], target };
   if (battle.round % (battle.boss ? 2 : 3) === 1) return { type: 'charge', name: battle.boss ? moves[0] : 'Investida feroz', target };
-  const names = { forest:'Garras da floresta', cave:'Estilhaço de cristal', fire:'Rajada de brasas',
+  const names = { forest:battle.boss ? 'Rajada de sombras' : 'Garras da floresta', cave:'Estilhaço de cristal', fire:'Rajada de brasas',
     castle:'Golpe espectral', shadow:'Pulso do vazio' };
   return { type: 'hit', name: names[battle.target.region], target };
 }
@@ -109,6 +110,7 @@ function enemyTurn(battle, entries) {
       if (battle.target.region === 'fire' && !status.defending) hero.hp = Math.max(0, hero.hp - 7);
       if (battle.target.region === 'shadow' && battle.hp) battle.hp = Math.min(Math.ceil(battle.maxHp * 0.32), battle.hp + Math.ceil(damage * 0.3));
     }
+    Lia.recordKnockout(battle, entry, before);
     if (status.guard && status.counter && hero.hp > 0) harm(battle, heroStats(hero).attack * 0.5);
     if (status.defending && hero.hp > 0 && ['charge', 'area'].includes(move.type)) {
       status.riposte = true;
@@ -273,11 +275,11 @@ function act(battle, id, action, entries) {
     battle.totems--;
     text = battle.totems ? 'Uma proteção se partiu.' : 'O núcleo está exposto!';
   } else if (action === 'companion') {
-    if (battle.supportUsed || !hero.companions.lia) return { error: 'Lia já ajudou nesta batalha ou ainda está no pomar.' };
+    if (battle.supportUsed || !hero.companions.lia) return { error: 'O Eco de Lia já ajudou nesta batalha ou ainda não acompanha você.' };
     battle.supportUsed = true;
     alive.forEach(ally => restore(ally.data, 25, 9));
     if (battle.totems) battle.totems--;
-    text = 'Lia abriu caminho e reanimou a equipe com um assobio.';
+    text = 'O Eco de Lia abriu caminho e renovou as forças da equipe com um assobio.';
   } else if (action === 'flee') {
     if (battle.boss) return { error: 'O guardião bloqueou a passagem.' };
     return { outcome: 'fled', text: 'O grupo recuou até um lugar seguro.' };

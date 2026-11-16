@@ -5,7 +5,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const World = require('../public/world-data');
-const { newCampaign, makeHero, makeMember, heroStats } = require('../adventure');
+const { newCampaign, makeHero, makeMember, heroStats, publicCampaign } = require('../adventure');
 const { startBattle, act, enemyTurn } = require('../combat');
 
 const html = fs.readFileSync(path.join(__dirname, '../public/index.html'), 'utf8');
@@ -42,8 +42,8 @@ function reachable(map) {
   };
 }
 
-test('todas as 33 áreas têm interações alcançáveis e portais com destino válido', () => {
-  assert.equal(Object.keys(World.zones).length, 33);
+test('todas as 34 áreas têm interações alcançáveis e portais com destino válido', () => {
+  assert.equal(Object.keys(World.zones).length, 34);
   for (const map of Object.values(World.zones)) {
     const canReach = reachable(map);
     for (const point of map.points) {
@@ -116,11 +116,22 @@ test('uma campanha anterior mantém chefes, tesouros e dados do herói', () => {
   assert.equal(member.data.zone, 'cave');
 });
 
-test('o Ent exige três fases mesmo com um ataque muito forte', () => {
+test('a princesa Maria Rita permanece presa até a vitória final e aparece em campanhas antigas concluídas', () => {
+  const beginning = newCampaign('F1A123', 'hero');
+  assert.equal(publicCampaign(beginning.data).rescued.includes('Maria Rita'), false);
+  const legacy = newCampaign('F1A124', 'hero', { world:{ shadow:true } });
+  const restored = publicCampaign(legacy.data);
+  assert.ok(restored.rescued.includes('Maria Rita'));
+  assert.ok(restored.fragments.some(fragment => fragment.region === 'shadow'));
+  legacy.data.rescued.push('Maria Rita');
+  assert.equal(publicCampaign(legacy.data).rescued.filter(name => name === 'Maria Rita').length, 1);
+});
+
+test('Morvath exige três fases na arena mesmo com um ataque muito forte', () => {
   const hero = { id:'guerreiro', data:makeHero('Guerreiro','warrior',{ attack:2000, defense:2000 }) };
   const entries = [hero];
   const battle = startBattle('forest', { region:'forest', boss:true },
-    { name:'Ent Corrompido', hp:260, atk:22, gold:50, xp:40 }, entries);
+    { name:'Morvath, o Bruxo das Sombras', hp:260, atk:22, gold:50, xp:40 }, entries);
   assert.equal(battle.move.type, 'charge');
   assert.equal(act(battle, hero.id, 'attack', entries).outcome, null);
   assert.equal(battle.phase, 2);
