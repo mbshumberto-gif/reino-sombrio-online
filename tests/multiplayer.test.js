@@ -268,7 +268,7 @@ test('PostgreSQL migra, persiste o checkpoint e confirma apenas gravação váli
   const second = await enter(other, 'create', otherHero);
   await send(first, 'leaveAdventure', {}, 'left');
   await wait(420);
-  const visitor = await enter(first, 'join', hero, { code:second.code });
+  const visitor = await enter(first, 'join', hero, { code:second.code, classKey:'mage' });
   assert.equal(visitor.self.classKey, 'mage');
   assert.equal(visitor.world.cleared.forest, false);
   assert.equal((await storage.readCampaign({ id:before.campaignId })).data.cleared.forest, true);

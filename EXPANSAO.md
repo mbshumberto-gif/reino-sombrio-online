@@ -4,7 +4,7 @@ Esta entrega amplia Vila, Floresta e Pomar como primeira região de referência.
 
 ## Roteiro para jogar
 
-1. Crie uma aventura. O padrão é **Exploração em tempo real · Chefes por turnos**, sem seletor de combate. A Druida é uma nova opção de personagem; escolher outra classe na entrada não transforma um personagem já salvo.
+1. Crie uma aventura. O padrão é **Exploração em tempo real · Chefes por turnos**, sem seletor de combate. Escolher outra classe para criar uma aventura ou entrar em uma sala cria um novo personagem e preserva o anterior. Use **Personagens deste navegador** para trocar entre os heróis guardados e **Continuar aventura** para retomar o herói selecionado.
 2. Colha uma maçã na Vila, encontre Lume no Pomar e peça a Lia para criar um Eco que acompanhe você. Converse com ela para aceitar **Uma horta para o recomeço**.
 3. Use um dos quatro canteiros pessoais ao sul do Pomar, plante, regue e volte para colher. Entregue a notícia da colheita a Lia. Alimentos ficam na mochila e restauram energia fora da luta.
 4. Explore a Floresta e sua dungeon. Morvath, o Bruxo das Sombras, aparece depois das cinco criaturas. Após a vinheta, enfrente as três fases do feiticeiro em uma arena por turnos: leia os golpes anunciados, quebre os totens e prepare sua defesa.
