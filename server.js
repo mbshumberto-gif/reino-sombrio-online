@@ -215,6 +215,33 @@ function createGame({ storage = createStorage({
     return true;
   }
 
+  function characterProfile(data) {
+    return {
+      name:cleanName(data?.name) || 'Aventureiro',
+      classKey:Story.own(HERO_CLASSES, data?.classKey) ? data.classKey : 'warrior',
+      level:Number.isSafeInteger(data?.level) && data.level > 0 ? data.level : 1
+    };
+  }
+
+  function guardCharacterClass(id, event, requestedClass, saved) {
+    if (!['create', 'join'].includes(event) || !Story.own(HERO_CLASSES, requestedClass)
+      || !Story.own(HERO_CLASSES, saved?.classKey) || requestedClass === saved.classKey) return;
+    const character = characterProfile(saved);
+    const error = fail('Este personagem já é ' + HERO_CLASSES[character.classKey].name + '. Crie outro herói para jogar com a classe escolhida.');
+    error.info = { code:'CHARACTER_CLASS_MISMATCH', heroId:id, character };
+    throw error;
+  }
+
+  async function inspectHero(socket, payload) {
+    if (stopping) throw fail('O servidor está reiniciando.');
+    const { id, key } = payload;
+    if (!credentials(id, key)) throw fail('A identificação do navegador é inválida.');
+    const hero = await storage.readHero(id);
+    if (hero && !sameKey(hero.keyHash, key)) throw fail('Use o navegador original ou recupere seu personagem.');
+    const saved = hero?.data || await storage.readLegacy(id);
+    socket.emit('heroProfile', { heroId:id, exists:!!saved, ...(saved ? { character:characterProfile(saved) } : {}) });
+  }
+
   async function enter(socket, event, payload) {
     if (stopping) throw fail('O servidor está reiniciando.');
     if (socket.data.heroId) throw fail('Você já está em uma aventura.');
@@ -224,6 +251,7 @@ function createGame({ storage = createStorage({
     if (active) {
       const entry = active.players.get(id);
       if (!sameKey(entry.keyHash, key)) throw fail('Use o navegador original ou recupere seu personagem.');
+      guardCharacterClass(id, event, payload.classKey, entry.data);
       const canResume = event === 'resume' && payload.campaignId === active.id;
       const canContinue = event === 'continue' && entry.data.homeCampaign === active.id;
       const canJoin = event === 'join' && payload.code === active.code;
@@ -250,6 +278,7 @@ function createGame({ storage = createStorage({
     let hero = await storage.readHero(id);
     if (hero && !sameKey(hero.keyHash, key)) throw fail('Use o navegador original ou recupere seu personagem.');
     const legacy = hero ? null : await storage.readLegacy(id);
+    guardCharacterClass(id, event, payload.classKey, hero?.data || legacy);
     if (!hero) hero = { id, keyHash: hash(key), revision: 0, data: Story.makeHero(cleanName(payload.name) || 'Aventureiro', payload.classKey, legacy || {}) };
     Lia.ensure(hero.data);
     let newRoom;
@@ -945,10 +974,10 @@ function createGame({ storage = createStorage({
 
   function report(socket, error) {
     if (error.code === 'GAME_RULE' || error.code === 'SAVE_CONFLICT') {
-      socket.emit('errorMessage', error.message, { retryable:false });
+      socket.emit('errorMessage', error.message, { ...error.info, retryable:false });
     } else {
       logger.error(error);
-      socket.emit('errorMessage', 'O progresso não foi confirmado. Tente novamente quando o servidor estiver disponível.', { retryable:true });
+      socket.emit('errorMessage', 'O progresso não foi confirmado. Tente novamente quando o servidor estiver disponível.', { ...error.info, retryable:true });
     }
   }
 
@@ -991,6 +1020,13 @@ function createGame({ storage = createStorage({
       }).catch(error => report(socket, error));
     });
 
+    admit('inspectHero', async payload => {
+      try { await inspectHero(socket, payload); }
+      catch (error) {
+        error.info = { request:'inspectHero', ...(typeof payload.id === 'string' && HERO_ID_PATTERN.test(payload.id) ? { heroId:payload.id } : {}) };
+        throw error;
+      }
+    });
     admit('adventure', payload => enter(socket, ['create', 'join', 'continue', 'resume'].includes(payload.action) ? payload.action : 'continue', payload));
     admit('redeemRecovery', async payload => {
       if (socket.data.heroId) throw fail('Feche a aventura antes de recuperar outro herói.');

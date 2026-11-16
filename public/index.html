@@ -9,7 +9,7 @@
   <script defer src="/socket.io/socket.io.js"></script>
   <script defer src="/world-data.js?v=7"></script>
   <script defer src="/pixel.js?v=9"></script>
-  <script defer src="/game.js?v=24"></script>
+  <script defer src="/game.js?v=25"></script>
 </head>
 <body>
   <main class="shell">
@@ -26,11 +26,16 @@
       <button id="backTitleBtn" type="button" class="subtle">← Voltar</button>
       <div class="entry-title"><canvas id="heroPreview" width="80" height="80" aria-hidden="true"></canvas><h2>Seu herói</h2></div>
       <form id="heroForm">
+        <div id="heroRosterPanel" class="hidden">
+          <label for="heroRoster">Personagens deste navegador</label>
+          <select id="heroRoster" name="heroRoster"></select>
+        </div>
         <label for="playerName">Nome do herói</label>
         <input id="playerName" name="playerName" maxlength="18" placeholder="Aventureiro" autocomplete="nickname">
         <label for="heroClass">Classe</label>
         <select id="heroClass" name="heroClass"><option value="warrior">Guerreiro</option></select>
         <p id="classRole" class="muted"></p>
+        <p id="savedHeroHint" class="muted" role="status"></p>
         <p id="combatModeSummary"><strong>Exploração em tempo real · Chefes por turnos</strong></p>
         <p class="muted entry-help">Chefes se revelam em uma cena e enfrentam o grupo na arena por turnos. Continuar mantém o modo da aventura.</p>
         <div class="button-row">
